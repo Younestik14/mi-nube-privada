@@ -178,14 +178,14 @@ if modo == "📐 Cálculo de secciones de conductores":
     st.markdown("""
     Este módulo calcula la **sección mínima reglamentaria** de los conductores según:
 
-    - **ITC-BT-19** → Intensidad máxima admisible  
-    - **ITC-BT-20** → Caída de tensión máxima permitida  
-    - **ITC-BT-40** → Instalaciones interiores en viviendas  
-    - **FV en corriente continua** con caída de tensión reglamentaria  
+    - ITC-BT-19 → Intensidad máxima admisible  
+    - ITC-BT-20 → Caída de tensión máxima permitida  
+    - ITC-BT-40 → Instalaciones interiores en viviendas  
+    - Instalaciones fotovoltaicas en **corriente continua**  
 
     Permite calcular mediante:
-    - **Potencia**
-    - **Intensidad directa (Ib)**
+    - Potencia  
+    - Intensidad directa (Ib)  
 
     ---
     """)
@@ -413,21 +413,38 @@ if modo == "📐 Cálculo de secciones de conductores":
     s_cdt_norm = next((s for s in secciones_ref if s >= s_cdt), 240)
 
     # =====================================================
-    # SECCIÓN FINAL
+    # SECCIÓN FINAL (ANTES DE MÍNIMOS REGLAMENTARIOS)
     # =====================================================
 
     s_final = max(s_adm, s_cdt_norm)
+
+    # =====================================================
+    # SECCIÓN MÍNIMA REGLAMENTARIA SEGÚN USO (REBT)
+    # =====================================================
+
+    seccion_minima_rebt = {
+        "General": 1.5,
+        "Motores": 2.5,
+        "Vehículo eléctrico": 6.0,
+        "Fotovoltaica": 4.0
+    }
+
+    s_min_regl = seccion_minima_rebt.get(uso, 1.5)
+
+    # Sección final aplicando mínimo reglamentario
+    s_final_regl = max(s_final, s_min_regl)
 
     st.divider()
 
     st.markdown(f"""
     <div class="resultado-caja">
-    SECCIÓN FINAL REBT/FV: {s_final} mm²
+    SECCIÓN FINAL REGLAMENTARIA: {s_final_regl} mm²
     <br>
     <small>
     Ib = {ib:.2f} A |
     Térmica = {s_adm} mm² |
-    CdT = {s_cdt:.2f} mm²
+    CdT = {s_cdt:.2f} mm² |
+    Mínimo REBT = {s_min_regl} mm²
     </small>
     </div>
     """, unsafe_allow_html=True)
@@ -440,14 +457,16 @@ if modo == "📐 Cálculo de secciones de conductores":
         "Parámetro": [
             "Tipo instalación", "Sistema", "Potencia (W)", "Longitud (m)", "cos φ",
             "Material", "Aislamiento", "Método REBT",
-            "Ib (A)", "Sección térmica (mm²)", "Sección CdT (mm²)", "SECCIÓN FINAL (mm²)"
+            "Ib (A)", "Sección térmica (mm²)", "Sección CdT (mm²)",
+            "Sección mínima REBT (mm²)", "SECCIÓN FINAL REGLAMENTARIA (mm²)"
         ],
         "Valor": [
             tipo_instalacion, sistema,
             potencia if modo_intensidad == "A partir de potencia" else "-",
             longitud, cos_phi,
             material, aislamiento, metodo,
-            round(ib, 2), s_adm, round(s_cdt, 2), s_final
+            round(ib, 2), s_adm, round(s_cdt, 2),
+            s_min_regl, s_final_regl
         ]
     })
 
