@@ -104,17 +104,19 @@ label, .stMarkdown, p, span, div {
 }
 
 .watermark-text {
-    font-size: 12px;
-    color: rgba(255,255,255,0.15);
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.40); /* Transparencia media */
+    letter-spacing: 0.5px;
 }
-
 </style>
 
 <div class="footer-container">
 <span class="watermark-text">
-Ingeniería Pro v7.0 — REBT Edition
+Younesse Tikent Tifaoui
 </span>
 </div>
+
 """, unsafe_allow_html=True)
 
 # =========================================================
