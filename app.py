@@ -1,135 +1,6 @@
-import streamlit as st
-import pandas as pd
-import math
-import io
-
-# --- 1. CONFIGURACIÓN Y ESTILO DARK PROFESIONAL ---
-st.set_page_config(page_title="Ingeniería Pro v3.0 - Full Suite", layout="wide", page_icon="⚡")
-
-st.markdown(
-    """
-    <style>
-    .stApp { background-color: #0e1117; color: #ffffff; }
-    label, .stMarkdown, p, span, div { color: #ffffff !important; font-weight: bold !important; }
-    
-    .resultado-caja {
-        color: #ffffff !important; font-weight: 900 !important; font-size: 24px;
-        background-color: #1f2937; padding: 20px; border-radius: 12px;
-        border-left: 8px solid #22d3ee; margin-bottom: 15px; text-align: right;
-        box-shadow: 0px 4px 15px rgba(0,0,0,0.5);
-    }
-
-    .total-final-banner {
-        color: #ffffff !important; font-weight: 900 !important; font-size: 42px;
-        background: linear-gradient(135deg, #1e1e1e 0%, #2d3436 100%);
-        padding: 50px; border-radius: 25px; text-align: center;
-        border: 3px solid #ffd700; margin-top: 50px;
-        box-shadow: 0px 20px 40px rgba(0,0,0,0.7);
-    }
-
-    .stExpander { 
-        border: 1px solid #374151 !important; border-radius: 15px !important; 
-        background-color: #161b22 !important; margin-bottom: 20px !important;
-    }
-    
-    .footer-container {
-        position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%);
-        z-index: 9999; pointer-events: none; text-align: center; width: 100%;
-    }
-    .watermark-text { font-size: 12px; color: rgba(255, 255, 255, 0.15); }
-    </style>
-    <div class="footer-container"><span class="watermark-text">Younesse Tikent Tifaoui - Senior Technical Consultant</span></div>
-    """,
-    unsafe_allow_html=True
-)
-
-# --- FUNCIÓN DE EXPORTACIÓN ---
-def to_excel(df):
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Presupuesto')
-    return output.getvalue()
-
-# --- 2. MOTOR DE CÁLCULO REBT (MATRIZ UNE-HD 60364-5-52) ---
-secciones_ref = [1.5, 2.5, 4, 6, 10, 16, 25, 35, 50, 70, 95, 120, 150, 185, 240]
-tablas_adm = {
-    "A1 - Empotrado en tubo (Pared aislante)": {
-        "PVC": [14.5, 19.5, 26, 34, 46, 61, 80, 99, 119, 151, 182, 210, 240, 273, 321],
-        "XLPE": [18.5, 25, 33, 43, 59, 77, 102, 126, 153, 194, 233, 268, 307, 352, 415]
-    },
-    "A2 - Multiconductor en tubo (Pared aislante)": {
-        "PVC": [14, 18.5, 25, 32, 43, 57, 75, 92, 110, 139, 167, 192, 219, 248, 291],
-        "XLPE": [17.5, 24, 32, 41, 54, 73, 95, 117, 141, 179, 216, 249, 285, 324, 380]
-    },
-    "B1 - Conductores en tubo (Sobre pared)": {
-        "PVC": [17.5, 24, 32, 41, 57, 76, 101, 125, 151, 192, 232, 269, 300, 341, 400],
-        "XLPE": [22, 30, 40, 52, 71, 94, 126, 157, 190, 241, 292, 338, 388, 442, 523]
-    },
-    "B2 - Multiconductor en tubo (Sobre pared)": {
-        "PVC": [16.5, 23, 30, 38, 52, 69, 92, 114, 138, 175, 210, 244, 282, 319, 375],
-        "XLPE": [21, 28, 38, 49, 66, 88, 117, 146, 175, 222, 269, 312, 358, 408, 481]
-    },
-    "C - Cable sobre pared de madera/mampostería": {
-        "PVC": [19.5, 27, 36, 46, 63, 85, 112, 138, 168, 213, 258, 299, 344, 391, 461],
-        "XLPE": [24, 33, 45, 58, 80, 107, 138, 171, 209, 269, 328, 382, 441, 506, 599]
-    },
-    "D1 - Cable en conductos enterrados": {
-        "PVC": [22, 29, 38, 47, 63, 81, 104, 125, 148, 183, 216, 246, 278, 312, 361],
-        "XLPE": [26, 34, 44, 56, 73, 95, 121, 146, 173, 213, 252, 287, 324, 363, 419]
-    },
-    "E - Multiconductor al aire libre": {
-        "PVC": [22, 30, 40, 51, 70, 94, 126, 154, 187, 237, 286, 331, 381, 434, 511],
-        "XLPE": [26, 36, 49, 63, 86, 115, 149, 185, 225, 289, 352, 410, 473, 542, 641]
-    },
-    "F - Unipolares en contacto (Bandeja perforada)": {
-        "PVC": [21, 28, 38, 50, 68, 92, 121, 150, 184, 233, 282, 327, 376, 428, 505],
-        "XLPE": [25, 34, 46, 61, 83, 112, 146, 181, 221, 281, 341, 396, 455, 517, 613]
-    }
-}
-
-# --- 3. SIDEBAR ---
-with st.sidebar:
-    st.header("⚙️ Configuración Global")
-    modo = st.radio("Módulo de Trabajo:", ["📐 Dimensionado REBT", "💰 Presupuesto Maestro"])
-    st.divider()
-    iva_tipo = st.selectbox("IVA Aplicable (%)", [21, 10, 4, 0], index=0)
-    
-    if modo == "💰 Presupuesto Maestro":
-        gastos_gen = st.slider("% Gastos Generales", 0, 30, 13)
-        beneficio_ind = st.slider("% Beneficio Industrial", 0, 20, 6)
-        f_multiplicador = 1 + (gastos_gen / 100) + (beneficio_ind / 100)
-    else:
-        f_multiplicador = 1.0
-
-# --- 4. MÓDULO TÉCNICO ---
-if modo == "📐 Dimensionado REBT":
-    st.title("📐 Oficina Técnica: Cálculo de Líneas s/ REBT")
-    c1, c2 = st.columns(2)
-    with c1:
-        sistema = st.selectbox("Sistema Eléctrico", ["Monofásico 230V", "Trifásico 400V"])
-        potencia = st.number_input("Potencia de Cálculo (W)", value=5750, step=100)
-        longitud = st.number_input("Longitud de la Línea (m)", value=30.0, step=1.0)
-        cos_phi = st.slider("Factor de Potencia (cos φ)", 0.70, 1.00, 0.90)
-    with c2:
-        material = st.radio("Material Conductor", ["Cobre (Cu)", "Aluminio (Al)"], horizontal=True)
-        aislamiento = st.radio("Tipo de Aislamiento", ["PVC (70°C)", "XLPE/EPR (90°C)"], horizontal=True)
-        metodo_inst = st.selectbox("Método de Instalación", list(tablas_adm.keys()))
-        max_cdt = st.number_input("Caída de Tensión Máx (%)", value=3.0, step=0.1)
-
-    # Cálculo Intensidad
-    v_fase = 230 if "Mono" in sistema else 400
-    ib = potencia / (v_fase * cos_phi) if v_fase == 230 else potencia / (math.sqrt(3) * v_fase * cos_phi)
-    
-    # Sección por Intensidad Admisible
-    ais_key = "PVC" if "PVC" in aislamiento else "XLPE"
-    intensidades = tablas_adm[metodo_inst][ais_key]
-    s_adm = secciones_ref[next((i for i, v in enumerate(intensidades) if v >= ib), -1)]
-    
-    st.divider()
-    st.markdown(f'<div class="resultado-caja">SECCIÓN REGLAMENTARIA: {s_adm} mm²<br><small>Intensidad: {ib:.2f} A</small></div>', unsafe_allow_html=True)
-    
-    df_calc = pd.DataFrame({"Variable": ["Potencia", "Intensidad", "Sección"], "Valor": [f"{potencia} W", f"{ib:.2f} A", f"{s_adm} mm²"]})
-    st.download_button("📥 Descargar Memoria (Excel)", to_excel(df_calc), "calculo_rebt.xlsx")
+# =========================================================
+# MÓDULO COMPLETO DIMENSIONADO REBT
+# =========================================================
 
 import streamlit as st
 import pandas as pd
@@ -137,17 +8,17 @@ import io
 import math
 
 # =========================================================
-# CONFIGURACIÓN GENERAL
+# CONFIGURACIÓN PÁGINA
 # =========================================================
 
 st.set_page_config(
-    page_title="Ingeniería Pro v5.0",
+    page_title="Cálculo de Secciones REBT",
     layout="wide",
     page_icon="⚡"
 )
 
 # =========================================================
-# ESTILO DARK PROFESIONAL
+# ESTILO VISUAL
 # =========================================================
 
 st.markdown("""
@@ -166,66 +37,30 @@ label, .stMarkdown, p, span, div {
 .resultado-caja {
     color: #ffffff !important;
     font-weight: 900 !important;
-    font-size: 24px;
+    font-size: 26px;
     background-color: #1f2937;
-    padding: 20px;
-    border-radius: 12px;
-    border-left: 8px solid #22d3ee;
-    margin-bottom: 15px;
+    padding: 25px;
+    border-radius: 15px;
+    border-left: 10px solid #22d3ee;
+    margin-bottom: 20px;
     text-align: right;
-    box-shadow: 0px 4px 15px rgba(0,0,0,0.5);
+    box-shadow: 0px 6px 20px rgba(0,0,0,0.6);
 }
 
-.total-final-banner {
-    color: #ffffff !important;
-    font-weight: 900 !important;
-    font-size: 42px;
-    background: linear-gradient(135deg, #1e1e1e 0%, #2d3436 100%);
-    padding: 50px;
-    border-radius: 25px;
-    text-align: center;
-    border: 3px solid #ffd700;
-    margin-top: 50px;
-    box-shadow: 0px 20px 40px rgba(0,0,0,0.7);
-}
-
-.stExpander {
-    border: 1px solid #374151 !important;
-    border-radius: 15px !important;
-    background-color: #161b22 !important;
-    margin-bottom: 20px !important;
-}
-
-.footer-container {
-    position: fixed;
-    bottom: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 9999;
-    pointer-events: none;
-    text-align: center;
-    width: 100%;
-}
-
-.watermark-text {
-    font-size: 12px;
-    color: rgba(255,255,255,0.15);
+.stNumberInput input,
+.stSelectbox div {
+    background-color: #0d1117 !important;
+    color: white !important;
 }
 
 </style>
-
-<div class="footer-container">
-<span class="watermark-text">
-Younesse Tikent Tifaoui - Senior Technical Consultant
-</span>
-</div>
 """, unsafe_allow_html=True)
 
 # =========================================================
-# EXPORTACIÓN EXCEL
+# FUNCIÓN EXPORTACIÓN EXCEL
 # =========================================================
 
-def exportar_excel(df, nombre_hoja="Presupuesto"):
+def exportar_excel(df):
 
     output = io.BytesIO()
 
@@ -234,11 +69,11 @@ def exportar_excel(df, nombre_hoja="Presupuesto"):
         df.to_excel(
             writer,
             index=False,
-            sheet_name=nombre_hoja
+            sheet_name='Memoria_Calculo'
         )
 
         workbook = writer.book
-        worksheet = writer.sheets[nombre_hoja]
+        worksheet = writer.sheets['Memoria_Calculo']
 
         formato_header = workbook.add_format({
             'bold': True,
@@ -246,11 +81,6 @@ def exportar_excel(df, nombre_hoja="Presupuesto"):
             'font_color': 'white',
             'border': 1,
             'align': 'center'
-        })
-
-        formato_money = workbook.add_format({
-            'num_format': '#,##0.00 €',
-            'border': 1
         })
 
         formato_texto = workbook.add_format({
@@ -266,14 +96,554 @@ def exportar_excel(df, nombre_hoja="Presupuesto"):
                 formato_header
             )
 
-        worksheet.set_column('A:A', 45, formato_texto)
-        worksheet.set_column('B:B', 50, formato_texto)
-        worksheet.set_column('C:Z', 20, formato_money)
+        worksheet.set_column(
+            'A:Z',
+            35,
+            formato_texto
+        )
 
     return output.getvalue()
 
 # =========================================================
-# CATÁLOGO PROFESIONAL COMPLETO
+# SECCIONES NORMALIZADAS
+# =========================================================
+
+secciones_ref = [
+    1.5, 2.5, 4, 6, 10,
+    16, 25, 35, 50, 70,
+    95, 120, 150, 185, 240
+]
+
+# =========================================================
+# TABLAS INTENSIDADES ADMISIBLES
+# UNE-HD 60364-5-52
+# =========================================================
+
+tablas_adm = {
+
+    "A1 - Empotrado en tubo (pared aislante)": {
+
+        "PVC": [
+            14.5, 19.5, 26, 34, 46,
+            61, 80, 99, 119, 151,
+            182, 210, 240, 273, 321
+        ],
+
+        "XLPE": [
+            18.5, 25, 33, 43, 59,
+            77, 102, 126, 153, 194,
+            233, 268, 307, 352, 415
+        ]
+    },
+
+    "B1 - Conductores en tubo sobre pared": {
+
+        "PVC": [
+            17.5, 24, 32, 41, 57,
+            76, 101, 125, 151, 192,
+            232, 269, 300, 341, 400
+        ],
+
+        "XLPE": [
+            22, 30, 40, 52, 71,
+            94, 126, 157, 190, 241,
+            292, 338, 388, 442, 523
+        ]
+    },
+
+    "C - Cable sobre pared": {
+
+        "PVC": [
+            19.5, 27, 36, 46, 63,
+            85, 112, 138, 168, 213,
+            258, 299, 344, 391, 461
+        ],
+
+        "XLPE": [
+            24, 33, 45, 58, 80,
+            107, 138, 171, 209, 269,
+            328, 382, 441, 506, 599
+        ]
+    },
+
+    "D1 - Conductos enterrados": {
+
+        "PVC": [
+            22, 29, 38, 47, 63,
+            81, 104, 125, 148, 183,
+            216, 246, 278, 312, 361
+        ],
+
+        "XLPE": [
+            26, 34, 44, 56, 73,
+            95, 121, 146, 173, 213,
+            252, 287, 324, 363, 419
+        ]
+    },
+
+    "E - Multiconductor al aire": {
+
+        "PVC": [
+            22, 30, 40, 51, 70,
+            94, 126, 154, 187, 237,
+            286, 331, 381, 434, 511
+        ],
+
+        "XLPE": [
+            26, 36, 49, 63, 86,
+            115, 149, 185, 225, 289,
+            352, 410, 473, 542, 641
+        ]
+    },
+
+    "F - Bandeja perforada": {
+
+        "PVC": [
+            21, 28, 38, 50, 68,
+            92, 121, 150, 184, 233,
+            282, 327, 376, 428, 505
+        ],
+
+        "XLPE": [
+            25, 34, 46, 61, 83,
+            112, 146, 181, 221, 281,
+            341, 396, 455, 517, 613
+        ]
+    }
+}
+
+# =========================================================
+# FUNCIÓN SECCIÓN POR INTENSIDAD
+# =========================================================
+
+def get_seccion_adm(
+    metodo,
+    aislamiento,
+    ib
+):
+
+    ais_key = (
+        "PVC"
+        if "PVC" in aislamiento
+        else "XLPE"
+    )
+
+    intensidades = tablas_adm[
+        metodo
+    ][ais_key]
+
+    for i, intensidad in enumerate(intensidades):
+
+        if intensidad >= ib:
+
+            return secciones_ref[i]
+
+    return 240
+
+# =========================================================
+# TÍTULO
+# =========================================================
+
+st.title("📐 Oficina Técnica - Cálculo de Secciones REBT")
+
+# =========================================================
+# COLUMNAS
+# =========================================================
+
+c1, c2 = st.columns(2)
+
+# =========================================================
+# DATOS CARGA
+# =========================================================
+
+with c1:
+
+    st.subheader("⚡ Datos Eléctricos")
+
+    sistema = st.selectbox(
+        "Sistema Eléctrico",
+        [
+            "Monofásico 230V",
+            "Trifásico 400V"
+        ]
+    )
+
+    potencia = st.number_input(
+        "Potencia de cálculo (W)",
+        value=5750.0,
+        step=100.0
+    )
+
+    longitud = st.number_input(
+        "Longitud línea (m)",
+        value=30.0,
+        step=1.0
+    )
+
+    cos_phi = st.slider(
+        "Factor potencia (cos φ)",
+        0.70,
+        1.00,
+        0.90
+    )
+
+    factor_uso = st.selectbox(
+        "Factor de uso",
+        [
+            "General (1.0)",
+            "Motores (1.25)",
+            "Lámparas descarga (1.8)",
+            "Vehículo eléctrico (1.25)"
+        ]
+    )
+
+# =========================================================
+# PARÁMETROS INSTALACIÓN
+# =========================================================
+
+with c2:
+
+    st.subheader("🛠️ Instalación")
+
+    material = st.radio(
+        "Material conductor",
+        [
+            "Cobre (Cu)",
+            "Aluminio (Al)"
+        ]
+    )
+
+    aislamiento = st.radio(
+        "Aislamiento",
+        [
+            "PVC (70°C)",
+            "XLPE/EPR (90°C)"
+        ]
+    )
+
+    metodo = st.selectbox(
+        "Método instalación",
+        list(tablas_adm.keys())
+    )
+
+    max_cdt = st.number_input(
+        "Caída tensión máxima (%)",
+        value=3.0,
+        step=0.1
+    )
+
+    temperatura = st.number_input(
+        "Temperatura ambiente (°C)",
+        value=30
+    )
+
+# =========================================================
+# FACTOR UTILIZACIÓN
+# =========================================================
+
+if "Motores" in factor_uso:
+
+    k_u = 1.25
+
+elif "Vehículo" in factor_uso:
+
+    k_u = 1.25
+
+elif "Lámparas" in factor_uso:
+
+    k_u = 1.8
+
+else:
+
+    k_u = 1.0
+
+# =========================================================
+# TENSIÓN
+# =========================================================
+
+v_fase = (
+    230
+    if "Mono" in sistema
+    else 400
+)
+
+# =========================================================
+# INTENSIDAD
+# =========================================================
+
+if v_fase == 230:
+
+    ib = (
+        potencia * k_u
+    ) / (
+        v_fase * cos_phi
+    )
+
+else:
+
+    ib = (
+        potencia * k_u
+    ) / (
+        1.732 *
+        v_fase *
+        cos_phi
+    )
+
+# =========================================================
+# SECCIÓN POR INTENSIDAD
+# =========================================================
+
+s_adm = get_seccion_adm(
+    metodo,
+    aislamiento,
+    ib
+)
+
+# =========================================================
+# CONDUCTIVIDAD
+# =========================================================
+
+if "Cobre" in material:
+
+    gamma = (
+        48
+        if "PVC" in aislamiento
+        else 44
+    )
+
+else:
+
+    gamma = (
+        30
+        if "PVC" in aislamiento
+        else 28
+    )
+
+# =========================================================
+# CÁLCULO Caída tensión
+# =========================================================
+
+if v_fase == 230:
+
+    s_cdt = (
+
+        2 *
+        longitud *
+        potencia
+
+    ) / (
+
+        gamma *
+        (
+            max_cdt / 100 *
+            v_fase
+        ) *
+        v_fase
+    )
+
+else:
+
+    s_cdt = (
+
+        longitud *
+        potencia
+
+    ) / (
+
+        gamma *
+        (
+            max_cdt / 100 *
+            v_fase
+        ) *
+        v_fase
+    )
+
+# =========================================================
+# NORMALIZACIÓN SECCIÓN
+# =========================================================
+
+s_cdt_norm = next(
+    (
+        s for s in secciones_ref
+        if s >= s_cdt
+    ),
+    240
+)
+
+# =========================================================
+# SECCIÓN FINAL
+# =========================================================
+
+s_final = max(
+    s_adm,
+    s_cdt_norm
+)
+
+# =========================================================
+# RESULTADOS
+# =========================================================
+
+st.divider()
+
+st.markdown(f"""
+<div class="resultado-caja">
+
+SECCIÓN REGLAMENTARIA:
+{s_final} mm²
+
+<br>
+
+<small style="font-size:15px;">
+
+Ib = {ib:.2f} A
+
+|
+
+Térmico = {s_adm} mm²
+
+|
+
+CdT = {s_cdt:.2f} mm²
+
+</small>
+
+</div>
+""", unsafe_allow_html=True)
+
+# =========================================================
+# TABLA RESULTADOS
+# =========================================================
+
+df_resultados = pd.DataFrame({
+
+    "Parámetro": [
+
+        "Sistema",
+        "Potencia (W)",
+        "Longitud (m)",
+        "cos φ",
+        "Material",
+        "Aislamiento",
+        "Método instalación",
+        "Temperatura ambiente",
+        "Intensidad Ib (A)",
+        "Sección térmica (mm²)",
+        "Sección CdT (mm²)",
+        "SECCIÓN FINAL (mm²)"
+    ],
+
+    "Valor": [
+
+        sistema,
+        potencia,
+        longitud,
+        cos_phi,
+        material,
+        aislamiento,
+        metodo,
+        temperatura,
+        round(ib, 2),
+        s_adm,
+        round(s_cdt, 2),
+        s_final
+    ]
+})
+
+# =========================================================
+# MOSTRAR TABLA
+# =========================================================
+
+st.dataframe(
+    df_resultados,
+    use_container_width=True
+)
+
+# =========================================================
+# EXPORTAR EXCEL
+# =========================================================
+
+excel_data = exportar_excel(
+    df_resultados
+)
+
+st.download_button(
+
+    "📥 Descargar Memoria de Cálculo Excel",
+
+    excel_data,
+
+    "memoria_calculo_rebt.xlsx",
+
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+
+    use_container_width=True
+# =========================================================
+# =========================================================
+#  PRESUPUESTO MAESTRO REBT PROFESIONAL
+#  CONTINUACIÓN DEL MÓDULO DE SECCIONES
+# =========================================================
+# =========================================================
+
+# =========================================================
+# SIDEBAR PRESUPUESTO
+# =========================================================
+
+with st.sidebar:
+
+    st.divider()
+
+    st.header("💰 Configuración Económica")
+
+    gastos_generales = st.slider(
+        "% Gastos Generales",
+        0,
+        30,
+        13
+    )
+
+    beneficio_industrial = st.slider(
+        "% Beneficio Industrial",
+        0,
+        20,
+        6
+    )
+
+    iva_tipo = st.selectbox(
+        "IVA Aplicable (%)",
+        [21, 10, 4, 0],
+        index=0
+    )
+
+    precio_oficial = st.number_input(
+        "Oficial 1ª (€/h)",
+        20.0,
+        80.0,
+        36.0
+    )
+
+    precio_ayudante = st.number_input(
+        "Ayudante (€/h)",
+        15.0,
+        60.0,
+        26.5
+    )
+
+    multiplicador = (
+        1
+        + gastos_generales / 100
+        + beneficio_industrial / 100
+    )
+
+# =========================================================
+# TÍTULO
+# =========================================================
+
+st.divider()
+
+st.title("💰 Gestor Profesional de Presupuestos REBT")
+
+# =========================================================
+# CATÁLOGO COMPLETO
 # =========================================================
 
 catalogo_precios = {
@@ -290,9 +660,11 @@ catalogo_precios = {
     "Cable 16 mm²": 4.10,
     "Cable 25 mm²": 6.50,
     "Cable 35 mm²": 9.20,
+    "Cable 50 mm²": 13.50,
+    "Cable 70 mm²": 18.00,
 
     # =====================================================
-    # TUBOS Y CANALIZACIONES
+    # TUBOS
     # =====================================================
 
     "Tubo Ø16mm": 0.45,
@@ -305,13 +677,14 @@ catalogo_precios = {
 
     "Canaleta PVC": 4.50,
     "Bandeja Perforada": 12.00,
+    "Bandeja Rejilla": 16.00,
 
     # =====================================================
     # MECANISMOS
     # =====================================================
 
     "Interruptor Simple": 4.20,
-    "Interruptor Doble": 8.20,
+    "Interruptor Doble": 8.50,
     "Conmutador": 5.80,
     "Cruzamiento": 11.50,
 
@@ -392,7 +765,7 @@ catalogo_precios = {
     "Relé Térmico": 44.00,
 
     # =====================================================
-    # CUADROS Y CAJAS
+    # CUADROS
     # =====================================================
 
     "Caja Cuadro": 75.00,
@@ -438,7 +811,7 @@ catalogo_precios = {
 }
 
 # =========================================================
-# CIRCUITOS REBT
+# CAPÍTULOS REBT
 # =========================================================
 
 capitulos_config = {
@@ -461,7 +834,7 @@ capitulos_config = {
     "C11": "DOMÓTICA",
     "C12": "AUXILIARES",
 
-    "C13": "VEHÍCULO ELÉCTRICO",
+    "C13": "RECARGA VEHÍCULO ELÉCTRICO",
     "C14": "FOTOVOLTAICA",
 
     "PAT": "PUESTA A TIERRA"
@@ -482,14 +855,14 @@ explicaciones = {
     "C4": "Lavadora y termo.",
     "C5": "Baños y cocina.",
 
-    "C6": "Circuito iluminación extra.",
-    "C7": "Tomas adicionales.",
-    "C8": "Calefacción eléctrica.",
-    "C9": "Climatización.",
-    "C10": "Secadora.",
+    "C6": "Circuito iluminación adicional.",
+    "C7": "Circuito adicional tomas.",
+    "C8": "Circuito calefacción.",
+    "C9": "Circuito climatización.",
+    "C10": "Circuito secadora.",
 
     "C11": "Automatización y domótica.",
-    "C12": "Auxiliares.",
+    "C12": "Servicios auxiliares.",
 
     "C13": "Recarga vehículo eléctrico.",
     "C14": "Sistema fotovoltaico.",
@@ -498,64 +871,13 @@ explicaciones = {
 }
 
 # =========================================================
-# SIDEBAR
-# =========================================================
-
-with st.sidebar:
-
-    st.header("⚙️ Configuración")
-
-    gastos_generales = st.slider(
-        "% Gastos Generales",
-        0,
-        30,
-        13
-    )
-
-    beneficio = st.slider(
-        "% Beneficio Industrial",
-        0,
-        20,
-        6
-    )
-
-    iva_tipo = st.selectbox(
-        "IVA (%)",
-        [21, 10, 4, 0]
-    )
-
-    precio_oficial = st.number_input(
-        "Oficial 1ª €/h",
-        value=36.0
-    )
-
-    precio_ayudante = st.number_input(
-        "Ayudante €/h",
-        value=26.5
-    )
-
-    multiplicador = (
-        1
-        + gastos_generales / 100
-        + beneficio / 100
-    )
-
-# =========================================================
-# TÍTULO
-# =========================================================
-
-st.title("💰 Ingeniería Pro - Presupuesto Maestro REBT")
-
-# =========================================================
 # VARIABLES EXPORTACIÓN
 # =========================================================
 
-resumen_costes = []
-capitulos_export = []
-explicaciones_export = []
+datos_export = []
 
 # =========================================================
-# GENERADOR PRESUPUESTO
+# CAPÍTULOS
 # =========================================================
 
 for codigo, nombre in capitulos_config.items():
@@ -564,21 +886,31 @@ for codigo, nombre in capitulos_config.items():
 
         st.info(explicaciones[codigo])
 
-        seleccion = st.multiselect(
+        materiales = st.multiselect(
+
             f"Materiales {codigo}",
+
             list(catalogo_precios.keys()),
+
             key=f"sel_{codigo}"
         )
 
         coste_materiales = 0
 
-        for item in seleccion:
+        detalle_materiales = []
+
+        for item in materiales:
 
             cantidad = st.number_input(
+
                 f"Cantidad {item}",
+
                 min_value=0.0,
+
                 value=0.0,
+
                 step=1.0,
+
                 key=f"{codigo}_{item}"
             )
 
@@ -589,79 +921,127 @@ for codigo, nombre in capitulos_config.items():
 
             coste_materiales += subtotal
 
+            detalle_materiales.append({
+
+                "Capítulo": codigo,
+                "Elemento": item,
+                "Cantidad": cantidad,
+                "Precio Unitario (€)": catalogo_precios[item],
+                "Subtotal (€)": round(subtotal, 2)
+            })
+
         st.divider()
 
-        c1, c2 = st.columns(2)
+        col1, col2 = st.columns(2)
 
-        horas_oficial = c1.number_input(
+        horas_oficial = col1.number_input(
+
             "Horas Oficial",
+
             min_value=0.0,
+
             value=0.0,
+
             key=f"of_{codigo}"
         )
 
-        horas_ayudante = c2.number_input(
+        horas_ayudante = col2.number_input(
+
             "Horas Ayudante",
+
             min_value=0.0,
+
             value=0.0,
+
             key=f"ay_{codigo}"
         )
 
         mano_obra = (
-            horas_oficial * precio_oficial
+
+            horas_oficial *
+            precio_oficial
+
             +
-            horas_ayudante * precio_ayudante
+
+            horas_ayudante *
+            precio_ayudante
         )
 
         total_capitulo = (
+
             coste_materiales
             + mano_obra
+
         ) * multiplicador
 
         st.markdown(f"""
         <div class="resultado-caja">
+
         {total_capitulo:,.2f} €
+
         </div>
         """, unsafe_allow_html=True)
 
         if total_capitulo > 0:
 
-            resumen_costes.append(
-                total_capitulo
-            )
+            datos_export.append({
 
-            capitulos_export.append(
-                f"{codigo} - {nombre}"
-            )
+                "Capítulo":
+                f"{codigo} - {nombre}",
 
-            explicaciones_export.append(
-                explicaciones[codigo]
-            )
+                "Descripción":
+                explicaciones[codigo],
+
+                "Materiales (€)":
+                round(coste_materiales, 2),
+
+                "Mano de Obra (€)":
+                round(mano_obra, 2),
+
+                "GG + BI":
+                f"{gastos_generales + beneficio_industrial}%",
+
+                "Base (€)":
+                round(total_capitulo, 2),
+
+                "IVA (%)":
+                iva_tipo,
+
+                "IVA (€)":
+                round(
+                    total_capitulo *
+                    iva_tipo / 100,
+                    2
+                ),
+
+                "TOTAL (€)":
+                round(
+                    total_capitulo *
+                    (1 + iva_tipo / 100),
+                    2
+                )
+            })
 
 # =========================================================
 # TOTAL FINAL
 # =========================================================
 
-if resumen_costes:
+if len(datos_export) > 0:
 
     st.divider()
 
-    total_base = sum(resumen_costes)
+    df_presupuesto = pd.DataFrame(datos_export)
 
-    iva_importe = (
-        total_base *
-        (iva_tipo / 100)
-    )
+    total_base = df_presupuesto["Base (€)"].sum()
 
-    total_final = (
-        total_base +
-        iva_importe
-    )
+    total_iva = df_presupuesto["IVA (€)"].sum()
+
+    total_final = df_presupuesto["TOTAL (€)"].sum()
 
     st.markdown(f"""
     <div class="total-final-banner">
 
-    PRESUPUESTO TOTAL
+    PRESUPUESTO TOTAL EJECUCIÓN
 
     <br>
 
@@ -672,83 +1052,70 @@ if resumen_costes:
     <br>
 
     <small>
-    Base: {total_base:,.2f} €
+
+    Base:
+    {total_base:,.2f} €
+
     |
-    IVA ({iva_tipo}%): {iva_importe:,.2f} €
+
+    IVA:
+    {total_iva:,.2f} €
+
     </small>
 
     </div>
     """, unsafe_allow_html=True)
 
     # =====================================================
-    # DATAFRAME
+    # MOSTRAR TABLA
     # =====================================================
 
-    datos_export = []
-
-    for i in range(len(capitulos_export)):
-
-        base = resumen_costes[i]
-
-        iva_cap = (
-            base *
-            (iva_tipo / 100)
-        )
-
-        total = (
-            base +
-            iva_cap
-        )
-
-        datos_export.append({
-
-            "Capítulo": capitulos_export[i],
-
-            "Descripción Técnica":
-            explicaciones_export[i],
-
-            "Base (€)": round(base, 2),
-
-            "IVA (%)": iva_tipo,
-
-            "IVA (€)": round(iva_cap, 2),
-
-            "Total (€)": round(total, 2)
-        })
-
-    df_final = pd.DataFrame(datos_export)
+    st.dataframe(
+        df_presupuesto,
+        use_container_width=True
+    )
 
     # =====================================================
-    # DESCARGA CSV
+    # EXPORTACIÓN EXCEL
     # =====================================================
 
-    csv_data = df_final.to_csv(
+    excel_presupuesto = exportar_excel(
+        df_presupuesto
+    )
+
+    st.download_button(
+
+        "📊 Descargar Presupuesto Profesional Excel",
+
+        excel_presupuesto,
+
+        "presupuesto_profesional.xlsx",
+
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+
+        use_container_width=True
+    )
+
+    # =====================================================
+    # EXPORTACIÓN CSV
+    # =====================================================
+
+    csv_presupuesto = df_presupuesto.to_csv(
+
         index=False,
         sep=';',
         encoding='utf-16'
     )
 
     st.download_button(
-        "📥 Descargar CSV",
-        csv_data,
-        "presupuesto.csv",
+
+        "📥 Descargar Presupuesto CSV",
+
+        csv_presupuesto,
+
+        "presupuesto_profesional.csv",
+
         "text/csv",
-        use_container_width=True
-    )
 
-    # =====================================================
-    # DESCARGA EXCEL
-    # =====================================================
-
-    excel_data = exportar_excel(
-        df_final,
-        "Presupuesto"
-    )
-
-    st.download_button(
-        "📊 Descargar Excel Profesional",
-        excel_data,
-        "presupuesto_profesional.xlsx",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True
     )
