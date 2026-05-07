@@ -130,11 +130,6 @@ def exportar_excel(df, hoja="Datos"):
             'border': 1
         })
 
-        formato_money = workbook.add_format({
-            'border': 1,
-            'num_format': '#,##0.00 €'
-        })
-
         for col_num, value in enumerate(df.columns.values):
 
             worksheet.write(
@@ -243,29 +238,18 @@ if modo == "📐 Cálculo de Secciones":
         "XLPE": [25,34,46,61,83,112,146,181,221,281,341,396,455,517,613]
     }
     }
-        
+
     # =====================================================
     # FUNCIÓN
     # =====================================================
 
-    def get_seccion_adm(
-        metodo,
-        aislamiento,
-        ib
-    ):
+    def get_seccion_adm(metodo, aislamiento, ib):
 
-        ais = (
-            "PVC"
-            if "PVC" in aislamiento
-            else "XLPE"
-        )
-
+        ais = "PVC" if "PVC" in aislamiento else "XLPE"
         intensidades = tablas_adm[metodo][ais]
 
         for i, intensidad in enumerate(intensidades):
-
             if intensidad >= ib:
-
                 return secciones_ref[i]
 
         return 240
@@ -286,54 +270,29 @@ if modo == "📐 Cálculo de Secciones":
 
         sistema = st.selectbox(
             "Sistema",
-            [
-                "Monofásico 230V",
-                "Trifásico 400V"
-            ]
+            ["Monofásico 230V", "Trifásico 400V"]
         )
 
-        potencia = st.number_input(
-            "Potencia (W)",
-            value=5750.0
-        )
+        potencia = st.number_input("Potencia (W)", value=5750.0)
+        longitud = st.number_input("Longitud (m)", value=30.0)
 
-        longitud = st.number_input(
-            "Longitud (m)",
-            value=30.0
-        )
-
-        cos_phi = st.slider(
-            "cos φ",
-            0.70,
-            1.00,
-            0.90
-        )
+        cos_phi = st.slider("cos φ", 0.70, 1.00, 0.90)
 
         uso = st.selectbox(
             "Tipo uso",
-            [
-                "General",
-                "Motores",
-                "Vehículo eléctrico"
-            ]
+            ["General", "Motores", "Vehículo eléctrico"]
         )
 
     with c2:
 
         material = st.radio(
             "Material",
-            [
-                "Cobre (Cu)",
-                "Aluminio (Al)"
-            ]
+            ["Cobre (Cu)", "Aluminio (Al)"]
         )
 
         aislamiento = st.radio(
             "Aislamiento",
-            [
-                "PVC (70°C)",
-                "XLPE/EPR (90°C)"
-            ]
+            ["PVC (70°C)", "XLPE/EPR (90°C)"]
         )
 
         metodo = st.selectbox(
@@ -341,138 +300,51 @@ if modo == "📐 Cálculo de Secciones":
             list(tablas_adm.keys())
         )
 
-        max_cdt = st.number_input(
-            "CdT máxima (%)",
-            value=3.0
-        )
+        max_cdt = st.number_input("CdT máxima (%)", value=3.0)
 
     # =====================================================
     # FACTORES
     # =====================================================
 
-    if uso == "Motores":
-
-        k_u = 1.25
-
-    elif uso == "Vehículo eléctrico":
-
-        k_u = 1.25
-
-    else:
-
-        k_u = 1.0
-
-    v_fase = (
-        230
-        if "Mono" in sistema
-        else 400
-    )
+    k_u = 1.25 if uso in ["Motores", "Vehículo eléctrico"] else 1.0
+    v_fase = 230 if "Mono" in sistema else 400
 
     # =====================================================
     # INTENSIDAD
     # =====================================================
 
     if v_fase == 230:
-
-        ib = (
-            potencia * k_u
-        ) / (
-            v_fase * cos_phi
-        )
-
+        ib = (potencia * k_u) / (v_fase * cos_phi)
     else:
-
-        ib = (
-            potencia * k_u
-        ) / (
-            1.732 *
-            v_fase *
-            cos_phi
-        )
+        ib = (potencia * k_u) / (1.732 * v_fase * cos_phi)
 
     # =====================================================
     # SECCIÓN TÉRMICA
     # =====================================================
 
-    s_adm = get_seccion_adm(
-        metodo,
-        aislamiento,
-        ib
-    )
+    s_adm = get_seccion_adm(metodo, aislamiento, ib)
 
     # =====================================================
     # CONDUCTIVIDAD
     # =====================================================
 
     if "Cobre" in material:
-
-        gamma = (
-            48
-            if "PVC" in aislamiento
-            else 44
-        )
-
+        gamma = 48 if "PVC" in aislamiento else 44
     else:
-
-        gamma = (
-            30
-            if "PVC" in aislamiento
-            else 28
-        )
+        gamma = 30 if "PVC" in aislamiento else 28
 
     # =====================================================
     # CdT
     # =====================================================
 
     if v_fase == 230:
-
-        s_cdt = (
-
-            2 *
-            longitud *
-            potencia
-
-        ) / (
-
-            gamma *
-            (
-                max_cdt / 100 *
-                v_fase
-            ) *
-            v_fase
-        )
-
+        s_cdt = (2 * longitud * potencia) / (gamma * (max_cdt / 100 * v_fase) * v_fase)
     else:
+        s_cdt = (longitud * potencia) / (gamma * (max_cdt / 100 * v_fase) * v_fase)
 
-        s_cdt = (
+    s_cdt_norm = next((s for s in secciones_ref if s >= s_cdt), 240)
 
-            longitud *
-            potencia
-
-        ) / (
-
-            gamma *
-            (
-                max_cdt / 100 *
-                v_fase
-            ) *
-            v_fase
-        )
-
-    s_cdt_norm = next(
-
-        (
-            s for s in secciones_ref
-            if s >= s_cdt
-        ),
-
-        240
-    )
-
-    s_final = max(
-        s_adm,
-        s_cdt_norm
-    )
+    s_final = max(s_adm, s_cdt_norm)
 
     # =====================================================
     # RESULTADO
@@ -489,17 +361,9 @@ if modo == "📐 Cálculo de Secciones":
     <br>
 
     <small>
-
-    Ib = {ib:.2f} A
-
-    |
-
-    Térmica = {s_adm} mm²
-
-    |
-
+    Ib = {ib:.2f} A |
+    Térmica = {s_adm} mm² |
     CdT = {s_cdt:.2f} mm²
-
     </small>
 
     </div>
@@ -512,63 +376,29 @@ if modo == "📐 Cálculo de Secciones":
     df_calc = pd.DataFrame({
 
         "Parámetro": [
-
-            "Sistema",
-            "Potencia",
-            "Longitud",
-            "cos φ",
-            "Material",
-            "Aislamiento",
-            "Método",
-            "Ib",
-            "Sección térmica",
-            "Sección CdT",
-            "SECCIÓN FINAL"
+            "Sistema", "Potencia", "Longitud", "cos φ",
+            "Material", "Aislamiento", "Método",
+            "Ib", "Sección térmica", "Sección CdT", "SECCIÓN FINAL"
         ],
 
         "Valor": [
-
-            sistema,
-            potencia,
-            longitud,
-            cos_phi,
-            material,
-            aislamiento,
-            metodo,
-            round(ib, 2),
-            s_adm,
-            round(s_cdt, 2),
-            s_final
+            sistema, potencia, longitud, cos_phi,
+            material, aislamiento, metodo,
+            round(ib, 2), s_adm, round(s_cdt, 2), s_final
         ]
     })
 
-    st.dataframe(
-        df_calc,
-        use_container_width=True
-    )
+    st.dataframe(df_calc, use_container_width=True)
 
-    # =====================================================
-    # EXPORTACIÓN
-    # =====================================================
-
-    excel_calc = exportar_excel(
-        df_calc,
-        "Memoria_Calculo"
-    )
+    excel_calc = exportar_excel(df_calc, "Memoria_Calculo")
 
     st.download_button(
-
         "📥 Descargar Memoria Excel",
-
         excel_calc,
-
         "memoria_calculo.xlsx",
-
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-
         use_container_width=True
     )
-
 # =========================================================
 # =========================================================
 # MÓDULO PRESUPUESTO
@@ -615,7 +445,6 @@ else:
         )
 
         multiplicador = (
-
             1
             + gastos_generales / 100
             + beneficio_industrial / 100
@@ -628,10 +457,13 @@ else:
     st.title("💰 Presupuesto Maestro REBT")
 
     # =====================================================
-    # CATÁLOGO
+    # CATÁLOGO EDITABLE
     # =====================================================
 
-    catalogo_precios = {
+    st.sidebar.divider()
+    st.sidebar.subheader("📝 Editar precios del catálogo")
+
+    catalogo_base = {
 
         "Cable 1.5 mm²": 0.32,
         "Cable 2.5 mm²": 0.48,
@@ -681,50 +513,44 @@ else:
         "Actuador KNX": 145.00
     }
 
+    catalogo_precios = {}
+
+    for item, precio in catalogo_base.items():
+        nuevo_precio = st.sidebar.number_input(
+            f"{item}",
+            min_value=0.0,
+            value=float(precio),
+            step=0.10,
+            key=f"precio_{item}"
+        )
+        catalogo_precios[item] = nuevo_precio
+
     # =====================================================
     # CAPÍTULOS
     # =====================================================
 
     capitulos = {
 
-    "DI": "DERIVACIÓN INDIVIDUAL",
-
-    "CGMP": "CUADRO GENERAL DE MANDO Y PROTECCIÓN",
-
-    "C1": "ILUMINACIÓN",
-
-    "C2": "TOMAS DE USO GENERAL Y FRIGORÍFICO",
-
-    "C3": "COCINA Y HORNO",
-
-    "C4": "LAVADORA, LAVAVAJILLAS Y TERMO",
-
-    "C5": "BAÑOS Y COCINA",
-
-    "C6": "ILUMINACIÓN ADICIONAL",
-
-    "C7": "TOMAS ADICIONALES",
-
-    "C8": "CALEFACCIÓN",
-
-    "C9": "AIRE ACONDICIONADO",
-
-    "C10": "SECADORA",
-
-    "C11": "DOMÓTICA",
-
-    "C12": "AUXILIARES",
-
-    "C13": "RECARGA VEHÍCULO ELÉCTRICO",
-
-    "C14": "INSTALACIÓN FOTOVOLTAICA",
-
-    "PAT": "PUESTA A TIERRA"
-}
-
+        "DI": "DERIVACIÓN INDIVIDUAL",
+        "CGMP": "CUADRO GENERAL DE MANDO Y PROTECCIÓN",
+        "C1": "ILUMINACIÓN",
+        "C2": "TOMAS DE USO GENERAL Y FRIGORÍFICO",
+        "C3": "COCINA Y HORNO",
+        "C4": "LAVADORA, LAVAVAJILLAS Y TERMO",
+        "C5": "BAÑOS Y COCINA",
+        "C6": "ILUMINACIÓN ADICIONAL",
+        "C7": "TOMAS ADICIONALES",
+        "C8": "CALEFACCIÓN",
+        "C9": "AIRE ACONDICIONADO",
+        "C10": "SECADORA",
+        "C11": "DOMÓTICA",
+        "C12": "AUXILIARES",
+        "C13": "RECARGA VEHÍCULO ELÉCTRICO",
+        "C14": "INSTALACIÓN FOTOVOLTAICA",
+        "PAT": "PUESTA A TIERRA"
+    }
 
     datos_export = []
-
     # =====================================================
     # CAPÍTULOS DINÁMICOS
     # =====================================================
@@ -733,12 +559,12 @@ else:
 
         with st.expander(f"🛠️ {codigo} - {nombre}"):
 
+            # ---------------------------------------------
+            # MATERIALES DEL CATÁLOGO
+            # ---------------------------------------------
             materiales = st.multiselect(
-
                 f"Materiales {codigo}",
-
                 list(catalogo_precios.keys()),
-
                 key=f"sel_{codigo}"
             )
 
@@ -747,104 +573,113 @@ else:
             for item in materiales:
 
                 cantidad = st.number_input(
-
                     f"Cantidad {item}",
-
                     min_value=0.0,
-
                     value=0.0,
-
                     step=1.0,
-
                     key=f"{codigo}_{item}"
                 )
 
-                subtotal = (
-                    cantidad *
-                    catalogo_precios[item]
-                )
-
+                subtotal = cantidad * catalogo_precios[item]
                 coste_materiales += subtotal
 
+            # ---------------------------------------------
+            # MATERIALES PERSONALIZADOS
+            # ---------------------------------------------
+            st.markdown("### ➕ Añadir material personalizado")
+
+            num_personalizados = st.number_input(
+                f"Nº de materiales personalizados en {codigo}",
+                min_value=0,
+                max_value=20,
+                step=1,
+                key=f"pers_count_{codigo}"
+            )
+
+            coste_personalizados = 0
+
+            for i in range(num_personalizados):
+
+                st.markdown(f"**Material personalizado #{i+1}**")
+
+                nombre_pers = st.text_input(
+                    f"Nombre del material #{i+1}",
+                    key=f"pers_name_{codigo}_{i}"
+                )
+
+                precio_pers = st.number_input(
+                    f"Precio unitario (€) #{i+1}",
+                    min_value=0.0,
+                    value=0.0,
+                    step=0.10,
+                    key=f"pers_price_{codigo}_{i}"
+                )
+
+                cantidad_pers = st.number_input(
+                    f"Cantidad #{i+1}",
+                    min_value=0.0,
+                    value=0.0,
+                    step=1.0,
+                    key=f"pers_qty_{codigo}_{i}"
+                )
+
+                subtotal_pers = precio_pers * cantidad_pers
+                coste_personalizados += subtotal_pers
+
+                st.markdown(f"Subtotal: **{subtotal_pers:.2f} €**")
+                st.divider()
+
+            # Sumar materiales del catálogo + personalizados
+            coste_materiales += coste_personalizados
+
+            # ---------------------------------------------
+            # MANO DE OBRA
+            # ---------------------------------------------
             st.divider()
 
             c1, c2 = st.columns(2)
 
             horas_oficial = c1.number_input(
-
                 "Horas Oficial",
-
                 min_value=0.0,
-
                 value=0.0,
-
                 key=f"of_{codigo}"
             )
 
             horas_ayudante = c2.number_input(
-
                 "Horas Ayudante",
-
                 min_value=0.0,
-
                 value=0.0,
-
                 key=f"ay_{codigo}"
             )
 
             mano_obra = (
-
-                horas_oficial *
-                precio_oficial
-
-                +
-
-                horas_ayudante *
-                precio_ayudante
+                horas_oficial * precio_oficial +
+                horas_ayudante * precio_ayudante
             )
 
-            total_capitulo = (
-
-                coste_materiales
-                + mano_obra
-
-            ) * multiplicador
+            # ---------------------------------------------
+            # TOTAL CAPÍTULO
+            # ---------------------------------------------
+            total_capitulo = (coste_materiales + mano_obra) * multiplicador
 
             st.markdown(f"""
             <div class="resultado-caja">
-
             {total_capitulo:,.2f} €
-
             </div>
             """, unsafe_allow_html=True)
 
+            # Guardar para exportación
             if total_capitulo > 0:
 
                 datos_export.append({
 
-                    "Capítulo":
-                    f"{codigo} - {nombre}",
-
-                    "Materiales (€)":
-                    round(coste_materiales, 2),
-
-                    "Mano de obra (€)":
-                    round(mano_obra, 2),
-
-                    "Base (€)":
-                    round(total_capitulo, 2),
-
-                    "IVA (%)":
-                    iva_tipo,
-
-                    "TOTAL (€)":
-                    round(
-                        total_capitulo *
-                        (
-                            1 + iva_tipo / 100
-                        ),
-                        2
-                    )
+                    "Capítulo": f"{codigo} - {nombre}",
+                    "Materiales (€)": round(coste_materiales, 2),
+                    "Mano de obra (€)": round(mano_obra, 2),
+                    "Base (€)": round(total_capitulo, 2),
+                    "IVA (%)": iva_tipo,
+                    "TOTAL (€)": round(total_capitulo * (1 + iva_tipo / 100), 2)
                 })
 
     # =====================================================
@@ -855,77 +690,48 @@ else:
 
         st.divider()
 
-        df_presupuesto = pd.DataFrame(
-            datos_export
-        )
+        df_presupuesto = pd.DataFrame(datos_export)
 
-        total_final = df_presupuesto[
-            "TOTAL (€)"
-        ].sum()
+        total_final = df_presupuesto["TOTAL (€)"].sum()
 
         st.markdown(f"""
         <div class="total-final-banner">
-
         PRESUPUESTO TOTAL
-
         <br>
-
         <span style="color:#ffd700">
         {total_final:,.2f} €
         </span>
-
         </div>
         """, unsafe_allow_html=True)
 
-        st.dataframe(
-            df_presupuesto,
-            use_container_width=True
-        )
+        st.dataframe(df_presupuesto, use_container_width=True)
 
-        # =================================================
+        # ---------------------------------------------
         # EXPORTAR EXCEL
-        # =================================================
-
-        excel_presupuesto = exportar_excel(
-
-            df_presupuesto,
-
-            "Presupuesto"
-        )
+        # ---------------------------------------------
+        excel_presupuesto = exportar_excel(df_presupuesto, "Presupuesto")
 
         st.download_button(
-
             "📊 Descargar Presupuesto Excel",
-
             excel_presupuesto,
-
             "presupuesto_profesional.xlsx",
-
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-
             use_container_width=True
         )
 
-        # =================================================
+        # ---------------------------------------------
         # EXPORTAR CSV
-        # =================================================
-
+        # ---------------------------------------------
         csv_presupuesto = df_presupuesto.to_csv(
-
             index=False,
             sep=';',
             encoding='utf-16'
         )
 
         st.download_button(
-
             "📥 Descargar Presupuesto CSV",
-
             csv_presupuesto,
-
             "presupuesto_profesional.csv",
-
             "text/csv",
-
             use_container_width=True
         )
