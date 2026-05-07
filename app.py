@@ -164,7 +164,7 @@ else:
     tab_cfg, tab_pre = st.tabs(["🛠️ Configuración de Precios Unitarios", "📋 Generación de Capítulos"])
 
     with tab_cfg:
-        st.subheader("Base de Datos de Precios (Catálogo)")
+        st.subheader("Base de Datos de Precios (Catalogo)")
         col_p1, col_p2, col_p3 = st.columns(3)
         
         with col_p1:
@@ -178,7 +178,9 @@ else:
 
         with col_p2:
             st.markdown("#### 🔘 Mecanismos (€/u)")
-            p_interr = st.number_input("Interruptor/Conmutador", 2.0, 50.0, 4.80)
+            p_interr = st.number_input("Interruptor Simple", 2.0, 50.0, 4.20)
+            p_conmut = st.number_input("Conmutador", 2.0, 50.0, 5.80)
+            p_cruza = st.number_input("Cruzamiento", 2.0, 50.0, 11.50)
             p_enchufe_16 = st.number_input("Base Enchufe 16A", 2.0, 50.0, 6.10)
             p_enchufe_25 = st.number_input("Base Enchufe 25A", 5.0, 60.0, 14.50)
             p_toma_tvcet = st.number_input("Toma TV/Datos", 5.0, 80.0, 12.00)
@@ -191,7 +193,9 @@ else:
             p_pia_16 = st.number_input("PIA 16A", 5.0, 40.0, 9.20)
             p_pia_20 = st.number_input("PIA 20A", 5.0, 40.0, 11.50)
             p_pia_25 = st.number_input("PIA 25A", 5.0, 50.0, 14.00)
-            p_diff_claseA = st.number_input("Diferencial 40A/30mA Clase A", 30.0, 250.0, 65.0)
+            p_diff_claseA_25 = st.number_input("Diferencial Clase A 25A", 30.0, 250.0, 55.0)
+            p_diff_claseA_40 = st.number_input("Diferencial Clase A 40A", 30.0, 250.0, 65.0)
+            p_diff_claseA_63 = st.number_input("Diferencial Clase A 63A", 30.0, 350.0, 95.0)
 
         st.divider()
         c_mo1, c_mo2, c_cuad = st.columns(3)
@@ -199,14 +203,16 @@ else:
         p_ayudante = c_mo2.number_input("Ayudante (€/h)", 15.0, 50.0, 26.5)
         p_caja_vacia = c_cuad.number_input("Caja Cuadro (Envolvente) (€)", 20.0, 500.0, 75.0)
 
-    # Diccionario dinámico de precios
+    # Creación del diccionario dinámico de precios
     catalogo_precios = {
         "Cable 1.5 mm²": p_c15, "Cable 2.5 mm²": p_c25, "Cable 4 mm²": p_c40, 
         "Cable 6 mm²": p_c60, "Cable 10 mm²": p_c10, "Cable 16 mm²": p_c16,
-        "Interruptor/Conmutador": p_interr, "Enchufe 16A": p_enchufe_16, 
-        "Enchufe 25A": p_enchufe_25, "Toma TV/Datos": p_toma_tvcet, "Base Estanca": p_estanca,
+        "Interruptor Simple": p_interr, "Conmutador": p_conmut, "Cruzamiento": p_cruza,
+        "Enchufe 16A": p_enchufe_16, "Enchufe 25A": p_enchufe_25, 
+        "Toma TV/Datos": p_toma_tvcet, "Base Estanca": p_estanca,
         "IGA + Sobretensiones": p_iga_sobre, "PIA 10A": p_pia_10, "PIA 16A": p_pia_16,
-        "PIA 20A": p_pia_20, "PIA 25A": p_pia_25, "Diferencial 40A Clase A": p_diff_claseA,
+        "PIA 20A": p_pia_20, "PIA 25A": p_pia_25, 
+        "Diferencial 25A Clase A": p_diff_claseA_25, "Diferencial 40A Clase A": p_diff_claseA_40, "Diferencial 63A Clase A": p_diff_claseA_63,
         "Caja Cuadro": p_caja_vacia, "Peines Conexión": 12.0, "Pica Tierra + Cable": 115.0
     }
 
