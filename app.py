@@ -1,6 +1,6 @@
 # =========================================================
-# INGENIERÍA PRO v7.0
-# Cálculo de Secciones + Presupuestos REBT
+# INGENIERÍA PRO v8.0
+# Cálculo de Secciones + Presupuestos REBT + FV
 # Versión profesional para uso público
 # =========================================================
 
@@ -14,7 +14,7 @@ import math
 # =========================================================
 
 st.set_page_config(
-    page_title="Ingeniería Pro v7.0",
+    page_title="Ingeniería Pro v8.0",
     layout="wide",
     page_icon="⚡"
 )
@@ -23,15 +23,16 @@ st.set_page_config(
 # CABECERA PROFESIONAL
 # =========================================================
 
-st.title("⚡ INGENIERÍA PRO v7.0 — Herramienta Profesional REBT")
+st.title("⚡ INGENIERÍA PRO v8.0 — Herramienta Profesional REBT + FV")
 
 st.markdown("""
-Aplicación profesional para **cálculo de secciones** y **presupuestos eléctricos** conforme al  
-**Reglamento Electrotécnico de Baja Tensión (REBT)**.
+Aplicación profesional para **cálculo de secciones**, **instalaciones fotovoltaicas**  
+y **presupuestos eléctricos** conforme al **REBT**.
 
-- Cálculo de conductores según ITC-BT-19, ITC-BT-20 e ITC-BT-40.  
-- Presupuesto estructurado por circuitos reglamentarios.  
-- Ideal para **ofertas**, **memorias técnicas**, **proyectos** y **estudios económicos**.
+- Cálculo de conductores según ITC-BT-19, ITC-BT-20 e ITC-BT-40  
+- Cálculo FV en **corriente continua** con caída de tensión reglamentaria  
+- Entrada por **potencia** o **intensidad directa**  
+- Presupuesto estructurado por circuitos REBT  
 
 ---
 """)
@@ -106,7 +107,7 @@ label, .stMarkdown, p, span, div {
 .watermark-text {
     font-size: 14px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.40); /* Transparencia media */
+    color: rgba(255, 255, 255, 0.40);
     letter-spacing: 0.5px;
 }
 </style>
@@ -167,14 +168,12 @@ with st.sidebar:
         ]
     )
 # =========================================================
-# =========================================================
-# MÓDULO PROFESIONAL — CÁLCULO DE SECCIONES (REBT)
-# =========================================================
+# MÓDULO PROFESIONAL — CÁLCULO DE SECCIONES (REBT + FV)
 # =========================================================
 
 if modo == "📐 Cálculo de secciones de conductores":
 
-    st.title("📐 Cálculo de Secciones de Conductores (REBT)")
+    st.title("📐 Cálculo de Secciones de Conductores (REBT + FV)")
 
     st.markdown("""
     Este módulo calcula la **sección mínima reglamentaria** de los conductores según:
@@ -182,14 +181,11 @@ if modo == "📐 Cálculo de secciones de conductores":
     - **ITC-BT-19** → Intensidad máxima admisible  
     - **ITC-BT-20** → Caída de tensión máxima permitida  
     - **ITC-BT-40** → Instalaciones interiores en viviendas  
+    - **FV en corriente continua** con caída de tensión reglamentaria  
 
-    El cálculo considera:
-    - Método de instalación  
-    - Material del conductor (Cu / Al)  
-    - Tipo de aislamiento  
-    - Longitud del circuito  
-    - Potencia y cos φ  
-    - Uso del circuito (general, motores, VE)  
+    Permite calcular mediante:
+    - **Potencia**
+    - **Intensidad directa (Ib)**
 
     ---
     """)
@@ -274,29 +270,48 @@ if modo == "📐 Cálculo de secciones de conductores":
 
     with c1:
 
-        sistema = st.selectbox(
-            "🔌 Sistema eléctrico",
-            ["Monofásico 230V", "Trifásico 400V"]
+        tipo_instalacion = st.selectbox(
+            "🏷 Tipo de instalación",
+            ["CA REBT (general)", "FV en corriente continua"]
         )
 
-        potencia = st.number_input(
-            "⚡ Potencia (W)",
-            value=5750.0
+        sistema = st.selectbox(
+            "🔌 Sistema eléctrico",
+            ["Monofásico 230V", "Trifásico 400V"] if tipo_instalacion == "CA REBT (general)" else ["Corriente continua FV"]
         )
+
+        modo_intensidad = st.selectbox(
+            "Modo de cálculo de intensidad",
+            ["A partir de potencia", "Introducir intensidad directamente"]
+        )
+
+        if modo_intensidad == "A partir de potencia":
+            potencia = st.number_input(
+                "⚡ Potencia (W)",
+                value=5750.0
+            )
+        else:
+            ib_input = st.number_input(
+                "🔁 Intensidad de cálculo Ib (A)",
+                value=25.0
+            )
 
         longitud = st.number_input(
             "📏 Longitud del circuito (m)",
             value=30.0
         )
 
-        cos_phi = st.slider(
-            "cos φ (factor de potencia)",
-            0.70, 1.00, 0.90
-        )
+        if tipo_instalacion == "CA REBT (general)":
+            cos_phi = st.slider(
+                "cos φ (factor de potencia)",
+                0.70, 1.00, 0.90
+            )
+        else:
+            cos_phi = 1.00  # FV CC → cos φ = 1
 
         uso = st.selectbox(
             "🏷 Tipo de circuito",
-            ["General", "Motores", "Vehículo eléctrico"]
+            ["General", "Motores", "Vehículo eléctrico", "Fotovoltaica"]
         )
 
     with c2:
@@ -321,21 +336,39 @@ if modo == "📐 Cálculo de secciones de conductores":
             value=3.0
         )
 
+        if tipo_instalacion == "FV en corriente continua":
+            v_cc = st.number_input(
+                "Tensión de trabajo FV (Vcc)",
+                value=600.0
+            )
+        else:
+            v_cc = None
+
     # =====================================================
     # FACTORES REBT
     # =====================================================
 
     k_u = 1.25 if uso in ["Motores", "Vehículo eléctrico"] else 1.0
-    v_fase = 230 if "Mono" in sistema else 400
+
+    if tipo_instalacion == "CA REBT (general)":
+        v_fase = 230 if "Mono" in sistema else 400
+    else:
+        v_fase = v_cc
 
     # =====================================================
     # CÁLCULO DE INTENSIDAD
     # =====================================================
 
-    if v_fase == 230:
-        ib = (potencia * k_u) / (v_fase * cos_phi)
+    if modo_intensidad == "Introducir intensidad directamente":
+        ib = ib_input
     else:
-        ib = (potencia * k_u) / (1.732 * v_fase * cos_phi)
+        if tipo_instalacion == "CA REBT (general)":
+            if v_fase == 230:
+                ib = (potencia * k_u) / (v_fase * cos_phi)
+            else:
+                ib = (potencia * k_u) / (1.732 * v_fase * cos_phi)
+        else:
+            ib = (potencia * k_u) / v_fase if v_fase > 0 else 0
 
     # =====================================================
     # SECCIÓN TÉRMICA
@@ -356,10 +389,26 @@ if modo == "📐 Cálculo de secciones de conductores":
     # CÁLCULO DE CAÍDA DE TENSIÓN
     # =====================================================
 
-    if v_fase == 230:
-        s_cdt = (2 * longitud * potencia) / (gamma * (max_cdt/100 * v_fase) * v_fase)
+    if tipo_instalacion == "CA REBT (general)":
+
+        if modo_intensidad == "A partir de potencia":
+
+            if v_fase == 230:
+                s_cdt = (2 * longitud * potencia) / (gamma * (max_cdt/100 * v_fase) * v_fase)
+            else:
+                s_cdt = (longitud * potencia) / (gamma * (max_cdt/100 * v_fase) * v_fase)
+
+        else:  # Intensidad directa
+
+            if v_fase == 230:
+                s_cdt = (2 * longitud * ib) / (gamma * (max_cdt/100 * v_fase))
+            else:
+                s_cdt = (longitud * ib) / (gamma * (max_cdt/100 * v_fase))
+
     else:
-        s_cdt = (longitud * potencia) / (gamma * (max_cdt/100 * v_fase) * v_fase)
+        # FV en corriente continua (ida y vuelta)
+        delta_v = max_cdt / 100 * v_fase
+        s_cdt = (2 * longitud * ib) / (gamma * delta_v) if delta_v > 0 else 240
 
     s_cdt_norm = next((s for s in secciones_ref if s >= s_cdt), 240)
 
@@ -373,7 +422,7 @@ if modo == "📐 Cálculo de secciones de conductores":
 
     st.markdown(f"""
     <div class="resultado-caja">
-    SECCIÓN FINAL REBT: {s_final} mm²
+    SECCIÓN FINAL REBT/FV: {s_final} mm²
     <br>
     <small>
     Ib = {ib:.2f} A |
@@ -389,12 +438,14 @@ if modo == "📐 Cálculo de secciones de conductores":
 
     df_calc = pd.DataFrame({
         "Parámetro": [
-            "Sistema", "Potencia", "Longitud", "cos φ",
+            "Tipo instalación", "Sistema", "Potencia (W)", "Longitud (m)", "cos φ",
             "Material", "Aislamiento", "Método REBT",
             "Ib (A)", "Sección térmica (mm²)", "Sección CdT (mm²)", "SECCIÓN FINAL (mm²)"
         ],
         "Valor": [
-            sistema, potencia, longitud, cos_phi,
+            tipo_instalacion, sistema,
+            potencia if modo_intensidad == "A partir de potencia" else "-",
+            longitud, cos_phi,
             material, aislamiento, metodo,
             round(ib, 2), s_adm, round(s_cdt, 2), s_final
         ]
@@ -402,12 +453,12 @@ if modo == "📐 Cálculo de secciones de conductores":
 
     st.dataframe(df_calc, use_container_width=True)
 
-    excel_calc = exportar_excel(df_calc, "Calculo_Secciones_REBT")
+    excel_calc = exportar_excel(df_calc, "Calculo_Secciones_REBT_FV")
 
     st.download_button(
         "📥 Descargar memoria de cálculo (Excel)",
         excel_calc,
-        "calculo_secciones_rebt.xlsx",
+        "calculo_secciones_rebt_fv.xlsx",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True
     )
@@ -563,6 +614,7 @@ else:
     }
 
     datos_export = []
+
     # =====================================================
     # CAPÍTULOS DINÁMICOS — PRESUPUESTO REBT
     # =====================================================
@@ -723,10 +775,9 @@ else:
                     "IVA (%)": iva_tipo,
                     "TOTAL (€)": round(total_capitulo * (1 + iva_tipo / 100), 2)
                 })
-
-    # =====================================================
-    # TOTAL FINAL DEL PRESUPUESTO
-    # =====================================================
+# =====================================================
+# TOTAL FINAL DEL PRESUPUESTO
+# =====================================================
 
     if len(datos_export) > 0:
 
