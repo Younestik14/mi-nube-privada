@@ -49,8 +49,6 @@ st.markdown(
 # --- 2. MOTOR DE CÁLCULO REBT (MATRIZ COMPLETA UNE-HD 60364-5-52) ---
 secciones_ref = [1.5, 2.5, 4, 6, 10, 16, 25, 35, 50, 70, 95, 120, 150, 185, 240]
 
-# Matriz extendida: Incluye métodos A1, A2, B1, B2, C, D1, D2, E, F, G
-# Valores para Cobre, 2 conductores cargados (Monofásico)
 tablas_adm = {
     "A1 - Empotrado en tubo (Pared aislante)": {
         "PVC": [14.5, 19.5, 26, 34, 46, 61, 80, 99, 119, 151, 182, 210, 240, 273, 321],
@@ -129,29 +127,22 @@ if modo == "📐 Dimensionado REBT":
         metodo_inst = st.selectbox("Método de Instalación (UNE-HD 60364-5-52)", list(tablas_adm.keys()))
         max_cdt = st.number_input("Caída de Tensión Máx. Admitida (%)", value=3.0, step=0.1)
 
-    # Lógica Matemática
     v_fase = 230 if "Mono" in sistema else 400
     ib = (potencia * k_u) / (v_fase * cos_phi) if v_fase == 230 else (potencia * k_u) / (1.732 * v_fase * cos_phi)
     
-    # 1. Criterio de Intensidad Admisible
     s_adm = get_seccion_adm(metodo_inst, aislamiento, ib)
     
-    # 2. Criterio de Caída de Tensión
-    # Conductividad γ (Cu: PVC=48, XLPE=44 | Al: PVC=30, XLPE=28)
     if "Cobre" in material:
         gamma = 48 if "PVC" in aislamiento else 44
     else:
         gamma = 30 if "PVC" in aislamiento else 28
     
-    # Fórmula S = (2*L*P)/(gamma*e*V) para monofásico, S = (L*P)/(gamma*e*V) para trifásico
     if v_fase == 230:
         s_cdt = (2 * longitud * potencia) / (gamma * (max_cdt/100 * v_fase) * v_fase)
     else:
         s_cdt = (longitud * potencia) / (gamma * (max_cdt/100 * v_fase) * v_fase)
         
     s_cdt_norm = next((s for s in secciones_ref if s >= s_cdt), 240)
-    
-    # Sección Final
     s_final = max(s_adm, s_cdt_norm)
 
     st.divider()
@@ -166,14 +157,14 @@ if modo == "📐 Dimensionado REBT":
     </div>
     """, unsafe_allow_html=True)
 
-# --- 5. PRESUPUESTO MAESTRO COMPLETO (12 CIRCUITOS + CONFIG) ---
+# --- 5. PRESUPUESTO MAESTRO COMPLETO (CON DESGLOSE DETALLADO) ---
 else:
     st.title("💰 Gestor de Presupuestos: Electrificación Elevada")
     
     tab_cfg, tab_pre = st.tabs(["🛠️ Configuración de Precios Unitarios", "📋 Generación de Capítulos"])
 
     with tab_cfg:
-        st.subheader("Base de Datos de Precios (Editable)")
+        st.subheader("Base de Datos de Precios Detallada")
         col_p1, col_p2, col_p3 = st.columns(3)
         
         with col_p1:
@@ -186,23 +177,33 @@ else:
             p_c16 = st.number_input("16 mm²", 2.50, 25.0, 4.10)
 
         with col_p2:
-            st.markdown("#### 📦 Materiales (€/u)")
-            p_meca = st.number_input("Mecanismo (Interr/Conmut)", 2.0, 50.0, 5.20)
-            p_enchufe = st.number_input("Base de Enchufe 16A", 2.0, 50.0, 6.10)
-            p_caja_cgpm = st.number_input("Caja CGPM / Cuadro", 30.0, 500.0, 85.0)
-            p_pia = st.number_input("Automático (PIA) medio", 5.0, 100.0, 12.50)
-            p_diff = st.number_input("Diferencial 40A/30mA", 20.0, 200.0, 45.0)
+            st.markdown("#### 🔘 Mecanismos Detallados (€/u)")
+            p_interr = st.number_input("Interruptor/Conmutador", 2.0, 50.0, 4.80)
+            p_enchufe_16 = st.number_input("Base Enchufe 16A (C2, C5)", 2.0, 50.0, 6.10)
+            p_enchufe_25 = st.number_input("Base Enchufe 25A (C3)", 5.0, 60.0, 14.50)
+            p_toma_tvcet = st.number_input("Toma TV/Datos (C11)", 5.0, 80.0, 12.00)
+            p_estanca = st.number_input("Base Estanca IP54", 8.0, 100.0, 18.50)
 
         with col_p3:
-            st.markdown("#### 👷 Mano de Obra (€/h)")
-            p_oficial = st.number_input("Oficial de 1ª", 20.0, 60.0, 36.0)
-            p_ayudante = st.number_input("Ayudante", 15.0, 50.0, 26.5)
-            st.info("Nota: Los precios configurados aquí se propagan a todos los cálculos del presupuesto.")
+            st.markdown("#### 🛡️ Protecciones (PIAs/Diff) (€/u)")
+            p_iga_sobre = st.number_input("IGA + Sobretensiones (Kit)", 50.0, 300.0, 125.0)
+            p_pia_10 = st.number_input("PIA 10A (C1)", 5.0, 40.0, 8.50)
+            p_pia_16 = st.number_input("PIA 16A (C2, C5, C10)", 5.0, 40.0, 9.20)
+            p_pia_20 = st.number_input("PIA 20A (C4)", 5.0, 40.0, 11.50)
+            p_pia_25 = st.number_input("PIA 25A (C3)", 5.0, 50.0, 14.00)
+            p_diff_claseA = st.number_input("Diferencial 40A/30mA Clase A", 30.0, 250.0, 65.0)
+
+        st.divider()
+        c_mo1, c_mo2, c_cuad = st.columns(3)
+        p_oficial = c_mo1.number_input("Oficial de 1ª (€/h)", 20.0, 60.0, 36.0)
+        p_ayudante = c_mo2.number_input("Ayudante (€/h)", 15.0, 50.0, 26.5)
+        p_caja_vacia = c_cuad.number_input("Caja Cuadro (Envolvente) (€)", 20.0, 500.0, 75.0)
 
     db_precios = {
         "c1.5": p_c15, "c2.5": p_c25, "c4": p_c40, "c6": p_c60, "c10": p_c10, "c16": p_c16,
-        "meca": p_meca, "base": p_enchufe, "cuadro": p_caja_cgpm, "pia": p_pia, "diff": p_diff,
-        "mo_of": p_oficial, "mo_ay": p_ayudante
+        "interr": p_interr, "base16": p_enchufe_16, "base25": p_enchufe_25, "tv_dat": p_toma_tvcet, "estanca": p_estanca,
+        "iga": p_iga_sobre, "pia10": p_pia_10, "pia16": p_pia_16, "pia20": p_pia_20, "pia25": p_pia_25, "diff": p_diff_claseA,
+        "cuadro_env": p_caja_vacia, "mo_of": p_oficial, "mo_ay": p_ayudante
     }
 
     with tab_pre:
@@ -221,20 +222,73 @@ else:
                 st.markdown(f'<div class="resultado-caja">{total_cap:,.2f} €</div>', unsafe_allow_html=True)
                 return total_cap
 
-        # 12 CIRCUITOS REGLAMENTARIOS + DI + CUADRO
+        # CAPÍTULOS DETALLADOS
         resumen_costes.append(crear_capitulo("DI", "DERIVACIÓN INDIVIDUAL", [{"label": "Manguera 3x10mm²", "q": 25, "p": db_precios["c10"]}], 4, 2))
-        resumen_costes.append(crear_capitulo("CGMP", "CUADRO GENERAL DE PROTECCIÓN", [{"label": "Caja+IGA+Sobretensiones", "q": 1, "p": db_precios["cuadro"] + 120}, {"label": "Diferenciales", "q": 3, "p": db_precios["diff"]}], 6, 0))
-        resumen_costes.append(crear_capitulo("C1", "ILUMINACIÓN", [{"label": "Cable 1.5", "q": 150, "p": db_precios["c1.5"]}, {"label": "Mecanismos", "q": 15, "p": db_precios["meca"]}], 10, 5))
-        resumen_costes.append(crear_capitulo("C2", "TOMAS DE CORRECO GENERAL", [{"label": "Cable 2.5", "q": 200, "p": db_precios["c2.5"]}, {"label": "Enchufes", "q": 22, "p": db_precios["base"]}], 12, 6))
-        resumen_costes.append(crear_capitulo("C3", "COCINA Y HORNO", [{"label": "Cable 6", "q": 20, "p": db_precios["c6"]}, {"label": "Toma 25A", "q": 1, "p": 15.0}], 3, 1))
-        resumen_costes.append(crear_capitulo("C4", "LAVADORA, LAVAVAJILLAS, TERMO", [{"label": "Cable 4", "q": 60, "p": db_precios["c4"]}, {"label": "Enchufes", "q": 3, "p": db_precios["base"]}], 6, 2))
-        resumen_costes.append(crear_capitulo("C5", "BAÑOS Y TOMAS DE COCINA", [{"label": "Cable 2.5", "q": 80, "p": db_precios["c2.5"]}, {"label": "Enchufes", "q": 8, "p": db_precios["base"]}], 5, 2))
-        resumen_costes.append(crear_capitulo("C8", "CALEFACCIÓN", [{"label": "Cable 6", "q": 40, "p": db_precios["c6"]}], 4, 0))
-        resumen_costes.append(crear_capitulo("C9", "AIRE ACONDICIONADO", [{"label": "Cable 6", "q": 30, "p": db_precios["c6"]}], 4, 0))
-        resumen_costes.append(crear_capitulo("C10", "SECADORA", [{"label": "Cable 2.5", "q": 25, "p": db_precios["c2.5"]}], 2, 0))
-        resumen_costes.append(crear_capitulo("C11", "DOMÓTICA Y SEGURIDAD", [{"label": "Cable 1.5", "q": 100, "p": db_precios["c1.5"]}], 8, 2))
-        resumen_costes.append(crear_capitulo("C12", "VEHÍCULO ELÉCTRICO", [{"label": "Cable 6 o 10", "q": 40, "p": db_precios["c10"]}, {"label": "Protección EV", "q": 1, "p": 180}], 5, 2))
-        resumen_costes.append(crear_capitulo("PAT", "PUESTA A TIERRA", [{"label": "Pica + Cable desnudo", "q": 1, "p": db_precios["cuadro"] + 40}], 3, 3))
+        
+        resumen_costes.append(crear_capitulo("CGMP", "CUADRO GENERAL DE PROTECCIÓN", [
+            {"label": "Envolvente/Caja", "q": 1, "p": db_precios["cuadro_env"]},
+            {"label": "Kit IGA + Sobretensiones", "q": 1, "p": db_precios["iga"]},
+            {"label": "Diferenciales 40A", "q": 3, "p": db_precios["diff"]},
+            {"label": "Peines de conexión", "q": 2, "p": 12.0}
+        ], 6, 0))
+
+        resumen_costes.append(crear_capitulo("C1", "ILUMINACIÓN", [
+            {"label": "Cable 1.5", "q": 150, "p": db_precios["c1.5"]}, 
+            {"label": "Interruptores/Conmut", "q": 15, "p": db_precios["interr"]},
+            {"label": "PIA 10A", "q": 1, "p": db_precios["pia10"]}
+        ], 10, 5))
+
+        resumen_costes.append(crear_capitulo("C2", "TOMAS DE CORRIENTE GENERAL", [
+            {"label": "Cable 2.5", "q": 200, "p": db_precios["c2.5"]}, 
+            {"label": "Enchufes 16A", "q": 22, "p": db_precios["base16"]},
+            {"label": "PIA 16A", "q": 1, "p": db_precios["pia16"]}
+        ], 12, 6))
+
+        resumen_costes.append(crear_capitulo("C3", "COCINA Y HORNO", [
+            {"label": "Cable 6", "q": 25, "p": db_precios["c6"]}, 
+            {"label": "Toma 25A", "q": 1, "p": db_precios["base25"]},
+            {"label": "PIA 25A", "q": 1, "p": db_precios["pia25"]}
+        ], 3, 1))
+
+        resumen_costes.append(crear_capitulo("C4", "LAVADORA, LAVAVAJILLAS, TERMO", [
+            {"label": "Cable 4", "q": 60, "p": db_precios["c4"]}, 
+            {"label": "Enchufes 16A", "q": 3, "p": db_precios["base16"]},
+            {"label": "PIA 20A", "q": 3, "p": db_precios["pia20"]}
+        ], 6, 2))
+
+        resumen_costes.append(crear_capitulo("C5", "BAÑOS Y TOMAS DE COCINA", [
+            {"label": "Cable 2.5", "q": 80, "p": db_precios["c2.5"]}, 
+            {"label": "Enchufes 16A", "q": 8, "p": db_precios["base16"]},
+            {"label": "PIA 16A", "q": 1, "p": db_precios["pia16"]}
+        ], 5, 2))
+
+        resumen_costes.append(crear_capitulo("C8", "CALEFACCIÓN", [
+            {"label": "Cable 6", "q": 40, "p": db_precios["c6"]},
+            {"label": "PIA 25A (Potencia)", "q": 1, "p": db_precios["pia25"]}
+        ], 4, 0))
+
+        resumen_costes.append(crear_capitulo("C9", "AIRE ACONDICIONADO", [
+            {"label": "Cable 6", "q": 30, "p": db_precios["c6"]},
+            {"label": "PIA 25A", "q": 1, "p": db_precios["pia25"]}
+        ], 4, 0))
+
+        resumen_costes.append(crear_capitulo("C10", "SECADORA", [
+            {"label": "Cable 2.5", "q": 25, "p": db_precios["c2.5"]},
+            {"label": "PIA 16A", "q": 1, "p": db_precios["pia16"]}
+        ], 2, 0))
+
+        resumen_costes.append(crear_capitulo("C11", "DOMÓTICA Y SEGURIDAD", [
+            {"label": "Cable 1.5", "q": 100, "p": db_precios["c1.5"]},
+            {"label": "Tomas TV/Datos", "q": 6, "p": db_precios["tv_dat"]},
+            {"label": "PIA 10A", "q": 1, "p": db_precios["pia10"]}
+        ], 8, 2))
+
+        resumen_costes.append(crear_capitulo("C12", "VEHÍCULO ELÉCTRICO", [
+            {"label": "Manguera 10mm²", "q": 40, "p": db_precios["c10"]}, 
+            {"label": "Protección EV Diferencial/PIA", "q": 1, "p": 180.0}
+        ], 5, 2))
+
+        resumen_costes.append(crear_capitulo("PAT", "PUESTA A TIERRA", [{"label": "Pica + Cable desnudo 35mm", "q": 1, "p": 115.0}], 3, 3))
 
         # --- RESUMEN DE TOTALES ---
         st.divider()
@@ -252,7 +306,6 @@ else:
         </div>
         """, unsafe_allow_html=True)
 
-        # Generación de tabla de datos para exportación
         nombres_cap = ["DI", "Cuadro", "C1", "C2", "C3", "C4", "C5", "C8", "C9", "C10", "C11", "C12", "Tierras"]
         df_export = pd.DataFrame({"Descripción": nombres_cap, "Total (€)": resumen_costes})
         st.download_button("📥 Exportar Presupuesto a CSV", df_export.to_csv(index=False), "presupuesto_profesional.csv", "text/csv")
