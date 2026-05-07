@@ -2,8 +2,8 @@ import streamlit as st
 import pandas as pd
 import math
 
-# --- 1. CONFIGURACIÓN GLOBAL Y ESTILOS ---
-st.set_page_config(page_title="Ingeniería Eléctrica Pro", layout="wide", page_icon="⚡")
+# --- 1. CONFIGURACIÓN Y ESTILOS ---
+st.set_page_config(page_title="Ingeniería Pro - DTIE", layout="wide", page_icon="⚡")
 
 st.markdown(
     """
@@ -13,15 +13,15 @@ st.markdown(
         font-family: sans-serif; font-size: 16px; color: rgba(255, 255, 255, 0.6);
         z-index: 9999; pointer-events: none; text-align: center; width: 100%; font-weight: bold;
     }
-    p, label, .stMarkdown, .stMetric, div, span, button { font-weight: bold !important; }
+    p, label, .stMarkdown, div, span, button { font-weight: bold !important; }
     .resultado-negro {
-        color: #000000 !important; font-weight: 900 !important; font-size: 22px;
-        background-color: #f1f3f5; padding: 10px; border-radius: 8px;
-        border-left: 6px solid #000000; margin-bottom: 10px; text-align: center;
+        color: #000000 !important; font-weight: 900 !important; font-size: 20px;
+        background-color: #f8f9fa; padding: 10px; border-radius: 8px;
+        border-left: 5px solid #000000; margin-bottom: 5px; text-align: right;
     }
     .total-final {
-        color: #ffffff !important; font-weight: 900 !important; font-size: 32px;
-        background-color: #000000; padding: 20px; border-radius: 10px; text-align: center;
+        color: #ffffff !important; font-weight: 900 !important; font-size: 28px;
+        background-color: #000000; padding: 15px; border-radius: 10px; text-align: center;
     }
     </style>
     <div class="watermark">Hecho por Younesse Tikent Tifaoui</div>
@@ -29,124 +29,133 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- 2. MENÚ DE NAVEGACIÓN ---
+# --- 2. BASE DE DATOS DE PRECIOS (SEGÚN EXCEL PRODUCTOS) ---
+precios_base = {
+    "1.5mm": 0.25, "2.5mm": 0.38, "4mm": 0.64, "6mm": 1.30,
+    "20mm": 0.16, "25mm": 0.23, "Cuadro": 53.92, "IGA": 56.20,
+    "DIF": 13.82, "PIA10": 3.60, "PIA16": 9.31, "PIA25": 3.64,
+    "INT": 2.44, "CONM": 2.42, "CRUZ": 5.74, "TC16A": 2.79,
+    "TC25A": 7.10, "PULS": 3.28, "ZUMB": 24.73,
+    "ELEC": 33.00, "OPER": 29.00  # Mano de obra base
+}
+
+# --- 3. MENÚ NAVEGACIÓN ---
 with st.sidebar:
-    st.title("🛡️ Panel de Ingeniería")
-    seleccion = st.radio("Seleccione Herramienta:", ["📐 Calculadora Técnica REBT", "💰 Presupuesto Detallado"])
+    st.title("🛡️ Gestión DTIE")
+    modo = st.radio("Herramienta:", ["📐 Calculadora REBT", "💰 Presupuesto DTIE"])
     st.divider()
-    st.header("📈 Ajustes Económicos")
-    beneficio = st.slider("% Margen (Beneficio + Amort.)", 0, 60, 30)
-    iva = st.selectbox("% IVA Aplicable", [21, 10, 4, 0], index=0)
-    f_margen = 1 + (beneficio / 100)
+    st.header("📈 Coeficientes")
+    p_ben = st.slider("% Beneficio", 0, 30, 15)
+    p_amo = st.slider("% Amortización", 0, 10, 5)
+    p_iva = st.selectbox("% IVA", [21, 10, 0], index=0)
+    
+    # El multiplicador que se aplica al precio base (Justificación de precios)
+    f_total = 1 + (p_ben/100) + (p_amo/100)
 
-# --- 3. SECCIÓN: CALCULADORA TÉCNICA REBT ---
-if seleccion == "📐 Calculadora Técnica REBT":
-    st.title("📐 Cálculo de Secciones por Caída de Tensión y Calentamiento")
+# --- 4. SECCIÓN: CALCULADORA REBT ---
+if modo == "📐 Calculadora REBT":
+    st.title("📐 Cálculo Técnico de Secciones")
+    c1, c2 = st.columns(2)
+    with c1:
+        potencia = st.number_input("Potencia (W)", value=5750)
+        distancia = st.number_input("Longitud (m)", value=25)
+    with c2:
+        v = st.selectbox("Tensión", [230, 400])
+        cdt_max = st.number_input("Caída tensión máx %", value=3.0)
     
-    col1, col2 = st.columns(2)
-    with col1:
-        sistema = st.selectbox("Sistema", ["Monofásico 230V", "Trifásico 400V"])
-        potencia = st.number_input("Potencia de Diseño (W)", value=5750)
-        longitud = st.number_input("Longitud de la línea (m)", value=20)
-        cos_phi = st.slider("Factor de potencia", 0.7, 1.0, 0.9)
+    # Cálculo
+    cos_phi = 0.9
+    gamma = 48 # Cobre PVC
+    ib = potencia / (v * cos_phi) if v == 230 else potencia / (1.732 * v * cos_phi)
+    e = (cdt_max/100) * v
+    s = (2 if v == 230 else 1) * distancia * ib * cos_phi / (gamma * e)
     
-    with col2:
-        aislante = st.radio("Aislamiento", ["PVC (70°C)", "XLPE/EPR (90°C)"])
-        canalizacion = st.selectbox("Método de Instalación (ITC-BT-19)", ["B1 - Tubo en pared", "C - Cable sobre pared", "E - Aire libre"])
-        caida_admitida = st.number_input("Caída de tensión máx. (%)", value=3.0)
+    st.markdown(f'<div class="resultado-negro">Intensidad: {ib:.2f} A</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="resultado-negro">Sección calculada: {s:.2f} mm²</div>', unsafe_allow_html=True)
 
-    # Cálculo simplificado para visualización
-    V = 230 if "Mono" in sistema else 400
-    gamma = 48 if "PVC" in aislante else 44
-    Ib = potencia / (V * cos_phi) if V == 230 else potencia / (math.sqrt(3) * V * cos_phi)
-    e = (caida_admitida / 100) * V
-    S_cdt = (2 if V == 230 else 1) * longitud * Ib * cos_phi / (gamma * e)
+# --- 5. SECCIÓN: PRESUPUESTO ESQUEMA DTIE ---
+else:
+    st.title("💰 Presupuesto por Capítulos (Esquema DTIE)")
     
+    capitulos_data = []
+
+    # CAP I: DERIVACIÓN INDIVIDUAL
+    with st.expander("I. DERIVACIÓN INDIVIDUAL", expanded=False):
+        m_6mm = st.number_input("Metros cable 6mm²", value=48, key="c1_1")
+        h_elec = st.number_input("Horas Oficial 1ª (Derivación)", value=2.0, key="c1_2")
+        h_oper = st.number_input("Horas Operario (Derivación)", value=1.5, key="c1_3")
+        
+        coste_i = (m_6mm * precios_base["6mm"] + h_elec * precios_base["ELEC"] + h_oper * precios_base["OPER"]) * f_total
+        capitulos_data.append(("CAPÍTULO I: DERIVACIÓN INDIVIDUAL", coste_i))
+
+    # CAP II: CUADRO DE PROTECCIÓN
+    with st.expander("II. CUADRO DE PROTECCIÓN", expanded=False):
+        q_cuadro = st.number_input("Cuadro 36 mód. (Ud)", value=1)
+        q_iga = st.number_input("IGA + Sobretensiones (Ud)", value=1)
+        q_dif = st.number_input("Diferenciales (Ud)", value=2)
+        q_p25 = st.number_input("PIA 25A (Ud)", value=1)
+        q_p16 = st.number_input("PIA 16A (Ud)", value=4)
+        q_p10 = st.number_input("PIA 10A (Ud)", value=2)
+        
+        coste_ii = (q_cuadro * precios_base["Cuadro"] + q_iga * precios_base["IGA"] + 
+                    q_dif * precios_base["DIF"] + q_p25 * precios_base["PIA25"] + 
+                    q_p16 * precios_base["PIA16"] + q_p10 * precios_base["PIA10"]) * f_total
+        capitulos_data.append(("CAPÍTULO II: CUADRO DE PROTECCIÓN", coste_ii))
+
+    # CAP III: ILUMINACIÓN (C1)
+    with st.expander("III. CIRCUITO DE ILUMINACIÓN (C1)", expanded=False):
+        m_15 = st.number_input("Metros cable 1.5mm²", value=315)
+        m_t20 = st.number_input("Metros Tubo 20mm (C1)", value=90)
+        n_int = st.number_input("Interruptores (Ud)", value=4)
+        n_con = st.number_input("Conmutadores (Ud)", value=10)
+        
+        coste_iii = (m_15 * precios_base["1.5mm"] + m_t20 * precios_base["20mm"] + 
+                     n_int * precios_base["INT"] + n_con * precios_base["CONM"]) * f_total
+        capitulos_data.append(("CAPÍTULO III: CIRCUITO DE ILUMINACIÓN", coste_iii))
+
+    # CAP IV: TOMAS DE CORRIENTE (C2)
+    with st.expander("IV. TOMAS USO GENERAL (C2)", expanded=False):
+        m_25 = st.number_input("Metros cable 2.5mm² (C2)", value=325)
+        m_t20_c2 = st.number_input("Metros Tubo 20mm (C2)", value=75)
+        n_tc16 = st.number_input("Bases Enchufe 16A (C2)", value=18)
+        
+        coste_iv = (m_25 * precios_base["2.5mm"] + m_t20_c2 * precios_base["20mm"] + 
+                    n_tc16 * precios_base["TC16A"]) * f_total
+        capitulos_data.append(("CAPÍTULO IV: TOMAS DE CORRIENTE (C2)", coste_iv))
+
+    # CAP V, VI, VII (Resumen de Potencia)
+    with st.expander("V, VI, VII. COCINA, LAVADORA Y BAÑOS (C3, C4, C5)", expanded=False):
+        n_tc25 = st.number_input("Bases Enchufe 25A (Cocina)", value=2)
+        m_cable_c3 = st.number_input("Metros cable 6mm² (C3)", value=30)
+        m_cable_c4 = st.number_input("Metros cable 4mm² (C4)", value=85)
+        n_tc16_pot = st.number_input("Bases Enchufe 16A (C4+C5)", value=9)
+        
+        coste_v_vii = (n_tc25 * precios_base["TC25A"] + m_cable_c3 * precios_base["6mm"] + 
+                       m_cable_c4 * precios_base["4mm"] + n_tc16_pot * precios_base["TC16A"]) * f_total
+        capitulos_data.append(("CAPÍTULOS V-VII: CIRCUITOS DE POTENCIA", coste_v_vii))
+
+    # CAP VIII: TELEFONÍA, TV Y TIMBRE
+    with st.expander("VIII. TELECOMUNICACIONES Y TIMBRE", expanded=False):
+        n_puls = st.number_input("Pulsadores (Ud)", value=1)
+        n_zumb = st.number_input("Zumbador (Ud)", value=1)
+        m_t20_viii = st.number_input("Tubo 20mm (Aux)", value=25)
+        
+        coste_viii = (n_puls * precios_base["PULS"] + n_zumb * precios_base["ZUMB"] + 
+                      m_t20_viii * precios_base["20mm"]) * f_total
+        capitulos_data.append(("CAPÍTULO VIII: TELECOM., TV Y TIMBRE", coste_viii))
+
+    # --- RESUMEN FINAL ---
     st.divider()
-    c_res1, c_res2 = st.columns(2)
-    with c_res1:
-        st.write("Intensidad de empleo (Ib):")
-        st.markdown(f'<div class="resultado-negro">{Ib:.2f} A</div>', unsafe_allow_html=True)
-    with c_res2:
-        st.write("Sección mínima por CdT:")
-        st.markdown(f'<div class="resultado-negro">{S_cdt:.2f} mm²</div>', unsafe_allow_html=True)
-
-# --- 4. SECCIÓN: PRESUPUESTO DETALLADO ---
-elif seleccion == "💰 Presupuesto Detallado":
-    st.title("💰 Presupuesto por Circuitos y Mecanismos")
+    st.subheader("📊 RESUMEN DEL PRESUPUESTO")
     
-    total_materiales = 0
+    total_bi = 0
+    for nombre, importe in capitulos_data:
+        col_n, col_v = st.columns([3, 1])
+        col_n.write(nombre)
+        col_v.markdown(f'<div class="resultado-negro">{importe:,.2f} €</div>', unsafe_allow_html=True)
+        total_bi += importe
+    
+    total_iva = total_bi * (p_iva / 100)
+    total_presupuesto = total_bi + total_iva
 
-    # --- CUADRO ELÉCTRICO ---
-    with st.expander("🔌 CUADRO ELÉCTRICO Y PROTECCIONES", expanded=True):
-        calidad = st.select_slider("Gama de Protecciones", ["Básica", "Profesional", "Premium (SI)"])
-        desglose_c4 = st.checkbox("Desglosar C4 (Lavadora, Lavavajillas, Termo independientes)")
-        
-        precios_cuadro = {"Básica": 180, "Profesional": 320, "Premium (SI)": 550}
-        coste_base_cuadro = precios_cuadro[calidad]
-        if desglose_c4: coste_base_cuadro += 80 # Extra por más PIAs y espacio
-        
-        st.write(f"Coste estimado cuadro ({calidad}): {coste_base_cuadro} €")
-        total_materiales += coste_base_cuadro
-
-    # --- C1: ALUMBRADO ---
-    with st.expander("💡 C1: ALUMBRADO, PULSADORES Y ZUMBADOR", expanded=False):
-        c1a, c1b = st.columns(2)
-        with c1a:
-            p_int = st.number_input("Interruptores", 0, 50, 4)
-            p_con = st.number_input("Conmutadores", 0, 50, 2)
-            p_cru = st.number_input("Cruzamientos", 0, 50, 1)
-        with c1b:
-            p_pul = st.number_input("Pulsadores Timbre", 0, 10, 1)
-            p_zum = st.number_input("Zumbadores", 0, 10, 1)
-            p_mo_c1 = st.number_input("Mano de Obra C1 (€)", value=120)
-        
-        coste_c1 = (p_int*7) + (p_con*10) + (p_cru*15) + (p_pul*9) + (p_zum*18) + p_mo_c1
-        total_materiales += coste_c1
-
-    # --- C2: TOMAS GENERALES Y RETORNOS ---
-    with st.expander("🔌 C2: TOMAS GENERALES Y RETORNOS", expanded=False):
-        c2a, c2b = st.columns(2)
-        with c2a:
-            ench_c2 = st.number_input("Enchufes 16A", 0, 100, 12)
-            m_c2_fnt = st.number_input("Metros Cable 2.5mm² (F+N+T)", 0, 500, 60)
-        with c2b:
-            m_ret = st.number_input("Metros Cable Retorno (1.5mm²)", 0, 500, 30)
-            p_ret = st.number_input("Precio/m Retorno (€)", value=0.45)
-            p_mo_c2 = st.number_input("Mano de Obra C2 (€)", value=150)
-            
-        coste_c2 = (ench_c2*8) + (m_c2_fnt*1.8) + (m_ret*p_ret) + p_mo_c2
-        total_materiales += coste_c2
-
-    # --- C3, C4, C5: POTENCIA ---
-    with st.expander("🔥 C3, C4, C5: COCINA, BAÑO Y POTENCIA", expanded=False):
-        st.info("Configuración de circuitos de gran consumo.")
-        coste_c3 = st.number_input("Coste C3 (Cocina/Horno 6mm² + Base 25A)", value=140.0)
-        
-        label_c4 = "Coste C4 (Lavadora/Lavavajillas/Termo)" if not desglose_c4 else "Coste C4 Desglosado (3 líneas 20A)"
-        coste_c4 = st.number_input(label_c4, value=250.0 if desglose_c4 else 110.0)
-        
-        coste_c5 = st.number_input("Coste C5 (Baño y Auxiliares)", value=90.0)
-        total_materiales += (coste_c3 + coste_c4 + coste_c5)
-
-    # --- DERIVACIÓN E INFRAESTRUCTURA ---
-    with st.expander("🏗️ DERIVACIÓN INDIVIDUAL Y TIERRA", expanded=False):
-        coste_di = st.number_input("Metros Derivación Individual (Material + Tubo)", value=200.0)
-        coste_tierra = st.number_input("Pica de tierra y conductor", value=60.0)
-        total_materiales += (coste_di + coste_tierra)
-
-    # --- RESULTADO FINAL ---
-    st.divider()
-    subtotal = total_materiales * f_margen
-    total_iva = subtotal * (iva / 100)
-    final_cliente = subtotal + total_iva
-
-    col_res_a, col_res_b = st.columns(2)
-    with col_res_a:
-        st.write("Suma Costes Directos:")
-        st.markdown(f'<div class="resultado-negro">{total_materiales:,.2f} €</div>', unsafe_allow_html=True)
-    with col_res_b:
-        st.write(f"Base Imponible ({beneficio}% margen):")
-        st.markdown(f'<div class="resultado-negro" style="background-color: #fff9db;">{subtotal:,.2f} €</div>', unsafe_allow_html=True)
-
-    st.markdown(f'<div class="total-final">TOTAL PRESUPUESTO CLIENTE: {final_cliente:,.2f} €</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="total-final">TOTAL PRESUPUESTO: {total_presupuesto:,.2f} €</div>', unsafe_allow_html=True)
