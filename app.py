@@ -3,27 +3,12 @@ import pandas as pd
 import math
 from supabase import create_client
 
-# --- 1. CONFIGURACIÓN Y ESTILOS (LOGO Y.T, MARCA DE AGUA Y FUENTES BOLD) ---
+# --- 1. CONFIGURACIÓN Y ESTILOS (MARCA DE AGUA BLANCA Y FUENTES BOLD) ---
 st.set_page_config(page_title="Ingeniería Eléctrica Pro", layout="wide", page_icon="⚡")
 
 st.markdown(
     """
     <style>
-    /* Logo Y.T Estilizado */
-    .logo-yt {
-        position: fixed;
-        top: 15px;
-        left: 15px;
-        font-family: 'Arial Black', sans-serif;
-        font-size: 24px;
-        color: #22d3ee; /* Color cian eléctrico */
-        border: 2px solid #22d3ee;
-        padding: 2px 10px;
-        border-radius: 5px;
-        z-index: 10000;
-        background-color: rgba(15, 23, 42, 0.8); /* Fondo sutil para legibilidad */
-    }
-
     /* Marca de agua Blanca */
     .watermark {
         position: fixed;
@@ -58,7 +43,6 @@ st.markdown(
         text-align: center;
     }
     </style>
-    <div class="logo-yt">Y.T</div>
     <div class="watermark">Hecho por Younesse Tikent Tifaoui</div>
     """,
     unsafe_allow_html=True
