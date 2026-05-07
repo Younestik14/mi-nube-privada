@@ -242,7 +242,7 @@ if modo == "📐 Cálculo de Secciones":
         "PVC": [21,28,38,50,68,92,121,150,184,233,282,327,376,428,505],
         "XLPE": [25,34,46,61,83,112,146,181,221,281,341,396,455,517,613]
     }
-}
+    }
         
     # =====================================================
     # FUNCIÓN
@@ -881,50 +881,51 @@ else:
             df_presupuesto,
             use_container_width=True
         )
-# =================================================
-# EXPORTAR EXCEL
-# =================================================
 
-excel_presupuesto = exportar_excel(
+        # =================================================
+        # EXPORTAR EXCEL
+        # =================================================
 
-    df_presupuesto,
+        excel_presupuesto = exportar_excel(
 
-    "Presupuesto"
-)
+            df_presupuesto,
 
-st.download_button(
+            "Presupuesto"
+        )
 
-    "📊 Descargar Presupuesto Excel",
+        st.download_button(
 
-    excel_presupuesto,
+            "📊 Descargar Presupuesto Excel",
 
-    "presupuesto_profesional.xlsx",
+            excel_presupuesto,
 
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "presupuesto_profesional.xlsx",
 
-    use_container_width=True
-)
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 
-# =================================================
-# EXPORTAR CSV
-# =================================================
+            use_container_width=True
+        )
 
-csv_presupuesto = df_presupuesto.to_csv(
+        # =================================================
+        # EXPORTAR CSV
+        # =================================================
 
-    index=False,
-    sep=';',
-    encoding='utf-16'
-)
+        csv_presupuesto = df_presupuesto.to_csv(
 
-st.download_button(
+            index=False,
+            sep=';',
+            encoding='utf-16'
+        )
 
-    "📥 Descargar Presupuesto CSV",
+        st.download_button(
 
-    csv_presupuesto,
+            "📥 Descargar Presupuesto CSV",
 
-    "presupuesto_profesional.csv",
+            csv_presupuesto,
 
-    "text/csv",
+            "presupuesto_profesional.csv",
 
-    use_container_width=True
-)
+            "text/csv",
+
+            use_container_width=True
+        )
