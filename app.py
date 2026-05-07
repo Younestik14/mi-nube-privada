@@ -2,78 +2,37 @@ import streamlit as st
 import pandas as pd
 import math
 
-# --- 1. CONFIGURACIÓN Y ESTILOS (LOGO Y.T, MARCA DE AGUA Y FUENTES BOLD) ---
+# --- 1. CONFIGURACIÓN Y ESTILOS ---
 st.set_page_config(page_title="Ingeniería Pro - Presupuesto Maestro DTIE", layout="wide", page_icon="⚡")
 
 st.markdown(
     """
     <style>
-    /* Contenedor principal de la marca de agua y logo */
-    .footer-container {
-        position: fixed;
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 15px; /* Espacio entre logo y texto */
-        z-index: 9999;
-        pointer-events: none;
-        text-align: center;
-        width: 100%;
-        font-family: sans-serif;
+    .watermark {
+        position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+        font-family: sans-serif; font-size: 16px; color: rgba(255, 255, 255, 0.4);
+        z-index: 9999; pointer-events: none; text-align: center; width: 100%; font-weight: bold;
     }
-
-    /* Estilo del Logo Y.T Estilizado (Blanco/Cian) */
-    .logo-yt-footer {
-        font-family: 'Arial Black', sans-serif;
-        font-size: 22px;
-        color: #22d3ee; /* Cian eléctrico con transparencia */
-        border: 2px solid rgba(34, 211, 238, 0.6);
-        padding: 2px 8px;
-        border-radius: 5px;
-        font-weight: bold;
-        background-color: rgba(0, 0, 0, 0.2); /* Fondo sutil */
-    }
-
-    /* Estilo de la Marca de Agua (Blanca) */
-    .watermark-text {
-        font-size: 16px;
-        color: rgba(255, 255, 255, 0.6); /* Blanco con transparencia */
-        font-weight: bold;
-    }
-
-    /* Forzar negrita en etiquetas y textos generales */
     p, label, .stMarkdown, div, span, button { font-weight: bold !important; }
-
-    /* Estilo para resultados en negro */
     .resultado-negro {
         color: #000000 !important; font-weight: 900 !important; font-size: 18px;
         background-color: #f0f2f6; padding: 8px; border-radius: 5px;
         border-left: 5px solid #2e3b4e; margin-bottom: 2px; text-align: right;
     }
-
-    /* Estilo Total Final */
     .total-final {
         color: #ffffff !important; font-weight: 900 !important; font-size: 32px;
         background-color: #1e1e1e; padding: 20px; border-radius: 12px; text-align: center;
         border: 2px solid #ffd700; margin-top: 20px;
     }
-
-    /* Estilo Expanders */
     .stExpander { border: 1px solid #d1d1d1 !important; border-radius: 10px !important; margin-bottom: 10px !important; }
     </style>
-
-    <div class="footer-container">
-        <span class="logo-yt-footer">Y.T</span>
-        <span class="watermark-text">Hecho por Younesse Tikent Tifaoui - Consultoría Técnica</span>
-    </div>
+    <div class="watermark">Hecho por Younesse Tikent Tifaoui - Consultoría Técnica</div>
     """,
     unsafe_allow_html=True
 )
 
-# --- 2. BASE DE PRECIOS UNITARIOS (MANTENIDA INTACTA) ---
+# --- 2. BASE DE PRECIOS UNITARIOS (Extraídos de tus archivos DTIE) ---
+# He añadido una columna de "Precio Sugerido" para que sepas qué valor poner.
 db_precios = {
     "CABLES": {
         "1.5mm": 0.25, "2.5mm": 0.38, "4mm": 0.64, "6mm": 1.30, "10mm": 2.10
@@ -101,7 +60,7 @@ db_precios = {
     }
 }
 
-# --- 3. SIDEBAR: COEFICIENTES (MANTENIDA INTACTA) ---
+# --- 3. SIDEBAR: COEFICIENTES ---
 with st.sidebar:
     st.title("⚙️ Parámetros de Venta")
     modo = st.radio("Sección:", ["📐 Calculadora Técnica", "💰 Presupuesto Detallado"])
@@ -116,7 +75,7 @@ with st.sidebar:
     else:
         f_total = 1.0
 
-# --- 4. CALCULADORA TÉCNICA (MANTENIDA INTACTA SIN CAMBIOS) ---
+# --- 4. CALCULADORA TÉCNICA (MANTENIDA SIN CAMBIOS) ---
 if modo == "📐 Calculadora Técnica":
     st.title("📐 Cálculo de Secciones s/ REBT")
     col1, col2 = st.columns(2)
@@ -145,7 +104,7 @@ if modo == "📐 Calculadora Técnica":
     c_r1.metric("Intensidad de Diseño (Ib)", f"{Ib:.2f} A")
     c_r2.metric("Sección Teórica CdT", f"{S_cdt:.2f} mm²")
 
-# --- 5. PRESUPUESTO DESGLOSADO (NIVEL MÁXIMO - MANTENIDA INTACTA) ---
+# --- 5. PRESUPUESTO DESGLOSADO (NIVEL MÁXIMO) ---
 else:
     st.title("💰 Elaboración de Presupuesto Técnico DTIE")
     st.caption("Introduce las cantidades y verifica/ajusta los precios unitarios sugeridos.")
@@ -276,4 +235,3 @@ else:
     
     total_con_iva = total_neto * (1 + p_iva/100)
     st.markdown(f'<div class="total-final">PRESUPUESTO TOTAL (IVA {p_iva}% INCL.): {total_con_iva:,.2f} €</div>', unsafe_allow_html=True)
-    
