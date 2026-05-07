@@ -195,52 +195,55 @@ if modo == "📐 Cálculo de Secciones":
 
     tablas_adm = {
 
-        "A1 - Empotrado en tubo": {
+    "A1 - Empotrado en tubo (pared aislante)": {
 
-            "PVC": [
-                14.5, 19.5, 26, 34, 46,
-                61, 80, 99, 119, 151,
-                182, 210, 240, 273, 321
-            ],
+        "PVC": [14.5,19.5,26,34,46,61,80,99,119,151,182,210,240,273,321],
+        "XLPE": [18.5,25,33,43,59,77,102,126,153,194,233,268,307,352,415]
+    },
 
-            "XLPE": [
-                18.5, 25, 33, 43, 59,
-                77, 102, 126, 153, 194,
-                233, 268, 307, 352, 415
-            ]
-        },
+    "A2 - Multiconductor en tubo (pared aislante)": {
 
-        "B1 - Tubo sobre pared": {
+        "PVC": [14,18.5,25,32,43,57,75,92,110,139,167,192,219,248,291],
+        "XLPE": [17.5,24,32,41,54,73,95,117,141,179,216,249,285,324,380]
+    },
 
-            "PVC": [
-                17.5, 24, 32, 41, 57,
-                76, 101, 125, 151, 192,
-                232, 269, 300, 341, 400
-            ],
+    "B1 - Conductores en tubo sobre pared": {
 
-            "XLPE": [
-                22, 30, 40, 52, 71,
-                94, 126, 157, 190, 241,
-                292, 338, 388, 442, 523
-            ]
-        },
+        "PVC": [17.5,24,32,41,57,76,101,125,151,192,232,269,300,341,400],
+        "XLPE": [22,30,40,52,71,94,126,157,190,241,292,338,388,442,523]
+    },
 
-        "C - Cable sobre pared": {
+    "B2 - Multiconductor en tubo sobre pared": {
 
-            "PVC": [
-                19.5, 27, 36, 46, 63,
-                85, 112, 138, 168, 213,
-                258, 299, 344, 391, 461
-            ],
+        "PVC": [16.5,23,30,38,52,69,92,114,138,175,210,244,282,319,375],
+        "XLPE": [21,28,38,49,66,88,117,146,175,222,269,312,358,408,481]
+    },
 
-            "XLPE": [
-                24, 33, 45, 58, 80,
-                107, 138, 171, 209, 269,
-                328, 382, 441, 506, 599
-            ]
-        }
+    "C - Cable directamente sobre pared": {
+
+        "PVC": [19.5,27,36,46,63,85,112,138,168,213,258,299,344,391,461],
+        "XLPE": [24,33,45,58,80,107,138,171,209,269,328,382,441,506,599]
+    },
+
+    "D1 - Conductos enterrados": {
+
+        "PVC": [22,29,38,47,63,81,104,125,148,183,216,246,278,312,361],
+        "XLPE": [26,34,44,56,73,95,121,146,173,213,252,287,324,363,419]
+    },
+
+    "E - Multiconductor al aire libre": {
+
+        "PVC": [22,30,40,51,70,94,126,154,187,237,286,331,381,434,511],
+        "XLPE": [26,36,49,63,86,115,149,185,225,289,352,410,473,542,641]
+    },
+
+    "F - Unipolares en contacto sobre bandeja": {
+
+        "PVC": [21,28,38,50,68,92,121,150,184,233,282,327,376,428,505],
+        "XLPE": [25,34,46,61,83,112,146,181,221,281,341,396,455,517,613]
     }
-
+}
+        
     # =====================================================
     # FUNCIÓN
     # =====================================================
@@ -684,36 +687,41 @@ else:
 
     capitulos = {
 
-        "DI":
-        "DERIVACIÓN INDIVIDUAL",
+    "DI": "DERIVACIÓN INDIVIDUAL",
 
-        "CGMP":
-        "CUADRO GENERAL",
+    "CGMP": "CUADRO GENERAL DE MANDO Y PROTECCIÓN",
 
-        "C1":
-        "ILUMINACIÓN",
+    "C1": "ILUMINACIÓN",
 
-        "C2":
-        "TOMAS GENERALES",
+    "C2": "TOMAS DE USO GENERAL Y FRIGORÍFICO",
 
-        "C3":
-        "COCINA Y HORNO",
+    "C3": "COCINA Y HORNO",
 
-        "C4":
-        "LAVADORA Y TERMO",
+    "C4": "LAVADORA, LAVAVAJILLAS Y TERMO",
 
-        "C5":
-        "BAÑOS Y COCINA",
+    "C5": "BAÑOS Y COCINA",
 
-        "C13":
-        "VEHÍCULO ELÉCTRICO",
+    "C6": "ILUMINACIÓN ADICIONAL",
 
-        "C14":
-        "FOTOVOLTAICA",
+    "C7": "TOMAS ADICIONALES",
 
-        "PAT":
-        "PUESTA A TIERRA"
-    }
+    "C8": "CALEFACCIÓN",
+
+    "C9": "AIRE ACONDICIONADO",
+
+    "C10": "SECADORA",
+
+    "C11": "DOMÓTICA",
+
+    "C12": "AUXILIARES",
+
+    "C13": "RECARGA VEHÍCULO ELÉCTRICO",
+
+    "C14": "INSTALACIÓN FOTOVOLTAICA",
+
+    "PAT": "PUESTA A TIERRA"
+}
+
 
     datos_export = []
 
@@ -873,51 +881,50 @@ else:
             df_presupuesto,
             use_container_width=True
         )
+# =================================================
+# EXPORTAR EXCEL
+# =================================================
 
-        # =================================================
-        # EXPORTAR EXCEL
-        # =================================================
+excel_presupuesto = exportar_excel(
 
-        excel_presupuesto = exportar_excel(
+    df_presupuesto,
 
-            df_presupuesto,
+    "Presupuesto"
+)
 
-            "Presupuesto"
-        )
+st.download_button(
 
-        st.download_button(
+    "📊 Descargar Presupuesto Excel",
 
-            "📊 Descargar Presupuesto Excel",
+    excel_presupuesto,
 
-            excel_presupuesto,
+    "presupuesto_profesional.xlsx",
 
-            "presupuesto_profesional.xlsx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    use_container_width=True
+)
 
-            use_container_width=True
-        )
+# =================================================
+# EXPORTAR CSV
+# =================================================
 
-        # =================================================
-        # EXPORTAR CSV
-        # =================================================
+csv_presupuesto = df_presupuesto.to_csv(
 
-        csv_presupuesto = df_presupuesto.to_csv(
+    index=False,
+    sep=';',
+    encoding='utf-16'
+)
 
-            index=False,
-            sep=';',
-            encoding='utf-16'
-        )
+st.download_button(
 
-        st.download_button(
+    "📥 Descargar Presupuesto CSV",
 
-            "📥 Descargar CSV",
+    csv_presupuesto,
 
-            csv_presupuesto,
+    "presupuesto_profesional.csv",
 
-            "presupuesto.csv",
+    "text/csv",
 
-            "text/csv",
-
-            use_container_width=True
-        )
+    use_container_width=True
+)
