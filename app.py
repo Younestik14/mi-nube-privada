@@ -164,7 +164,7 @@ else:
     tab_cfg, tab_pre = st.tabs(["🛠️ Configuración de Precios Unitarios", "📋 Generación de Capítulos"])
 
     with tab_cfg:
-        st.subheader("Base de Datos de Precios (Catalogo)")
+        st.subheader("Base de Datos de Precios (Catálogo)")
         col_p1, col_p2, col_p3 = st.columns(3)
         
         with col_p1:
@@ -199,7 +199,7 @@ else:
         p_ayudante = c_mo2.number_input("Ayudante (€/h)", 15.0, 50.0, 26.5)
         p_caja_vacia = c_cuad.number_input("Caja Cuadro (Envolvente) (€)", 20.0, 500.0, 75.0)
 
-    # Creación del diccionario dinámico de precios
+    # Diccionario dinámico de precios
     catalogo_precios = {
         "Cable 1.5 mm²": p_c15, "Cable 2.5 mm²": p_c25, "Cable 4 mm²": p_c40, 
         "Cable 6 mm²": p_c60, "Cable 10 mm²": p_c10, "Cable 16 mm²": p_c16,
@@ -249,8 +249,8 @@ else:
                 st.divider()
                 # MANO DE OBRA ÚNICA POR CAPÍTULO
                 c_h1, c_h2 = st.columns(2)
-                h_of = c_h1.number_input(f"Horas Oficial", 0.0, 500.0, 2.0, key=f"h_of_{code}")
-                h_ay = c_h2.number_input(f"Horas Ayudante", 0.0, 500.0, 1.0, key=f"h_ay_{code}")
+                h_of = c_h1.number_input(f"Horas Oficial", 0.0, 500.0, 0.0, key=f"h_of_{code}")
+                h_ay = c_h2.number_input(f"Horas Ayudante", 0.0, 500.0, 0.0, key=f"h_ay_{code}")
                 
                 coste_mo = (h_of * p_oficial) + (h_ay * p_ayudante)
                 total_cap = (coste_materiales + coste_mo) * f_multiplicador
