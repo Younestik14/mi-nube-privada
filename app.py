@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import math
+import io  # Añadido para manejo de memoria
 
 # --- 1. CONFIGURACIÓN Y ESTILO DARK INTEGRAL ---
 st.set_page_config(page_title="Ingeniería Pro v3.0 - Full Suite", layout="wide", page_icon="⚡")
@@ -45,6 +46,13 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
+# --- FUNCIÓN PARA CONVERTIR DATAFRAME A EXCEL (AÑADIDO) ---
+def to_excel(df):
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Hoja1')
+    return output.getvalue()
 
 # --- 2. MOTOR DE CÁLCULO REBT (MATRIZ UNE-HD 60364-5-52) ---
 secciones_ref = [1.5, 2.5, 4, 6, 10, 16, 25, 35, 50, 70, 95, 120, 150, 185, 240]
@@ -135,6 +143,14 @@ if modo == "📐 Dimensionado REBT":
 
     st.divider()
     st.markdown(f'<div class="resultado-caja">SECCIÓN REGLAMENTARIA: {s_final} mm²<br><small style="font-size:14px; font-weight:normal;">Intensidad (Ib): {ib:.2f} A | Térmico: {s_adm} mm² | CdT: {s_cdt:.2f} mm²</small></div>', unsafe_allow_html=True)
+    
+    # --- EXPORTACIÓN EXCEL PARA CÁLCULO TÉCNICO (AÑADIDO) ---
+    df_calc = pd.DataFrame({
+        "Variable": ["Sistema", "Potencia (W)", "Longitud (m)", "Cos φ", "Material", "Aislamiento", "Intensidad Ib (A)", "Sección Térmica (mm²)", "Sección CdT (mm²)", "SECCIÓN FINAL (mm²)"],
+        "Valor": [sistema, potencia, longitud, cos_phi, material, aislamiento, f"{ib:.2f}", s_adm, f"{s_cdt:.2f}", s_final]
+    })
+    excel_data_calc = to_excel(df_calc)
+    st.download_button("📥 Descargar Memoria de Cálculo (Excel)", excel_data_calc, "memoria_calculo.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 # --- 5. PRESUPUESTO MAESTRO ---
 else:
@@ -267,4 +283,10 @@ else:
                 "Justificación Técnica": desc_tecnica,
                 "Importe (€)": resumen_costes
             })
-            st.download_button("📥 Descargar Presupuesto Detallado", df_final.to_csv(index=False, sep=';', encoding='utf-16'), "presupuesto_ingenieria.csv", "text/csv")
+            
+            # --- BOTONES DE DESCARGA (ACTUALIZADOS A EXCEL) ---
+            st.download_button("📥 Descargar Presupuesto Detallado (CSV)", df_final.to_csv(index=False, sep=';', encoding='utf-16'), "presupuesto_ingenieria.csv", "text/csv")
+            
+            # Línea añadida para descarga en Excel
+            excel_presupuesto = to_excel(df_final)
+            st.download_button("📊 Descargar Presupuesto Detallado (Excel)", excel_presupuesto, "presupuesto_profesional.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
