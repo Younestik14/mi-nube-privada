@@ -46,7 +46,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- 2. MOTOR DE CÁLCULO REBT (MATRIZ COMPLETA UNE-HD 60364-5-52) ---
+# --- 2. MOTOR DE CÁLCULO REBT (MATRIZ UNE-HD 60364-5-52) ---
 secciones_ref = [1.5, 2.5, 4, 6, 10, 16, 25, 35, 50, 70, 95, 120, 150, 185, 240]
 
 tablas_adm = {
@@ -106,11 +106,10 @@ with st.sidebar:
     else:
         f_multiplicador = 1.0
 
-# --- 4. CALCULADORA TÉCNICA EXTENDIDA ---
+# --- 4. CALCULADORA TÉCNICA ---
 if modo == "📐 Dimensionado REBT":
     st.title("📐 Oficina Técnica: Cálculo de Líneas s/ REBT")
     c1, c2 = st.columns(2)
-    
     with c1:
         st.subheader("Datos de Carga")
         sistema = st.selectbox("Sistema Eléctrico", ["Monofásico 230V", "Trifásico 400V"])
@@ -119,7 +118,6 @@ if modo == "📐 Dimensionado REBT":
         cos_phi = st.slider("Factor de Potencia (cos φ)", 0.70, 1.00, 0.90)
         uso = st.selectbox("Factor de Uso", ["General (1.0)", "Motores (1.25)", "Lámparas de Descarga (1.8)", "Vehículo Eléctrico (1.25)"])
         k_u = 1.25 if ("Motores" in uso or "Vehículo" in uso) else (1.8 if "Descarga" in uso else 1.0)
-
     with c2:
         st.subheader("Parámetros de Instalación")
         material = st.radio("Material Conductor", ["Cobre (Cu)", "Aluminio (Al)"], horizontal=True)
@@ -129,38 +127,18 @@ if modo == "📐 Dimensionado REBT":
 
     v_fase = 230 if "Mono" in sistema else 400
     ib = (potencia * k_u) / (v_fase * cos_phi) if v_fase == 230 else (potencia * k_u) / (1.732 * v_fase * cos_phi)
-    
     s_adm = get_seccion_adm(metodo_inst, aislamiento, ib)
-    
-    if "Cobre" in material:
-        gamma = 48 if "PVC" in aislamiento else 44
-    else:
-        gamma = 30 if "PVC" in aislamiento else 28
-    
-    if v_fase == 230:
-        s_cdt = (2 * longitud * potencia) / (gamma * (max_cdt/100 * v_fase) * v_fase)
-    else:
-        s_cdt = (longitud * potencia) / (gamma * (max_cdt/100 * v_fase) * v_fase)
-        
+    gamma = (48 if "PVC" in aislamiento else 44) if "Cobre" in material else (30 if "PVC" in aislamiento else 28)
+    s_cdt = (2 * longitud * potencia) / (gamma * (max_cdt/100 * v_fase) * v_fase) if v_fase == 230 else (longitud * potencia) / (gamma * (max_cdt/100 * v_fase) * v_fase)
     s_cdt_norm = next((s for s in secciones_ref if s >= s_cdt), 240)
     s_final = max(s_adm, s_cdt_norm)
 
     st.divider()
-    st.markdown(f"""
-    <div class="resultado-caja">
-        SECCIÓN REGLAMENTARIA: {s_final} mm²<br>
-        <small style="font-size:14px; font-weight:normal;">
-            Intensidad de Diseño (Ib): {ib:.2f} A | 
-            Criterio Térmico: {s_adm} mm² | 
-            Criterio CdT: {s_cdt:.2f} mm²
-        </small>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f'<div class="resultado-caja">SECCIÓN REGLAMENTARIA: {s_final} mm²<br><small style="font-size:14px; font-weight:normal;">Intensidad (Ib): {ib:.2f} A | Térmico: {s_adm} mm² | CdT: {s_cdt:.2f} mm²</small></div>', unsafe_allow_html=True)
 
-# --- 5. PRESUPUESTO MAESTRO CON SELECCIÓN AMPLIADA ---
+# --- 5. PRESUPUESTO MAESTRO ---
 else:
-    st.title("💰 Gestor de Presupuestos: Electrificación Elevada")
-    
+    st.title("💰 Gestor de Presupuestos: Electrificación s/ REBT")
     tab_cfg, tab_pre = st.tabs(["🛠️ Configuración de Precios Unitarios", "📋 Generación de Capítulos"])
 
     with tab_cfg:
@@ -213,7 +191,6 @@ else:
         p_ayudante = c_mo2.number_input("Ayudante (€/h)", 15.0, 50.0, 26.5)
         p_caja_vacia = c_cuad.number_input("Caja Cuadro (Envolvente) (€)", 20.0, 500.0, 75.0)
 
-    # Diccionario dinámico de precios incluyendo mecanismos específicos, diferenciales por intensidad y tubos
     catalogo_precios = {
         "Cable 1.5 mm²": p_c15, "Cable 2.5 mm²": p_c25, "Cable 4 mm²": p_c40, 
         "Cable 6 mm²": p_c60, "Cable 10 mm²": p_c10, "Cable 16 mm²": p_c16,
@@ -223,77 +200,49 @@ else:
         "IGA + Sobretensiones": p_iga_sobre, "PIA 10A": p_pia_10, "PIA 16A": p_pia_16,
         "PIA 20A": p_pia_20, "PIA 25A": p_pia_25, 
         "Diferencial 25A Clase A": p_diff_claseA_25, "Diferencial 40A Clase A": p_diff_claseA_40, "Diferencial 63A Clase A": p_diff_claseA_63,
-        "Tubo Ø16mm": p_t16, "Tubo Ø20mm": p_t20, "Tubo Ø25mm": p_t25, 
-        "Tubo Ø32mm": p_t32, "Tubo Ø40mm": p_t40, "Tubo Ø50mm": p_t50, "Tubo Ø63mm": p_t63,
+        "Tubo Ø16mm": p_t16, "Tubo Ø20mm": p_t20, "Tubo Ø25mm": p_t25, "Tubo Ø32mm": p_t32,
+        "Tubo Ø40mm": p_t40, "Tubo Ø50mm": p_t50, "Tubo Ø63mm": p_t63,
         "Caja Cuadro": p_caja_vacia, "Peines Conexión": 12.0, "Pica Tierra + Cable": 115.0
     }
 
     with tab_pre:
+        # --- ENUMERACIÓN CORREGIDA SEGÚN REBT / ITC-BT-52 ---
         capitulos_config = {
             "DI": "DERIVACIÓN INDIVIDUAL",
-            "CGMP": "CUADRO GENERAL",
+            "CGMP": "CUADRO GENERAL DE MANDO Y PROTECCIÓN",
             "C1": "ILUMINACIÓN",
-            "C2": "TOMAS GENERALES",
+            "C2": "TOMAS DE USO GENERAL Y FRIGORÍFICO",
             "C3": "COCINA Y HORNO",
-            "C4": "LAVADORA/LAVAVAJILLAS",
-            "C5": "BAÑOS Y COCINA",
+            "C4": "LAVADORA, LAVAVAJILLAS Y TERMO ELÉCTRICO",
+            "C5": "BAÑOS Y TOMAS DE CORRIENTE DE COCINA",
+            "C6": "CIRCUITO ADICIONAL (C1)",
+            "C7": "CIRCUITO ADICIONAL (C2)",
             "C8": "CALEFACCIÓN",
             "C9": "AIRE ACONDICIONADO",
             "C10": "SECADORA",
-            "C11": "DOMÓTICA",
-            "C12": "VEHÍCULO ELÉCTRICO",
-            "PAT": "PUESTA A TIERRA"
+            "C11": "DOMÓTICA Y SEGURIDAD",
+            "C12": "CIRCUITO ADICIONAL TOMAS GENERALES",
+            "C13": "RECARGA DE VEHÍCULO ELÉCTRICO (IRVE)",
+            "PAT": "INSTALACIÓN DE PUESTA A TIERRA"
         }
-
-        resumen_costes = []
-        nombres_export = []
+        
+        resumen_costes, nombres_export = [], []
 
         for code, name in capitulos_config.items():
             with st.expander(f"🛠️ {code}: {name}"):
                 c_sel, c_cant = st.columns([2, 1])
-                
-                # SELECCIÓN DE MATERIALES
-                seleccion = c_sel.multiselect(
-                    f"Añadir materiales a {code}:", 
-                    list(catalogo_precios.keys()), 
-                    key=f"sel_{code}"
-                )
-                
-                coste_materiales = 0
-                for item in seleccion:
-                    # Lógica para elegir tipo de mecanismo o intensidad si el usuario lo desea 
-                    # (Se gestiona mediante el nombre en el catálogo)
-                    q = c_cant.number_input(f"Cant. {item}", min_value=0.0, value=1.0, step=1.0, key=f"q_{code}_{item}")
-                    coste_materiales += q * catalogo_precios[item]
-                
+                seleccion = c_sel.multiselect(f"Añadir materiales a {code}:", list(catalogo_precios.keys()), key=f"sel_{code}")
+                coste_materiales = sum(c_cant.number_input(f"Cant. {item}", min_value=0.0, value=0.0, step=1.0, key=f"q_{code}_{item}") * catalogo_precios[item] for item in seleccion)
                 st.divider()
-                # MANO DE OBRA
                 c_h1, c_h2 = st.columns(2)
                 h_of = c_h1.number_input(f"Horas Oficial", 0.0, 500.0, 0.0, key=f"h_of_{code}")
                 h_ay = c_h2.number_input(f"Horas Ayudante", 0.0, 500.0, 0.0, key=f"h_ay_{code}")
-                
-                coste_mo = (h_of * p_oficial) + (h_ay * p_ayudante)
-                total_cap = (coste_materiales + coste_mo) * f_multiplicador
-                
+                total_cap = (coste_materiales + (h_of * p_oficial) + (h_ay * p_ayudante)) * f_multiplicador
                 st.markdown(f'<div class="resultado-caja">{total_cap:,.2f} €</div>', unsafe_allow_html=True)
-                resumen_costes.append(total_cap)
-                nombres_export.append(f"{code} - {name}")
+                resumen_costes.append(total_cap); nombres_export.append(f"{code} - {name}")
 
-        # --- RESUMEN FINAL ---
         st.divider()
         total_neto = sum(resumen_costes)
         impuestos = total_neto * (iva_tipo / 100)
-        total_final = total_neto + impuestos
-
-        st.markdown(f"""
-        <div class="total-final-banner">
-            PRESUPUESTO TOTAL EJECUCIÓN<br>
-            <span style="color:#ffd700">{total_final:,.2f} €</span><br>
-            <small style="font-size:18px; font-weight:normal;">
-                Base Imponible: {total_neto:,.2f} € | IVA ({iva_tipo}%): {impuestos:,.2f} €
-            </small>
-        </div>
-        """, unsafe_allow_html=True)
-
-        df_export = pd.DataFrame({"Capítulo": nombres_export, "Importe (€)": resumen_costes})
-        st.download_button("📥 Descargar Presupuesto Detallado", df_export.to_csv(index=False), "presupuesto_ingenieria.csv", "text/csv")
+        st.markdown(f'<div class="total-final-banner">PRESUPUESTO TOTAL EJECUCIÓN<br><span style="color:#ffd700">{total_neto + impuestos:,.2f} €</span><br><small style="font-size:18px; font-weight:normal;">Base Imponible: {total_neto:,.2f} € | IVA ({iva_tipo}%): {impuestos:,.2f} €</small></div>', unsafe_allow_html=True)
+        st.download_button("📥 Descargar Presupuesto Detallado", pd.DataFrame({"Capítulo": nombres_export, "Importe (€)": resumen_costes}).to_csv(index=False), "presupuesto_ingenieria.csv", "text/csv")
