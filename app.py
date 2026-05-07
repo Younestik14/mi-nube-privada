@@ -157,15 +157,15 @@ if modo == "📐 Dimensionado REBT":
     </div>
     """, unsafe_allow_html=True)
 
-# --- 5. PRESUPUESTO MAESTRO CON SELECCIÓN ÚNICA ---
+# --- 5. PRESUPUESTO MAESTRO CON SELECCIÓN AMPLIADA ---
 else:
     st.title("💰 Gestor de Presupuestos: Electrificación Elevada")
     
     tab_cfg, tab_pre = st.tabs(["🛠️ Configuración de Precios Unitarios", "📋 Generación de Capítulos"])
 
     with tab_cfg:
-        st.subheader("Base de Datos de Precios (Catalogo)")
-        col_p1, col_p2, col_p3 = st.columns(3)
+        st.subheader("Base de Datos de Precios (Catálogo)")
+        col_p1, col_p2, col_p3, col_p4 = st.columns(4)
         
         with col_p1:
             st.markdown("#### ⚡ Cables (€/m)")
@@ -193,9 +193,19 @@ else:
             p_pia_16 = st.number_input("PIA 16A", 5.0, 40.0, 9.20)
             p_pia_20 = st.number_input("PIA 20A", 5.0, 40.0, 11.50)
             p_pia_25 = st.number_input("PIA 25A", 5.0, 50.0, 14.00)
-            p_diff_claseA_25 = st.number_input("Diferencial Clase A 25A", 30.0, 250.0, 55.0)
-            p_diff_claseA_40 = st.number_input("Diferencial Clase A 40A", 30.0, 250.0, 65.0)
-            p_diff_claseA_63 = st.number_input("Diferencial Clase A 63A", 30.0, 350.0, 95.0)
+            p_diff_claseA_25 = st.number_input("Diferencial A 25A", 30.0, 250.0, 55.0)
+            p_diff_claseA_40 = st.number_input("Diferencial A 40A", 30.0, 250.0, 65.0)
+            p_diff_claseA_63 = st.number_input("Diferencial A 63A", 30.0, 350.0, 95.0)
+
+        with col_p4:
+            st.markdown("#### 🚇 Tubos (€/m)")
+            p_t16 = st.number_input("Tubo Ø16mm", 0.20, 5.0, 0.45)
+            p_t20 = st.number_input("Tubo Ø20mm", 0.30, 6.0, 0.65)
+            p_t25 = st.number_input("Tubo Ø25mm", 0.40, 8.0, 0.85)
+            p_t32 = st.number_input("Tubo Ø32mm", 0.60, 12.0, 1.25)
+            p_t40 = st.number_input("Tubo Ø40mm", 1.00, 20.0, 2.10)
+            p_t50 = st.number_input("Tubo Ø50mm", 1.50, 30.0, 3.40)
+            p_t63 = st.number_input("Tubo Ø63mm", 2.00, 45.0, 4.80)
 
         st.divider()
         c_mo1, c_mo2, c_cuad = st.columns(3)
@@ -203,7 +213,7 @@ else:
         p_ayudante = c_mo2.number_input("Ayudante (€/h)", 15.0, 50.0, 26.5)
         p_caja_vacia = c_cuad.number_input("Caja Cuadro (Envolvente) (€)", 20.0, 500.0, 75.0)
 
-    # Creación del diccionario dinámico de precios
+    # Diccionario dinámico de precios incluyendo mecanismos específicos, diferenciales por intensidad y tubos
     catalogo_precios = {
         "Cable 1.5 mm²": p_c15, "Cable 2.5 mm²": p_c25, "Cable 4 mm²": p_c40, 
         "Cable 6 mm²": p_c60, "Cable 10 mm²": p_c10, "Cable 16 mm²": p_c16,
@@ -213,6 +223,8 @@ else:
         "IGA + Sobretensiones": p_iga_sobre, "PIA 10A": p_pia_10, "PIA 16A": p_pia_16,
         "PIA 20A": p_pia_20, "PIA 25A": p_pia_25, 
         "Diferencial 25A Clase A": p_diff_claseA_25, "Diferencial 40A Clase A": p_diff_claseA_40, "Diferencial 63A Clase A": p_diff_claseA_63,
+        "Tubo Ø16mm": p_t16, "Tubo Ø20mm": p_t20, "Tubo Ø25mm": p_t25, 
+        "Tubo Ø32mm": p_t32, "Tubo Ø40mm": p_t40, "Tubo Ø50mm": p_t50, "Tubo Ø63mm": p_t63,
         "Caja Cuadro": p_caja_vacia, "Peines Conexión": 12.0, "Pica Tierra + Cable": 115.0
     }
 
@@ -240,7 +252,7 @@ else:
             with st.expander(f"🛠️ {code}: {name}"):
                 c_sel, c_cant = st.columns([2, 1])
                 
-                # SELECCIÓN ÚNICA DE MATERIALES
+                # SELECCIÓN DE MATERIALES
                 seleccion = c_sel.multiselect(
                     f"Añadir materiales a {code}:", 
                     list(catalogo_precios.keys()), 
@@ -249,11 +261,13 @@ else:
                 
                 coste_materiales = 0
                 for item in seleccion:
+                    # Lógica para elegir tipo de mecanismo o intensidad si el usuario lo desea 
+                    # (Se gestiona mediante el nombre en el catálogo)
                     q = c_cant.number_input(f"Cant. {item}", min_value=0.0, value=1.0, step=1.0, key=f"q_{code}_{item}")
                     coste_materiales += q * catalogo_precios[item]
                 
                 st.divider()
-                # MANO DE OBRA ÚNICA POR CAPÍTULO
+                # MANO DE OBRA
                 c_h1, c_h2 = st.columns(2)
                 h_of = c_h1.number_input(f"Horas Oficial", 0.0, 500.0, 0.0, key=f"h_of_{code}")
                 h_ay = c_h2.number_input(f"Horas Ayudante", 0.0, 500.0, 0.0, key=f"h_ay_{code}")
