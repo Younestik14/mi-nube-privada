@@ -2,22 +2,18 @@ import streamlit as st
 import pandas as pd
 import math
 
-# --- 1. CONFIGURACIÓN Y ESTILOS (LOGO Y.T, MARCA DE AGUA Y FUENTES BOLD) ---
+# --- 1. CONFIGURACIÓN Y ESTILOS ---
 st.set_page_config(page_title="Ingeniería Pro - Presupuesto Maestro DTIE", layout="wide", page_icon="⚡")
 
 st.markdown(
     """
     <style>
-    /* Contenedor principal de la marca de agua y logo */
+    /* Marca de agua pequeña y transparente */
     .footer-container {
         position: fixed;
-        bottom: 20px;
+        bottom: 10px;
         left: 50%;
         transform: translateX(-50%);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 15px;
         z-index: 9999;
         pointer-events: none;
         text-align: center;
@@ -25,23 +21,10 @@ st.markdown(
         font-family: sans-serif;
     }
 
-    /* Logo Y.T Estilizado */
-    .logo-yt-footer {
-        font-family: 'Arial Black', sans-serif;
-        font-size: 22px;
-        color: #22d3ee; 
-        border: 2px solid rgba(34, 211, 238, 0.6);
-        padding: 2px 8px;
-        border-radius: 5px;
-        font-weight: bold;
-        background-color: rgba(0, 0, 0, 0.2);
-    }
-
-    /* Marca de Agua */
     .watermark-text {
-        font-size: 16px;
-        color: rgba(255, 255, 255, 0.6);
-        font-weight: bold;
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.25); /* Muy transparente */
+        font-weight: normal;
     }
 
     /* Forzar negrita en toda la interfaz */
@@ -67,7 +50,6 @@ st.markdown(
     </style>
 
     <div class="footer-container">
-        <span class="logo-yt-footer">Y.T</span>
         <span class="watermark-text">Hecho por Younesse Tikent Tifaoui - Consultoría Técnica</span>
     </div>
     """,
@@ -76,183 +58,143 @@ st.markdown(
 
 # --- 2. BASE DE PRECIOS UNITARIOS ---
 db_precios = {
-    "CABLES": {
-        "1.5mm": 0.25, "2.5mm": 0.38, "4mm": 0.64, "6mm": 1.30, "10mm": 2.10
-    },
-    "CANALIZACION": {
-        "Tubo 20mm": 0.16, "Tubo 25mm": 0.23, "Tubo 32mm": 0.45
-    },
-    "PROTECCIONES": {
-        "Cuadro 36 mod": 53.92, "IGA Combi": 56.20, "DIF Std": 13.82, 
-        "DIF SI": 45.50, "PIA 10A": 3.60, "PIA 16A": 9.31, 
-        "PIA 20A": 10.50, "PIA 25A": 3.64
-    },
-    "MECANISMOS": {
-        "Interruptor": 2.44, "Conmutador": 2.42, "Cruzamiento": 5.74,
-        "Base 16A": 2.79, "Base 25A": 7.10, "USB Doble": 18.20,
-        "Dimmer LED": 32.00, "Sensor Presencia": 28.50, "Pulsador": 3.28,
-        "Zumbador": 24.73, "Tomas RJ45": 12.50, "Toma TV/SAT": 9.80
-    },
-    "PEQUEÑO MAT": {
-        "Caja Univ": 0.13, "Caja 100x100": 1.30, "Caja 250x250": 2.96,
-        "Regleta 4mm": 0.54, "Regleta 25mm": 2.45, "Portalámparas": 1.84
-    },
-    "MANO OBRA": {
-        "Oficial 1ª": 33.00, "Ayudante": 29.00
-    }
+    "CABLES": {"1.5mm": 0.25, "2.5mm": 0.38, "4mm": 0.64, "6mm": 1.30, "10mm": 2.10},
+    "PROTECCIONES": {"Cuadro 36 mod": 53.92, "IGA Combi": 56.20, "PIA 10A": 3.60, "PIA 16A": 9.31, "PIA 25A": 3.64},
+    "MECANISMOS": {"Interruptor": 2.44, "Base 16A": 2.79, "Base 25A": 7.10, "Tomas RJ45": 12.50},
+    "MANO OBRA": {"Oficial 1ª": 33.00, "Ayudante": 29.00}
 }
 
 # --- 3. SIDEBAR ---
 with st.sidebar:
-    st.title("⚙️ Parámetros de Venta")
+    st.title("⚙️ Parámetros")
     modo = st.radio("Sección:", ["📐 Calculadora Técnica", "💰 Presupuesto Detallado"])
     
     if modo == "💰 Presupuesto Detallado":
         st.divider()
-        st.info("Estos coeficientes se aplican al coste base (Material + MO)")
         p_ben = st.number_input("% Beneficio Industrial", 0, 100, 15)
-        p_amo = st.number_input("% Gastos Generales/Amort.", 0, 100, 5)
+        p_amo = st.number_input("% Gastos Generales", 0, 100, 5)
         p_iva = st.selectbox("Tipo de IVA (%)", [21, 10, 4, 0], index=0)
         f_total = 1 + (p_ben/100) + (p_amo/100)
     else:
         f_total = 1.0
 
-# --- 4. CALCULADORA TÉCNICA (MÉTODOS AMPLIADOS) ---
+# --- 4. CALCULADORA TÉCNICA ACTUALIZADA ---
 if modo == "📐 Calculadora Técnica":
     st.title("📐 Cálculo de Secciones s/ REBT")
     col1, col2 = st.columns(2)
+    
     with col1:
         st.subheader("Parámetros Eléctricos")
         red = st.selectbox("Sistema", ["Monofásico 230V", "Trifásico 400V"])
         P = st.number_input("Potencia Instalar (W)", value=5750)
         L = st.number_input("Longitud (m)", value=25.0)
-        cos_phi = st.slider("Factor de Potencia", 0.70, 1.00, 0.90)
-        k_rec = st.selectbox("Uso", ["General (1.0)", "Motores (1.25)", "Descarga (1.8)"])
-        k = 1.25 if "Motores" in k_rec else (1.8 if "Descarga" in k_rec else 1.0)
+        cos_phi = st.slider("Factor de Potencia (cos φ)", 0.70, 1.00, 0.90)
+        k_rec = st.selectbox("Uso / Factor de Recargo", ["General (1.0)", "Motores (1.25)", "Lámparas de Descarga (1.8)", "Vehículo Eléctrico (1.25)"])
+        
+        # Lógica de recargo según uso
+        k = 1.25 if ("Motores" in k_rec or "Vehículo" in k_rec) else (1.8 if "Descarga" in k_rec else 1.0)
     
     with col2:
         st.subheader("Entorno e Instalación")
-        mat = st.radio("Conductor", ["Cobre", "Aluminio"], horizontal=True)
-        ais = st.radio("Aislamiento", ["PVC (70°)", "XLPE (90°)"], horizontal=True)
-        
-        # LISTA COMPLETA DE MÉTODOS DE INSTALACIÓN
+        mat = st.radio("Material Conductor", ["Cobre", "Aluminio"], horizontal=True)
+        ais = st.radio("Aislamiento", ["PVC (70°C)", "XLPE (90°C)"], horizontal=True)
         metodos_rebt = [
-            "A1 - Conductores aislados en tubo en pared aislante",
-            "A2 - Cable multiconductor en tubo en pared aislante",
-            "B1 - Conductores aislados en tubo sobre pared de madera",
-            "B2 - Cable multiconductor en tubo sobre pared de madera",
-            "C - Cable bajo cubierta (directo) sobre pared de madera",
-            "D1 - Cable multiconductor en conductos enterrados",
-            "D2 - Cable multiconductor enterrado directamente",
-            "E - Cable multiconductor al aire libre",
-            "F - Cables unipolares en contacto al aire libre",
-            "G - Cables unipolares separados al aire libre"
+            "A1 - Empotrado en tubo (pared aislante)", "B1 - Superficie en tubo (pared madera)",
+            "C - Directo bajo pared", "E - Aire libre", "D - Enterrado bajo tubo"
         ]
-        met = st.selectbox("Método de Instalación (Referencia)", metodos_rebt)
-        caida = st.number_input("CdT Máx (%)", value=3.0)
+        met = st.selectbox("Método de Instalación", metodos_rebt)
+        caida = st.number_input("Caída de Tensión Máx (%)", value=3.0)
 
     # Cálculos
     V = 230 if "Mono" in red else 400
     Ib = (P * k) / (V * cos_phi) if V == 230 else (P * k) / (1.732 * V * cos_phi)
     gamma = (48 if "PVC" in ais else 44) if mat == "Cobre" else (30 if "PVC" in ais else 28)
+    
+    # Sección por Caída de Tensión
     S_cdt = (2 if V == 230 else 1) * L * (P/V if V==230 else Ib) * cos_phi / (gamma * (caida/100*V))
     
-    st.divider()
-    c_r1, c_r2 = st.columns(2)
-    c_r1.metric("Intensidad de Diseño (Ib)", f"{Ib:.2f} A")
-    c_r2.metric("Sección Teórica CdT", f"{S_cdt:.2f} mm²")
+    # Normalización de sección (Valores comerciales)
+    secciones_comerciales = [1.5, 2.5, 4, 6, 10, 16, 25, 35, 50, 70, 95, 120, 150, 185, 240]
+    S_norm = next((s for s in secciones_comerciales if s >= S_cdt), 240)
 
-# --- 5. PRESUPUESTO DESGLOSADO ---
+    st.divider()
+    c_r1, c_r2, c_r3 = st.columns(3)
+    c_r1.metric("Intensidad (Ib)", f"{Ib:.2f} A")
+    c_r2.metric("Sección Calculada", f"{S_cdt:.2f} mm²")
+    c_r3.subheader(f"✅ Sección Normalizada: {S_norm} mm²")
+
+# --- 5. PRESUPUESTO CON MANO DE OBRA EN CADA CAPÍTULO ---
 else:
-    st.title("💰 Elaboración de Presupuesto Técnico DTIE")
-    st.caption("Introduce las cantidades y verifica/ajusta los precios unitarios sugeridos.")
-    
+    st.title("💰 Presupuesto Técnico Detallado")
     capitulos_data = []
 
-    # CAPÍTULOS (DI, Cuadro, Iluminación, Tomas, Cocina, Lavadora, Baños, Telecom)
-    # [El contenido de los expanders es el mismo de tu código original para mantener la lógica]
-    
-    with st.expander("CAPÍTULO I: DERIVACIÓN INDIVIDUAL", expanded=False):
+    def bloque_mano_obra(key_prefix):
+        c_mo1, c_mo2 = st.columns(2)
+        h_of = c_mo1.number_input(f"Horas Oficial 1ª", value=2.0, key=f"h_of_{key_prefix}")
+        p_of = c_mo2.number_input(f"Precio/h Oficial (€)", value=db_precios["MANO OBRA"]["Oficial 1ª"], key=f"p_of_{key_prefix}")
+        h_ay = c_mo1.number_input(f"Horas Ayudante", value=1.0, key=f"h_ay_{key_prefix}")
+        p_ay = c_mo2.number_input(f"Precio/h Ayudante (€)", value=db_precios["MANO OBRA"]["Ayudante"], key=f"p_ay_{key_prefix}")
+        return (h_of * p_of) + (h_ay * p_ay)
+
+    # CAP I
+    with st.expander("CAPÍTULO I: DERIVACIÓN INDIVIDUAL"):
         c1, c2 = st.columns(2)
-        m_6 = c1.number_input("Metros Cable 6mm²", value=48.0, key="c1_1")
-        p_6 = c2.number_input("Precio/m 6mm² (Sugerido: 1.30)", value=db_precios["CABLES"]["6mm"], key="c1_1p")
-        h_of = c1.number_input("Horas Oficial 1ª (Montaje DI)", value=2.0)
-        p_of = c2.number_input("Precio/h Oficial", value=db_precios["MANO OBRA"]["Oficial 1ª"])
-        h_op = c1.number_input("Horas Ayudante", value=1.5)
-        p_op = c2.number_input("Precio/h Ayudante", value=db_precios["MANO OBRA"]["Ayudante"])
-        sub = (m_6*p_6 + h_of*p_of + h_op*p_op) * f_total
-        capitulos_data.append(("CAPÍTULO I: DERIVACIÓN INDIVIDUAL", sub))
+        coste_mat = c1.number_input("Metros Cable 6mm²", value=48.0) * c2.number_input("Precio/m 6mm²", value=1.30)
+        coste_mo = bloque_mano_obra("cap1")
+        capitulos_data.append(("CAP I: DERIVACIÓN INDIVIDUAL", (coste_mat + coste_mo) * f_total))
 
-    with st.expander("CAPÍTULO II: CUADRO DE PROTECCIÓN", expanded=False):
-        c2a, c2b = st.columns(2)
-        q_box = c2a.number_input("Envolvente (Cuadro 36 mod)", value=1)
-        p_box = c2b.number_input("Precio Cuadro", value=db_precios["PROTECCIONES"]["Cuadro 36 mod"])
-        q_iga = c2a.number_input("IGA Combi (Sobretensiones)", value=1)
-        p_iga = c2b.number_input("Precio IGA", value=db_precios["PROTECCIONES"]["IGA Combi"])
-        q_p10 = c2a.number_input("Cant. PIA 10A (C1)", value=2)
-        p_p10 = c2b.number_input("Precio PIA 10A", value=db_precios["PROTECCIONES"]["PIA 10A"])
-        h_c = st.number_input("Horas Montaje Cuadro", value=4.5)
-        sub = (q_box*p_box + q_iga*p_iga + q_p10*p_p10 + h_c*p_of) * f_total
-        capitulos_data.append(("CAPÍTULO II: CUADRO DE PROTECCIÓN", sub))
+    # CAP II
+    with st.expander("CAPÍTULO II: CUADRO DE PROTECCIÓN"):
+        c1, c2 = st.columns(2)
+        coste_mat = c1.number_input("Ud. Cuadro + Protecciones", value=1) * c2.number_input("P.U. Conjunto Cuadro", value=180.0)
+        coste_mo = bloque_mano_obra("cap2")
+        capitulos_data.append(("CAP II: CUADRO DE PROTECCIÓN", (coste_mat + coste_mo) * f_total))
 
-    with st.expander("CAPÍTULO III: ILUMINACIÓN (C1)", expanded=False):
-        c3a, c3b = st.columns(2)
-        m_15 = c3a.number_input("Metros Cable 1.5mm²", value=315.0)
-        p_15 = c3b.number_input("Precio/m 1.5mm²", value=db_precios["CABLES"]["1.5mm"])
-        q_int = c3a.number_input("Mecanismos (Int/Conm)", value=14)
-        p_int = c3b.number_input("Precio Mecanismo", value=db_precios["MECANISMOS"]["Interruptor"])
-        h_c1 = st.number_input("Horas Instalación C1", value=8.0)
-        sub = (m_15*p_15 + q_int*p_int + h_c1*p_of) * f_total
-        capitulos_data.append(("CAPÍTULO III: CIRCUITO DE ILUMINACIÓN", sub))
+    # CAP III
+    with st.expander("CAPÍTULO III: ILUMINACIÓN (C1)"):
+        c1, c2 = st.columns(2)
+        coste_mat = c1.number_input("Puntos de Luz", value=10) * c2.number_input("Coste Material/Punto", value=15.0)
+        coste_mo = bloque_mano_obra("cap3")
+        capitulos_data.append(("CAP III: ILUMINACIÓN", (coste_mat + coste_mo) * f_total))
 
-    with st.expander("CAPÍTULO IV: TOMAS USO GENERAL (C2)", expanded=False):
-        c4a, c4b = st.columns(2)
-        m_25 = c4a.number_input("Metros Cable 2.5mm²", value=325.0)
-        p_25 = c4b.number_input("Precio/m 2.5mm²", value=db_precios["CABLES"]["2.5mm"])
-        q_base = c4a.number_input("Bases Enchufe 16A", value=18)
-        p_base = c4b.number_input("Precio Base 16A", value=db_precios["MECANISMOS"]["Base 16A"])
-        h_c2 = st.number_input("Horas Instalación C2", value=10.0)
-        sub = (m_25*p_25 + q_base*p_base + h_c2*p_of) * f_total
-        capitulos_data.append(("CAPÍTULO IV: TOMAS USO GENERAL", sub))
+    # CAP IV
+    with st.expander("CAPÍTULO IV: TOMAS DE USO GENERAL (C2)"):
+        c1, c2 = st.columns(2)
+        coste_mat = c1.number_input("Ud. Tomas 16A", value=18) * c2.number_input("P.U. Mecanismo+Caja", value=8.5)
+        coste_mo = bloque_mano_obra("cap4")
+        capitulos_data.append(("CAP IV: TOMAS USO GENERAL", (coste_mat + coste_mo) * f_total))
 
-    with st.expander("CAPÍTULO V: COCINA Y HORNO (C3)", expanded=False):
-        c5a, c5b = st.columns(2)
-        m_6c = c5a.number_input("Metros Cable 6mm² (C3)", value=30.0)
-        p_6c = c5b.number_input("Precio/m 6mm² (C3)", value=db_precios["CABLES"]["6mm"], key="c5_6p")
-        q_25a = c5a.number_input("Bases 25A", value=2)
-        p_25a = c5b.number_input("Precio Base 25A", value=db_precios["MECANISMOS"]["Base 25A"])
-        h_c3 = st.number_input("Horas Instalación C3", value=3.0)
-        sub = (m_6c*p_6c + q_25a*p_25a + h_c3*p_of) * f_total
-        capitulos_data.append(("CAPÍTULO V: CIRCUITO DE COCINA Y HORNO", sub))
+    # CAP V
+    with st.expander("CAPÍTULO V: COCINA Y HORNO (C3)"):
+        c1, c2 = st.columns(2)
+        coste_mat = c1.number_input("Línea Reforzada 6mm² (m)", value=15.0) * c2.number_input("P.U. Línea Cocina", value=2.5)
+        coste_mo = bloque_mano_obra("cap5")
+        capitulos_data.append(("CAP V: COCINA Y HORNO", (coste_mat + coste_mo) * f_total))
 
-    with st.expander("CAPÍTULO VI: LAVADORA Y TERMO (C4)", expanded=False):
-        c6a, c6b = st.columns(2)
-        m_4c = c6a.number_input("Metros Cable 4mm² (C4)", value=85.0)
-        p_4c = c6b.number_input("Precio/m 4mm²", value=db_precios["CABLES"]["4mm"])
-        h_c4 = st.number_input("Horas Instalación C4", value=4.0)
-        sub = (m_4c*p_4c + 3*db_precios["MECANISMOS"]["Base 16A"] + h_c4*p_of) * f_total
-        capitulos_data.append(("CAPÍTULO VI: CIRCUITO DE LAVADORA Y TERMO", sub))
+    # CAP VI
+    with st.expander("CAPÍTULO VI: LAVADORA Y TERMO (C4)"):
+        c1, c2 = st.columns(2)
+        coste_mat = c1.number_input("Línea 4mm² (m)", value=20.0) * c2.number_input("P.U. Línea C4", value=1.8)
+        coste_mo = bloque_mano_obra("cap6")
+        capitulos_data.append(("CAP VI: LAVADORA Y TERMO", (coste_mat + coste_mo) * f_total))
 
-    with st.expander("CAPÍTULO VII: BAÑOS Y COCINA (C5)", expanded=False):
-        c7a, c7b = st.columns(2)
-        m_25c = c7a.number_input("Metros Cable 2.5mm² (C5)", value=120.0)
-        p_25c = c7b.number_input("Precio/m 2.5mm² (C5)", value=db_precios["CABLES"]["2.5mm"], key="c7_25p")
-        h_c5 = st.number_input("Horas Instalación C5", value=5.0)
-        sub = (m_25c*p_25c + 6*db_precios["MECANISMOS"]["Base 16A"] + h_c5*p_of) * f_total
-        capitulos_data.append(("CAPÍTULO VII: CIRCUITO DE BAÑOS Y COCINA", sub))
+    # CAP VII
+    with st.expander("CAPÍTULO VII: BAÑOS Y COCINA (C5)"):
+        c1, c2 = st.columns(2)
+        coste_mat = c1.number_input("Ud. Tomas Humedas", value=6) * c2.number_input("P.U. C5", value=9.0)
+        coste_mo = bloque_mano_obra("cap7")
+        capitulos_data.append(("CAP VII: BAÑOS Y COCINA", (coste_mat + coste_mo) * f_total))
 
-    with st.expander("CAPÍTULO VIII: TELECOM Y GESTIÓN", expanded=False):
-        c8a, c8b = st.columns(2)
-        q_rj = c8a.number_input("Tomas RJ45", value=4)
-        p_rj = c8b.number_input("Precio RJ45", value=db_precios["MECANISMOS"]["Tomas RJ45"])
-        cie_v = st.number_input("Certificado Instalación (Boletín)", value=150.0)
-        h_c8 = st.number_input("Horas Gestión", value=4.0)
-        sub = (q_rj*p_rj + cie_v + h_c8*p_of) * f_total
-        capitulos_data.append(("CAPÍTULO VIII: TELECOM. Y GESTIÓN", sub))
+    # CAP VIII
+    with st.expander("CAPÍTULO VIII: TELECOM Y GESTIÓN"):
+        c1, c2 = st.columns(2)
+        coste_mat = c1.number_input("Ud. Tomas RJ45/TV", value=5) * c2.number_input("P.U. Telecom", value=22.0)
+        coste_mo = bloque_mano_obra("cap8")
+        capitulos_data.append(("CAP VIII: TELECOM Y GESTIÓN", (coste_mat + coste_mo) * f_total))
 
-    # --- RESUMEN FINAL ---
+    # --- DESGLOSE FINAL ---
     st.divider()
-    st.subheader("📊 DESGLOSE ECONÓMICO FINAL")
+    st.subheader("📊 RESUMEN ECONÓMICO")
     total_neto = 0
     for nombre, importe in capitulos_data:
         r1, r2 = st.columns([3, 1])
@@ -261,4 +203,4 @@ else:
         total_neto += importe
     
     total_con_iva = total_neto * (1 + p_iva/100)
-    st.markdown(f'<div class="total-final">PRESUPUESTO TOTAL (IVA {p_iva}% INCL.): {total_con_iva:,.2f} €</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="total-final">PRESUPUESTO TOTAL (IVA {p_iva}% INC.): {total_con_iva:,.2f} €</div>', unsafe_allow_html=True)
