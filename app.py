@@ -131,97 +131,624 @@ if modo == "📐 Dimensionado REBT":
     df_calc = pd.DataFrame({"Variable": ["Potencia", "Intensidad", "Sección"], "Valor": [f"{potencia} W", f"{ib:.2f} A", f"{s_adm} mm²"]})
     st.download_button("📥 Descargar Memoria (Excel)", to_excel(df_calc), "calculo_rebt.xlsx")
 
-# --- 5. PRESUPUESTO MAESTRO (COMPLETO) ---
-else:
-    st.title("💰 Gestor de Presupuestos: Electrificación s/ REBT")
-    tab_cfg, tab_pre = st.tabs(["🛠️ Configuración de Precios", "📋 Generación de Capítulos"])
+import streamlit as st
+import pandas as pd
+import io
+import math
 
-    with tab_cfg:
-        st.subheader("Base de Datos de Precios (Catálogo)")
-        col_p1, col_p2, col_p3, col_p4 = st.columns(4)
-        
-        with col_p1:
-            st.markdown("#### ⚡ Cables (€/m)")
-            p_c15 = st.number_input("1.5 mm²", 0.10, 2.00, 0.32, key="cfg_c15")
-            p_c25 = st.number_input("2.5 mm²", 0.20, 3.00, 0.48, key="cfg_c25")
-            p_c40 = st.number_input("4 mm²", 0.40, 5.00, 0.75, key="cfg_c40")
-            p_c60 = st.number_input("6 mm²", 0.80, 8.00, 1.45, key="cfg_c60")
-            p_c10 = st.number_input("10 mm²", 1.50, 15.0, 2.60, key="cfg_c10")
-            p_c16 = st.number_input("16 mm²", 2.50, 25.0, 4.10, key="cfg_c16")
-        with col_p2:
-            st.markdown("#### 🔘 Mecanismos (€/u)")
-            p_interr = st.number_input("Interruptor Simple", 2.0, 50.0, 4.20, key="cfg_int")
-            p_conmut = st.number_input("Conmutador", 2.0, 50.0, 5.80, key="cfg_con")
-            p_cruza = st.number_input("Cruzamiento", 2.0, 50.0, 11.50, key="cfg_cru")
-            p_enchufe_16 = st.number_input("Base Enchufe 16A", 2.0, 50.0, 6.10, key="cfg_e16")
-            p_enchufe_25 = st.number_input("Base Enchufe 25A", 5.0, 60.0, 14.50, key="cfg_e25")
-            p_toma_tvcet = st.number_input("Toma TV/Datos", 5.0, 80.0, 12.00, key="cfg_tv")
-            p_estanca = st.number_input("Base Estanca IP54", 8.0, 100.0, 18.50, key="cfg_est")
-        with col_p3:
-            st.markdown("#### 🛡️ Protecciones (€/u)")
-            p_iga_sobre = st.number_input("IGA + Sobretensiones", 50.0, 300.0, 125.0, key="cfg_iga")
-            p_pia_10 = st.number_input("PIA 10A", 5.0, 40.0, 8.50, key="cfg_p10")
-            p_pia_16 = st.number_input("PIA 16A", 5.0, 40.0, 9.20, key="cfg_p16")
-            p_pia_20 = st.number_input("PIA 20A", 5.0, 40.0, 11.50, key="cfg_p20")
-            p_pia_25 = st.number_input("PIA 25A", 5.0, 50.0, 14.00, key="cfg_p25")
-            p_diff_25 = st.number_input("Diferencial 25A", 30.0, 250.0, 55.0, key="cfg_d25")
-            p_diff_40 = st.number_input("Diferencial 40A", 30.0, 250.0, 65.0, key="cfg_d40")
-        with col_p4:
-            st.markdown("#### 🚇 Tubos (€/m)")
-            p_t20 = st.number_input("Tubo Ø20mm", 0.30, 6.0, 0.65, key="cfg_t20")
-            p_t25 = st.number_input("Tubo Ø25mm", 0.40, 8.0, 0.85, key="cfg_t25")
-            p_t32 = st.number_input("Tubo Ø32mm", 0.60, 12.0, 1.25, key="cfg_t32")
-            p_oficial = st.number_input("Oficial 1ª (€/h)", 20.0, 60.0, 36.0, key="cfg_mo1")
-            p_ayudante = st.number_input("Ayudante (€/h)", 15.0, 50.0, 26.5, key="cfg_mo2")
+# =========================================================
+# CONFIGURACIÓN GENERAL
+# =========================================================
 
-    catalogo_precios = {
-        "Cable 1.5 mm²": p_c15, "Cable 2.5 mm²": p_c25, "Cable 4 mm²": p_c40, "Cable 6 mm²": p_c60,
-        "Interruptor Simple": p_interr, "Conmutador": p_conmut, "Cruzamiento": p_cruza,
-        "Enchufe 16A": p_enchufe_16, "Enchufe 25A": p_enchufe_25, "Toma TV/Datos": p_toma_tvcet,
-        "IGA + Sobretensiones": p_iga_sobre, "PIA 10A": p_pia_10, "PIA 16A": p_pia_16, "PIA 25A": p_pia_25,
-        "Diferencial 40A": p_diff_40, "Tubo Ø20mm": p_t20, "Tubo Ø25mm": p_t25
-    }
+st.set_page_config(
+    page_title="Ingeniería Pro v5.0",
+    layout="wide",
+    page_icon="⚡"
+)
 
-    explicaciones_tecnicas = {
-        "DI": "Derivación Individual", "CGMP": "Cuadro General", "C1": "Iluminación",
-        "C2": "Tomas uso general", "C3": "Cocina/Horno", "C4": "Lavadora/Termo",
-        "C5": "Baño/Cocina", "C13": "Vehículo Eléctrico", "PAT": "Tierra"
-    }
+# =========================================================
+# ESTILO DARK PROFESIONAL
+# =========================================================
 
-    with tab_pre:
-        resumen_costes, nombres_export, desc_tecnica = [], [], []
-        
-        for code, name in explicaciones_tecnicas.items():
-            with st.expander(f"🛠️ {code}: {name}"):
-                c_sel, c_cant = st.columns([2, 1])
-                seleccion = c_sel.multiselect(f"Materiales:", list(catalogo_precios.keys()), key=f"sel_{code}")
-                coste_mat = 0.0
-                for item in seleccion:
-                    q = c_cant.number_input(f"Cant. {item}", 0.0, 1000.0, 0.0, key=f"q_{code}_{item}")
-                    coste_mat += q * catalogo_precios[item]
-                
-                c_h1, c_h2 = st.columns(2)
-                h_of = c_h1.number_input("Horas Oficial", 0.0, 100.0, 0.0, key=f"hof_{code}")
-                h_ay = c_h2.number_input("Horas Ayudante", 0.0, 100.0, 0.0, key=f"hay_{code}")
-                
-                subtotal = (coste_mat + (h_of * p_oficial) + (h_ay * p_ayudante)) * f_multiplicador
-                st.write(f"Subtotal: **{subtotal:,.2f} €**")
-                
-                if subtotal > 0:
-                    resumen_costes.append(subtotal)
-                    nombres_export.append(f"{code} - {name}")
-                    desc_tecnica.append(explicaciones_tecnicas[code])
+st.markdown("""
+<style>
 
-        if resumen_costes:
-            st.divider()
-            total_neto = sum(resumen_costes)
-            impuestos = total_neto * (iva_tipo / 100)
-            
-            st.markdown(f'<div class="total-final-banner">TOTAL: {total_neto + impuestos:,.2f} €<br><small>Base: {total_neto:,.2f} € | IVA: {impuestos:,.2f} €</small></div>', unsafe_allow_html=True)
-            
-            df_final = pd.DataFrame({"Capítulo": nombres_export, "Justificación": desc_tecnica, "Total (€)": resumen_costes})
-            
-            c_down1, c_down2 = st.columns(2)
-            c_down1.download_button("📊 Descargar Excel", to_excel(df_final), "presupuesto.xlsx")
-            c_down2.download_button("📥 Descargar CSV", df_final.to_csv(index=False, sep=';').encode('utf-16'), "presupuesto.csv")
-        
+.stApp {
+    background-color: #0e1117;
+    color: white;
+}
+
+label, .stMarkdown, p, span, div {
+    color: white !important;
+    font-weight: bold !important;
+}
+
+.resultado-caja {
+    color: #ffffff !important;
+    font-weight: 900 !important;
+    font-size: 24px;
+    background-color: #1f2937;
+    padding: 20px;
+    border-radius: 12px;
+    border-left: 8px solid #22d3ee;
+    margin-bottom: 15px;
+    text-align: right;
+    box-shadow: 0px 4px 15px rgba(0,0,0,0.5);
+}
+
+.total-final-banner {
+    color: #ffffff !important;
+    font-weight: 900 !important;
+    font-size: 42px;
+    background: linear-gradient(135deg, #1e1e1e 0%, #2d3436 100%);
+    padding: 50px;
+    border-radius: 25px;
+    text-align: center;
+    border: 3px solid #ffd700;
+    margin-top: 50px;
+    box-shadow: 0px 20px 40px rgba(0,0,0,0.7);
+}
+
+.stExpander {
+    border: 1px solid #374151 !important;
+    border-radius: 15px !important;
+    background-color: #161b22 !important;
+    margin-bottom: 20px !important;
+}
+
+.footer-container {
+    position: fixed;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    pointer-events: none;
+    text-align: center;
+    width: 100%;
+}
+
+.watermark-text {
+    font-size: 12px;
+    color: rgba(255,255,255,0.15);
+}
+
+</style>
+
+<div class="footer-container">
+<span class="watermark-text">
+Younesse Tikent Tifaoui - Senior Technical Consultant
+</span>
+</div>
+""", unsafe_allow_html=True)
+
+# =========================================================
+# EXPORTACIÓN EXCEL
+# =========================================================
+
+def exportar_excel(df, nombre_hoja="Presupuesto"):
+
+    output = io.BytesIO()
+
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+
+        df.to_excel(
+            writer,
+            index=False,
+            sheet_name=nombre_hoja
+        )
+
+        workbook = writer.book
+        worksheet = writer.sheets[nombre_hoja]
+
+        formato_header = workbook.add_format({
+            'bold': True,
+            'bg_color': '#1f2937',
+            'font_color': 'white',
+            'border': 1,
+            'align': 'center'
+        })
+
+        formato_money = workbook.add_format({
+            'num_format': '#,##0.00 €',
+            'border': 1
+        })
+
+        formato_texto = workbook.add_format({
+            'border': 1
+        })
+
+        for col_num, value in enumerate(df.columns.values):
+
+            worksheet.write(
+                0,
+                col_num,
+                value,
+                formato_header
+            )
+
+        worksheet.set_column('A:A', 45, formato_texto)
+        worksheet.set_column('B:B', 50, formato_texto)
+        worksheet.set_column('C:Z', 20, formato_money)
+
+    return output.getvalue()
+
+# =========================================================
+# CATÁLOGO PROFESIONAL COMPLETO
+# =========================================================
+
+catalogo_precios = {
+
+    # =====================================================
+    # CABLES
+    # =====================================================
+
+    "Cable 1.5 mm²": 0.32,
+    "Cable 2.5 mm²": 0.48,
+    "Cable 4 mm²": 0.75,
+    "Cable 6 mm²": 1.45,
+    "Cable 10 mm²": 2.60,
+    "Cable 16 mm²": 4.10,
+    "Cable 25 mm²": 6.50,
+    "Cable 35 mm²": 9.20,
+
+    # =====================================================
+    # TUBOS Y CANALIZACIONES
+    # =====================================================
+
+    "Tubo Ø16mm": 0.45,
+    "Tubo Ø20mm": 0.65,
+    "Tubo Ø25mm": 0.85,
+    "Tubo Ø32mm": 1.25,
+    "Tubo Ø40mm": 2.10,
+    "Tubo Ø50mm": 3.40,
+    "Tubo Ø63mm": 4.80,
+
+    "Canaleta PVC": 4.50,
+    "Bandeja Perforada": 12.00,
+
+    # =====================================================
+    # MECANISMOS
+    # =====================================================
+
+    "Interruptor Simple": 4.20,
+    "Interruptor Doble": 8.20,
+    "Conmutador": 5.80,
+    "Cruzamiento": 11.50,
+
+    "Pulsador": 4.50,
+    "Pulsador Luminoso": 8.50,
+
+    "Base Enchufe 16A": 6.10,
+    "Base Enchufe 25A": 14.50,
+    "Base Schuko": 6.50,
+    "Base Doble": 11.50,
+    "Base Triple": 18.00,
+
+    "Base USB": 18.00,
+    "Base Estanca IP54": 18.50,
+
+    "Toma TV": 9.50,
+    "Toma SAT": 14.50,
+    "Toma RJ45 Cat6": 18.00,
+    "Toma Fibra": 22.00,
+
+    "Detector Movimiento": 32.00,
+    "Detector Presencia": 45.00,
+
+    "Regulador Intensidad": 28.00,
+    "Termostato Digital": 55.00,
+
+    "Videoportero": 185.00,
+    "Portero Electrónico": 95.00,
+
+    "Zumbador": 18.00,
+
+    # =====================================================
+    # ILUMINACIÓN
+    # =====================================================
+
+    "Plafón LED": 32.00,
+    "Downlight LED": 18.00,
+    "Pantalla Estanca": 42.00,
+    "Proyector LED": 68.00,
+    "Luminaria Emergencia": 38.00,
+
+    # =====================================================
+    # PROTECCIONES
+    # =====================================================
+
+    "IGA 25A": 38.00,
+    "IGA 40A": 48.00,
+    "IGA 63A": 72.00,
+
+    "PIA 6A": 8.00,
+    "PIA 10A": 8.50,
+    "PIA 16A": 9.20,
+    "PIA 20A": 11.50,
+    "PIA 25A": 14.00,
+    "PIA 32A": 19.50,
+    "PIA 40A": 25.00,
+    "PIA 50A": 38.00,
+    "PIA 63A": 52.00,
+
+    "Diferencial 25A Clase AC": 42.00,
+    "Diferencial 40A Clase AC": 52.00,
+    "Diferencial 63A Clase AC": 75.00,
+
+    "Diferencial 25A Clase A": 55.00,
+    "Diferencial 40A Clase A": 65.00,
+    "Diferencial 63A Clase A": 95.00,
+
+    "Diferencial Superinmunizado": 145.00,
+    "Diferencial Rearmable": 225.00,
+
+    "Protector Sobretensiones Permanentes": 110.00,
+    "Protector Sobretensiones Transitorias": 95.00,
+
+    "ICP": 38.00,
+    "Contactor Modular": 48.00,
+    "Relé Temporizado": 42.00,
+    "Guardamotor": 68.00,
+    "Relé Térmico": 44.00,
+
+    # =====================================================
+    # CUADROS Y CAJAS
+    # =====================================================
+
+    "Caja Cuadro": 75.00,
+    "Embarrado": 18.00,
+    "Peines Conexión": 12.00,
+
+    "Caja Registro": 4.50,
+    "Caja Derivación": 5.20,
+    "Caja Universal": 1.80,
+
+    # =====================================================
+    # TIERRA
+    # =====================================================
+
+    "Pica Tierra + Cable": 115.00,
+    "Borne Tierra": 12.50,
+    "Cable Tierra 16mm²": 3.20,
+
+    # =====================================================
+    # VEHÍCULO ELÉCTRICO
+    # =====================================================
+
+    "Wallbox 7.4kW": 680.00,
+    "Wallbox 22kW": 1250.00,
+    "Protección IRVE": 280.00,
+
+    # =====================================================
+    # FOTOVOLTAICA
+    # =====================================================
+
+    "Panel Solar": 210.00,
+    "Inversor Solar": 1850.00,
+    "Protección CC": 145.00,
+    "Estructura Solar": 95.00,
+
+    # =====================================================
+    # DOMÓTICA
+    # =====================================================
+
+    "Actuador KNX": 145.00,
+    "Fuente KNX": 185.00,
+    "Pantalla Domótica": 420.00
+}
+
+# =========================================================
+# CIRCUITOS REBT
+# =========================================================
+
+capitulos_config = {
+
+    "DI": "DERIVACIÓN INDIVIDUAL",
+    "CGMP": "CUADRO GENERAL DE MANDO Y PROTECCIÓN",
+
+    "C1": "ILUMINACIÓN",
+    "C2": "TOMAS DE USO GENERAL",
+    "C3": "COCINA Y HORNO",
+    "C4": "LAVADORA, LAVAVAJILLAS Y TERMO",
+    "C5": "BAÑOS Y COCINA",
+
+    "C6": "ILUMINACIÓN ADICIONAL",
+    "C7": "TOMAS ADICIONALES",
+    "C8": "CALEFACCIÓN",
+    "C9": "AIRE ACONDICIONADO",
+    "C10": "SECADORA",
+
+    "C11": "DOMÓTICA",
+    "C12": "AUXILIARES",
+
+    "C13": "VEHÍCULO ELÉCTRICO",
+    "C14": "FOTOVOLTAICA",
+
+    "PAT": "PUESTA A TIERRA"
+}
+
+# =========================================================
+# EXPLICACIONES
+# =========================================================
+
+explicaciones = {
+
+    "DI": "Derivación individual desde contadores.",
+    "CGMP": "Protecciones generales de vivienda.",
+
+    "C1": "Circuito de iluminación.",
+    "C2": "Bases de enchufe generales.",
+    "C3": "Circuito cocina y horno.",
+    "C4": "Lavadora y termo.",
+    "C5": "Baños y cocina.",
+
+    "C6": "Circuito iluminación extra.",
+    "C7": "Tomas adicionales.",
+    "C8": "Calefacción eléctrica.",
+    "C9": "Climatización.",
+    "C10": "Secadora.",
+
+    "C11": "Automatización y domótica.",
+    "C12": "Auxiliares.",
+
+    "C13": "Recarga vehículo eléctrico.",
+    "C14": "Sistema fotovoltaico.",
+
+    "PAT": "Sistema de puesta a tierra."
+}
+
+# =========================================================
+# SIDEBAR
+# =========================================================
+
+with st.sidebar:
+
+    st.header("⚙️ Configuración")
+
+    gastos_generales = st.slider(
+        "% Gastos Generales",
+        0,
+        30,
+        13
+    )
+
+    beneficio = st.slider(
+        "% Beneficio Industrial",
+        0,
+        20,
+        6
+    )
+
+    iva_tipo = st.selectbox(
+        "IVA (%)",
+        [21, 10, 4, 0]
+    )
+
+    precio_oficial = st.number_input(
+        "Oficial 1ª €/h",
+        value=36.0
+    )
+
+    precio_ayudante = st.number_input(
+        "Ayudante €/h",
+        value=26.5
+    )
+
+    multiplicador = (
+        1
+        + gastos_generales / 100
+        + beneficio / 100
+    )
+
+# =========================================================
+# TÍTULO
+# =========================================================
+
+st.title("💰 Ingeniería Pro - Presupuesto Maestro REBT")
+
+# =========================================================
+# VARIABLES EXPORTACIÓN
+# =========================================================
+
+resumen_costes = []
+capitulos_export = []
+explicaciones_export = []
+
+# =========================================================
+# GENERADOR PRESUPUESTO
+# =========================================================
+
+for codigo, nombre in capitulos_config.items():
+
+    with st.expander(f"🛠️ {codigo} - {nombre}"):
+
+        st.info(explicaciones[codigo])
+
+        seleccion = st.multiselect(
+            f"Materiales {codigo}",
+            list(catalogo_precios.keys()),
+            key=f"sel_{codigo}"
+        )
+
+        coste_materiales = 0
+
+        for item in seleccion:
+
+            cantidad = st.number_input(
+                f"Cantidad {item}",
+                min_value=0.0,
+                value=0.0,
+                step=1.0,
+                key=f"{codigo}_{item}"
+            )
+
+            subtotal = (
+                cantidad *
+                catalogo_precios[item]
+            )
+
+            coste_materiales += subtotal
+
+        st.divider()
+
+        c1, c2 = st.columns(2)
+
+        horas_oficial = c1.number_input(
+            "Horas Oficial",
+            min_value=0.0,
+            value=0.0,
+            key=f"of_{codigo}"
+        )
+
+        horas_ayudante = c2.number_input(
+            "Horas Ayudante",
+            min_value=0.0,
+            value=0.0,
+            key=f"ay_{codigo}"
+        )
+
+        mano_obra = (
+            horas_oficial * precio_oficial
+            +
+            horas_ayudante * precio_ayudante
+        )
+
+        total_capitulo = (
+            coste_materiales
+            + mano_obra
+        ) * multiplicador
+
+        st.markdown(f"""
+        <div class="resultado-caja">
+        {total_capitulo:,.2f} €
+        </div>
+        """, unsafe_allow_html=True)
+
+        if total_capitulo > 0:
+
+            resumen_costes.append(
+                total_capitulo
+            )
+
+            capitulos_export.append(
+                f"{codigo} - {nombre}"
+            )
+
+            explicaciones_export.append(
+                explicaciones[codigo]
+            )
+
+# =========================================================
+# TOTAL FINAL
+# =========================================================
+
+if resumen_costes:
+
+    st.divider()
+
+    total_base = sum(resumen_costes)
+
+    iva_importe = (
+        total_base *
+        (iva_tipo / 100)
+    )
+
+    total_final = (
+        total_base +
+        iva_importe
+    )
+
+    st.markdown(f"""
+    <div class="total-final-banner">
+
+    PRESUPUESTO TOTAL
+
+    <br>
+
+    <span style="color:#ffd700">
+    {total_final:,.2f} €
+    </span>
+
+    <br>
+
+    <small>
+    Base: {total_base:,.2f} €
+    |
+    IVA ({iva_tipo}%): {iva_importe:,.2f} €
+    </small>
+
+    </div>
+    """, unsafe_allow_html=True)
+
+    # =====================================================
+    # DATAFRAME
+    # =====================================================
+
+    datos_export = []
+
+    for i in range(len(capitulos_export)):
+
+        base = resumen_costes[i]
+
+        iva_cap = (
+            base *
+            (iva_tipo / 100)
+        )
+
+        total = (
+            base +
+            iva_cap
+        )
+
+        datos_export.append({
+
+            "Capítulo": capitulos_export[i],
+
+            "Descripción Técnica":
+            explicaciones_export[i],
+
+            "Base (€)": round(base, 2),
+
+            "IVA (%)": iva_tipo,
+
+            "IVA (€)": round(iva_cap, 2),
+
+            "Total (€)": round(total, 2)
+        })
+
+    df_final = pd.DataFrame(datos_export)
+
+    # =====================================================
+    # DESCARGA CSV
+    # =====================================================
+
+    csv_data = df_final.to_csv(
+        index=False,
+        sep=';',
+        encoding='utf-16'
+    )
+
+    st.download_button(
+        "📥 Descargar CSV",
+        csv_data,
+        "presupuesto.csv",
+        "text/csv",
+        use_container_width=True
+    )
+
+    # =====================================================
+    # DESCARGA EXCEL
+    # =====================================================
+
+    excel_data = exportar_excel(
+        df_final,
+        "Presupuesto"
+    )
+
+    st.download_button(
+        "📊 Descargar Excel Profesional",
+        excel_data,
+        "presupuesto_profesional.xlsx",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True
+    )
