@@ -1,6 +1,7 @@
 # =========================================================
-# INGENIERÍA PRO — macOS Sonoma Glass + Animaciones + Cálculos avanzados
-# Cálculo de secciones REBT + FV con extras eléctricos
+# INGENIERÍA PRO — macOS Sonoma Glass Premium + Animaciones
+# Cálculo de secciones REBT + FV con justificación compacta
+# en tarjetas animadas estilo Apple Pro Apps
 # =========================================================
 
 import streamlit as st
@@ -36,20 +37,24 @@ if theme == "Oscuro":
     input_bg = "rgba(15,23,42,0.85)"
     input_border = "rgba(148,163,184,0.55)"
     df_bg = "rgba(15,23,42,0.90)"
-    bar_bg = "rgba(15,23,42,0.85)"
-    bar_border = "rgba(148,163,184,0.45)"
+    bar_bg = "rgba(15,23,42,0.88)"
+    bar_border = "rgba(148,163,184,0.55)"
+    card_bg = "rgba(15,23,42,0.88)"
+    card_border = "rgba(148,163,184,0.65)"
 else:
     bg_body = "radial-gradient(circle at top, #e5e7eb 0%, #f3f4f6 40%, #f9fafb 100%)"
     text_main = "#020617"
     text_soft = "#4b5563"
-    input_bg = "rgba(255,255,255,0.85)"
+    input_bg = "rgba(255,255,255,0.90)"
     input_border = "rgba(148,163,184,0.55)"
-    df_bg = "rgba(255,255,255,0.95)"
-    bar_bg = "rgba(255,255,255,0.85)"
-    bar_border = "rgba(148,163,184,0.45)"
+    df_bg = "rgba(255,255,255,0.96)"
+    bar_bg = "rgba(255,255,255,0.90)"
+    bar_border = "rgba(148,163,184,0.55)"
+    card_bg = "rgba(255,255,255,0.92)"
+    card_border = "rgba(148,163,184,0.65)"
 
 # ---------------------------------------------------------
-# ESTILO GLOBAL — macOS SONOMA GLASS + ANIMACIONES
+# ESTILO GLOBAL — macOS SONOMA GLASS PREMIUM + ANIMACIONES
 # ---------------------------------------------------------
 st.markdown(f"""
 <style>
@@ -75,23 +80,24 @@ body {{
     font-weight: normal !important;
 }}
 
-/* Barra superior estilo macOS */
+/* Barra superior estilo macOS Pro Apps */
 .topbar {{
     width: 100%;
     padding: 10px 18px;
     margin-bottom: 10px;
-    border-radius: 16px;
+    border-radius: 18px;
     background: {bar_bg};
     border: 1px solid {bar_border};
-    backdrop-filter: blur(22px);
+    backdrop-filter: blur(26px);
     display: flex;
     align-items: center;
     justify-content: space-between;
     color: var(--text-main);
+    box-shadow: 0 22px 55px rgba(15,23,42,0.55);
     transition: box-shadow 0.25s ease, transform 0.25s ease, background 0.4s ease;
 }}
 .topbar:hover {{
-    box-shadow: 0 18px 45px rgba(15,23,42,0.45);
+    box-shadow: 0 26px 70px rgba(15,23,42,0.65);
     transform: translateY(-1px);
 }}
 .topbar-left {{
@@ -125,13 +131,13 @@ body {{
     border: 1px solid {input_border} !important;
     padding: 10px 14px !important;
     font-size: 15px !important;
-    backdrop-filter: blur(18px);
-    transition: border 0.2s ease, box-shadow 0.2s ease, transform 0.08s ease;
+    backdrop-filter: blur(20px);
+    transition: border 0.2s ease, box-shadow 0.2s ease, transform 0.08s ease, background 0.3s ease;
 }}
 .stNumberInput input:focus,
 .stTextInput input:focus {{
-    border: 1px solid rgba(96,165,250,0.9) !important;
-    box-shadow: 0 0 0 1px rgba(96,165,250,0.7);
+    border: 1px solid rgba(96,165,250,0.95) !important;
+    box-shadow: 0 0 0 1px rgba(96,165,250,0.85);
     transform: translateY(-1px);
 }}
 
@@ -145,27 +151,27 @@ body {{
     color: var(--text-main) !important;
 }}
 
-/* Botones estilo macOS */
+/* Botones estilo macOS Pro */
 .stButton button {{
     border-radius: 999px !important;
     padding: 8px 20px !important;
     font-size: 14px !important;
     border: 1px solid rgba(148,163,184,0.55) !important;
-    background: linear-gradient(135deg, rgba(59,130,246,0.95), rgba(37,99,235,0.95)) !important;
+    background: linear-gradient(135deg, rgba(59,130,246,0.98), rgba(37,99,235,0.98)) !important;
     color: #f9fafb !important;
-    box-shadow: 0 10px 25px rgba(37,99,235,0.45);
+    box-shadow: 0 14px 32px rgba(37,99,235,0.55);
     transition: transform 0.08s ease, box-shadow 0.12s ease, filter 0.12s ease;
 }}
 .stButton button:hover {{
     filter: brightness(1.05);
-    box-shadow: 0 14px 32px rgba(37,99,235,0.55);
+    box-shadow: 0 18px 40px rgba(37,99,235,0.65);
 }}
 .stButton button:active {{
     transform: translateY(1px) scale(0.99);
-    box-shadow: 0 6px 16px rgba(37,99,235,0.45);
+    box-shadow: 0 8px 20px rgba(37,99,235,0.55);
 }}
 
-/* Línea divisoria entre ecuaciones */
+/* Línea divisoria entre bloques */
 .ecuacion-divider {{
     width: 100%;
     height: 3px;
@@ -175,28 +181,34 @@ body {{
     opacity: 0.9;
 }}
 
-/* Sin recuadros en contenedores personalizados */
-.card,
-.formula-card,
-.resultado-caja,
-.total-final-banner {{
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-    margin: 0 0 24px 0 !important;
+/* Tarjetas de fórmula estilo Sonoma Glass Premium */
+.formula-card {{
+    background: {card_bg};
+    border-radius: 18px;
+    border: 1px solid {card_border};
+    backdrop-filter: blur(26px);
+    padding: 14px 18px;
+    margin-bottom: 12px;
+    box-shadow: 0 18px 45px rgba(15,23,42,0.55);
+    transition: box-shadow 0.25s ease, transform 0.18s ease, background 0.3s ease, border-color 0.3s ease;
+    opacity: 0.98;
+}}
+.formula-card:hover {{
+    box-shadow: 0 24px 60px rgba(15,23,42,0.70);
+    transform: translateY(-1px);
+    border-color: rgba(96,165,250,0.85);
 }}
 
 /* Dataframe más integrado */
 [data-testid="stDataFrame"] {{
-    border-radius: 14px !important;
+    border-radius: 18px !important;
     overflow: hidden !important;
     background: {df_bg} !important;
-    backdrop-filter: blur(18px);
+    backdrop-filter: blur(22px);
     transition: box-shadow 0.25s ease, transform 0.15s ease;
 }}
 [data-testid="stDataFrame"]:hover {{
-    box-shadow: 0 18px 45px rgba(15,23,42,0.35);
+    box-shadow: 0 22px 55px rgba(15,23,42,0.45);
     transform: translateY(-1px);
 }}
 
@@ -237,7 +249,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 st.markdown(
-    f"<p style='color:{text_soft}; margin-top:0;'>Dimensionado de conductores según ITC‑BT‑19, caída de tensión y criterios mínimos reglamentarios.</p>",
+    f"<p style='color:{text_soft}; margin-top:0;'>Dimensionado de conductores según ITC‑BT‑19, caída de tensión, factores de corrección y cálculos avanzados de línea.</p>",
     unsafe_allow_html=True
 )
 
@@ -347,27 +359,22 @@ else:
     else:
         ib = potencia_calc / (v_fase * cos_phi)
 
-# Intensidad corregida por factores
 ib_corr = ib / (f_temp * f_agrup)
-
-# Sección térmica por ITC‑BT‑19
 s_adm = get_seccion_adm(metodo, aislamiento, ib_corr)
 
-# Conductividad equivalente
 sigma = 48.0 if "Cobre" in material else 30.0
 if "XLPE" in aislamiento:
     sigma -= 4.0
 
-# Sección por caída de tensión
 if sistema == "Monofásico 230 V":
     s_cdt = (2.0 * longitud * potencia_calc) / (sigma * v_fase * delta_u_max)
-    ecuacion_usada = r"S_{cdt,mono}=\dfrac{2\,L\,P}{\sigma\,U\,\Delta U_{{\max}}}"
+    ecuacion_cdt = r"S_{cdt,mono}=\dfrac{2\,L\,P}{\sigma\,U\,\Delta U_{{\max}}}"
 elif sistema == "Trifásico 400 V":
     s_cdt = (longitud * potencia_calc) / (sigma * v_fase * delta_u_max)
-    ecuacion_usada = r"S_{cdt,tri}=\dfrac{L\,P}{\sigma\,U\,\Delta U_{{\max}}}"
+    ecuacion_cdt = r"S_{cdt,tri}=\dfrac{L\,P}{\sigma\,U\,\Delta U_{{\max}}}"
 else:
     s_cdt = (2.0 * longitud * potencia_calc) / (sigma * v_fase * delta_u_max)
-    ecuacion_usada = r"S_{cdt,FV}=\dfrac{2\,L\,P}{\sigma\,U_{{cc}}\,\Delta U_{{\max}}}"
+    ecuacion_cdt = r"S_{cdt,FV}=\dfrac{2\,L\,P}{\sigma\,U_{{cc}}\,\Delta U_{{\max}}}"
 
 s_cdt_norm = next((s for s in secciones_ref if s >= s_cdt), 240.00)
 
@@ -383,56 +390,107 @@ s_final = max(s_adm, s_cdt_norm, s_min_rebt)
 # ---------------------------------------------------------
 # CÁLCULOS AVANZADOS (R, X, Z, ΔU real, magnetotérmico)
 # ---------------------------------------------------------
-# Resistividad aproximada (Ω·mm²/m)
 rho = 0.018 if "Cobre" in material else 0.028
 
-# Resistencia de línea (ida y vuelta) en Ω
-r_linea = (rho * 2.0 * longitud) / s_final  # Ω
-
-# Reactancia aproximada (Ω) — valor típico muy simplificado
-x_linea = 0.08e-3 * 2.0 * longitud  # Ω (aprox 0.08 mΩ/m ida y vuelta)
-
-# Impedancia de línea
+r_linea = (rho * 2.0 * longitud) / s_final
+x_linea = 0.08e-3 * 2.0 * longitud
 z_linea = math.sqrt(r_linea**2 + x_linea**2)
 
-# Caída de tensión real con sección final
 if sistema == "Trifásico 400 V":
-    delta_u_real = math.sqrt(3.0) * ib * (r_linea * cos_phi + x_linea * math.sqrt(1 - cos_phi**2))
+    delta_u_real = math.sqrt(3.0) * ib * (r_linea * cos_phi + x_linea * math.sqrt(max(0.0, 1 - cos_phi**2)))
 else:
-    delta_u_real = ib * (r_linea * cos_phi + x_linea * math.sqrt(1 - cos_phi**2))
+    delta_u_real = ib * (r_linea * cos_phi + x_linea * math.sqrt(max(0.0, 1 - cos_phi**2)))
 
 delta_u_real_pct = (delta_u_real / v_fase) * 100.0 if v_fase > 0 else 0.0
 
-# Magnetotérmico recomendado (serie estándar)
 magnetos = [6, 10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160]
 mt_recomendado = next((m for m in magnetos if m >= ib_corr), magnetos[-1])
 
-# ---------------------------------------------------------
-# BLOQUE DE ECUACIONES Y CÁLCULO DE INTENSIDAD
-# ---------------------------------------------------------
-st.markdown("### Ecuaciones utilizadas")
-
-st.latex(ecuacion_usada)
-st.markdown('<div class="ecuacion-divider"></div>', unsafe_allow_html=True)
-
-if sistema == "Monofásico 230 V":
-    st.latex(r"P = U\,I\,\cos\varphi")
-elif sistema == "Trifásico 400 V":
-    st.latex(r"P = \sqrt{3}\,U\,I\,\cos\varphi")
-else:
-    st.latex(r"P = U_{{cc}}\,I")
-st.markdown('<div class="ecuacion-divider"></div>', unsafe_allow_html=True)
-
-st.latex(rf"P = {potencia_calc:.2f}\,\mathrm{{W}}")
-st.markdown('<div class="ecuacion-divider"></div>', unsafe_allow_html=True)
-st.latex(rf"I_b = {ib:.2f}\,\mathrm{{A}}")
-st.markdown('<div class="ecuacion-divider"></div>', unsafe_allow_html=True)
-st.latex(rf"I_{{b,corr}} = \dfrac{{I_b}}{{f_{{temp}}\,f_{{agrup}}}} = {ib_corr:.2f}\,\mathrm{{A}}")
-st.markdown('<div class="ecuacion-divider"></div>', unsafe_allow_html=True)
-st.latex(rf"S_{{cdt}} = {s_cdt:.2f}\,\mathrm{{mm}}^2")
+icc_teorica = v_fase / z_linea if z_linea > 0 else 0.0
 
 # ---------------------------------------------------------
-# TABLA ITC-BT-19 — RESALTADO DINÁMICO SONOMA GLASS
+# JUSTIFICACIÓN EN TARJETAS — ESTILO B COMPACTO
+# ---------------------------------------------------------
+st.markdown("### Justificación de los cálculos (tarjetas compactas)")
+
+# Potencia
+with st.container():
+    st.markdown('<div class="formula-card">', unsafe_allow_html=True)
+    if sistema == "Monofásico 230 V":
+        st.latex(rf"P = U\,I\,\cos\varphi = {v_fase:.0f}\cdot{ib:.2f}\cdot{cos_phi:.2f} = {potencia_calc:.2f}\,\mathrm{{W}}")
+    elif sistema == "Trifásico 400 V":
+        st.latex(rf"P = \sqrt{{3}}\,U\,I\,\cos\varphi = \sqrt{{3}}\cdot{v_fase:.0f}\cdot{ib:.2f}\cdot{cos_phi:.2f} = {potencia_calc:.2f}\,\mathrm{{W}}")
+    else:
+        st.latex(rf"P = U_{{cc}}\,I = {v_fase:.0f}\cdot{ib:.2f} = {potencia_calc:.2f}\,\mathrm{{W}}")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Intensidad Ib
+with st.container():
+    st.markdown('<div class="formula-card">', unsafe_allow_html=True)
+    if sistema == "Trifásico 400 V":
+        st.latex(rf"I_b = \dfrac{{P}}{{\sqrt{{3}}\,U\,\cos\varphi}} = \dfrac{{{potencia_calc:.2f}}}{{\sqrt{{3}}\cdot{v_fase:.0f}\cdot{cos_phi:.2f}}} = {ib:.2f}\,\mathrm{{A}}")
+    else:
+        st.latex(rf"I_b = \dfrac{{P}}{{U\,\cos\varphi}} = \dfrac{{{potencia_calc:.2f}}}{{{v_fase:.0f}\cdot{cos_phi:.2f}}} = {ib:.2f}\,\mathrm{{A}}")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Intensidad corregida
+with st.container():
+    st.markdown('<div class="formula-card">', unsafe_allow_html=True)
+    st.latex(rf"I_{{b,corr}} = \dfrac{{I_b}}{{f_{{temp}}\,f_{{agrup}}}} = \dfrac{{{ib:.2f}}}{{{f_temp:.2f}\cdot{f_agrup:.2f}}} = {ib_corr:.2f}\,\mathrm{{A}}")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Sección por caída de tensión
+with st.container():
+    st.markdown('<div class="formula-card">', unsafe_allow_html=True)
+    if sistema == "Monofásico 230 V":
+        st.latex(rf"{ecuacion_cdt} = \dfrac{{2\cdot{longitud:.2f}\cdot{potencia_calc:.2f}}}{{{sigma:.2f}\cdot{v_fase:.0f}\cdot{delta_u_max:.2f}}} = {s_cdt:.2f}\,\mathrm{{mm}}^2")
+    elif sistema == "Trifásico 400 V":
+        st.latex(rf"{ecuacion_cdt} = \dfrac{{{longitud:.2f}\cdot{potencia_calc:.2f}}}{{{sigma:.2f}\cdot{v_fase:.0f}\cdot{delta_u_max:.2f}}} = {s_cdt:.2f}\,\mathrm{{mm}}^2")
+    else:
+        st.latex(rf"{ecuacion_cdt} = \dfrac{{2\cdot{longitud:.2f}\cdot{potencia_calc:.2f}}}{{{sigma:.2f}\cdot{v_fase:.0f}\cdot{delta_u_max:.2f}}} = {s_cdt:.2f}\,\mathrm{{mm}}^2")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Resistencia de línea
+with st.container():
+    st.markdown('<div class="formula-card">', unsafe_allow_html=True)
+    st.latex(rf"R_{{línea}} = \dfrac{{\rho\cdot2L}}{{S}} = \dfrac{{{rho:.3f}\cdot2\cdot{longitud:.2f}}}{{{s_final:.2f}}} = {r_linea:.4f}\,\Omega")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Reactancia de línea
+with st.container():
+    st.markdown('<div class="formula-card">', unsafe_allow_html=True)
+    st.latex(rf"X_{{línea}} \approx 0.08\ \mathrm{{m\Omega/m}}\cdot2L = 0.08\cdot10^{{-3}}\cdot2\cdot{longitud:.2f} = {x_linea:.4f}\,\Omega")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Impedancia de línea
+with st.container():
+    st.markdown('<div class="formula-card">', unsafe_allow_html=True)
+    st.latex(rf"Z_{{línea}} = \sqrt{{R_{{línea}}^2 + X_{{línea}}^2}} = \sqrt{{{r_linea:.4f}^2 + {x_linea:.4f}^2}} = {z_linea:.4f}\,\Omega")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Caída de tensión real
+with st.container():
+    st.markdown('<div class="formula-card">', unsafe_allow_html=True)
+    if sistema == "Trifásico 400 V":
+        st.latex(rf"\Delta U = \sqrt{{3}}\,I_b\,(R_{{línea}}\cos\varphi + X_{{línea}}\sin\varphi) = \sqrt{{3}}\cdot{ib:.2f}\cdot({r_linea:.4f}\cdot{cos_phi:.2f} + {x_linea:.4f}\cdot\sqrt{{1-{cos_phi:.2f}^2}}) = {delta_u_real:.2f}\,\mathrm{{V}}")
+    else:
+        st.latex(rf"\Delta U = I_b\,(R_{{línea}}\cos\varphi + X_{{línea}}\sin\varphi) = {ib:.2f}\cdot({r_linea:.4f}\cdot{cos_phi:.2f} + {x_linea:.4f}\cdot\sqrt{{1-{cos_phi:.2f}^2}}) = {delta_u_real:.2f}\,\mathrm{{V}}")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Corriente de cortocircuito teórica
+with st.container():
+    st.markdown('<div class="formula-card">', unsafe_allow_html=True)
+    st.latex(rf"I_{{cc,teo}} = \dfrac{{U}}{{Z_{{línea}}}} = \dfrac{{{v_fase:.0f}}}{{{z_linea:.4f}}} = {icc_teorica:.0f}\,\mathrm{{A}}")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Magnetotérmico recomendado
+with st.container():
+    st.markdown('<div class="formula-card">', unsafe_allow_html=True)
+    st.latex(rf"I_n \ge I_{{b,corr}} \Rightarrow I_n = {mt_recomendado}\,\mathrm{{A}}")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# ---------------------------------------------------------
+# TABLA ITC-BT-19 — RESALTADO DINÁMICO
 # ---------------------------------------------------------
 st.markdown("### Tabla ITC‑BT‑19 — Intensidades admisibles")
 
@@ -505,9 +563,7 @@ with c_adv1:
     st.markdown(f"**Reactancia de línea (ida y vuelta):** {x_linea:.4f} Ω")
 with c_adv2:
     st.markdown(f"**Impedancia de línea:** {z_linea:.4f} Ω")
-    if z_linea > 0:
-        icc_teorica = v_fase / z_linea
-        st.markdown(f"**Corriente de cortocircuito teórica (solo línea):** {icc_teorica:.0f} A")
+    st.markdown(f"**Corriente de cortocircuito teórica (solo línea):** {icc_teorica:.0f} A")
 
 # ---------------------------------------------------------
 # MEMORIA + EXPORTACIÓN EXCEL
@@ -532,7 +588,8 @@ df = pd.DataFrame({
         "Impedancia línea (Ω)",
         "Caída de tensión real (V)",
         "Caída de tensión real (%)",
-        "Magnetotérmico recomendado (A)"
+        "Magnetotérmico recomendado (A)",
+        "Icc teórica (A)"
     ],
     "Valor": [
         theme,
@@ -551,7 +608,8 @@ df = pd.DataFrame({
         f"{z_linea:.4f}",
         f"{delta_u_real:.2f}",
         f"{delta_u_real_pct:.2f}",
-        f"{mt_recomendado:.0f}"
+        f"{mt_recomendado:.0f}",
+        f"{icc_teorica:.0f}"
     ]
 })
 
