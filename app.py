@@ -253,11 +253,11 @@ if st.session_state["modo"] is None:
         with b1:
             if st.button("⚡ Cálculo de secciones REBT + FV", use_container_width=True):
                 st.session_state["modo"] = "secciones"
-                st.experimental_rerun()
+                st.rerun()
         with b2:
             if st.button("📐 Presupuesto instalación vivienda", use_container_width=True):
                 st.session_state["modo"] = "presupuesto"
-                st.experimental_rerun()
+                st.rerun()
     st.stop()
 
 modo = st.session_state["modo"]
@@ -267,11 +267,11 @@ c_mod1, c_mod2, c_mod3 = st.columns([1, 1, 3])
 with c_mod1:
     if st.button("⚡ Secciones"):
         st.session_state["modo"] = "secciones"
-        st.experimental_rerun()
+        st.rerun()
 with c_mod2:
     if st.button("📐 Presupuesto"):
         st.session_state["modo"] = "presupuesto"
-        st.experimental_rerun()
+        st.rerun()
 
 # =========================================================
 # MÓDULO 1 — CÁLCULO DE SECCIONES REBT + FV
@@ -792,7 +792,6 @@ else:
                     key=f"productos_{cap}"
                 )
 
-            # Cálculo de materiales y mano de obra por productos
             mat_total = 0.0
             mo_total_prod = 0.0
 
