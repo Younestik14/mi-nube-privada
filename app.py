@@ -1,5 +1,5 @@
 # =========================================================
-# INGENIERÍA PRO v9.0
+# INGENIERÍA PRO v9.1
 # Cálculo de Secciones REBT + FV (solo cálculo)
 # Versión profesional para uso público
 # =========================================================
@@ -14,31 +14,10 @@ import math
 # =========================================================
 
 st.set_page_config(
-    page_title="Ingeniería Pro v9.0",
+    page_title="Ingeniería Pro v9.1",
     layout="wide",
     page_icon="⚡"
 )
-
-# =========================================================
-# CABECERA PROFESIONAL
-# =========================================================
-
-st.title("⚡ INGENIERÍA PRO v9.0 — Cálculo Profesional de Secciones REBT + FV")
-
-st.markdown("""
-Aplicación profesional para **cálculo de secciones de conductores** en:
-
-- Instalaciones en **CA** según ITC-BT-19, ITC-BT-20 e ITC-BT-40  
-- Instalaciones **fotovoltaicas en corriente continua**  
-
-Se calculan:
-- **Sección térmica** (intensidad máxima admisible, tablas REBT)  
-- **Sección por caída de tensión** usando las ecuaciones reglamentarias  
-- **Sección mínima reglamentaria** según uso del circuito  
-- **Procedimiento detallado del cálculo**  
-
----
-""")
 
 # =========================================================
 # ESTILO VISUAL PROFESIONAL
@@ -48,57 +27,76 @@ st.markdown("""
 <style>
 
 .stApp {
-    background-color: #0e1117;
-    color: white;
+    background-color: #050816;
+    color: #e5e7eb;
+    font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+/* Títulos principales */
+h1, h2, h3, h4 {
+    color: #f9fafb !important;
+    font-weight: 800 !important;
+}
+
+/* Texto general */
 label, .stMarkdown, p, span, div {
-    color: white !important;
-    font-weight: bold !important;
+    color: #e5e7eb !important;
 }
 
+/* Inputs */
+.stNumberInput input,
+.stSelectbox div,
+.stRadio > label,
+.stSlider > div {
+    background-color: #020617 !important;
+    color: #e5e7eb !important;
+}
+
+/* Caja resultado principal */
 .resultado-caja {
-    color: #ffffff !important;
+    color: #f9fafb !important;
     font-weight: 900 !important;
-    font-size: 24px;
-    background-color: #1f2937;
-    padding: 20px;
-    border-radius: 12px;
-    border-left: 8px solid #22d3ee;
-    margin-bottom: 15px;
+    font-size: 26px;
+    background: radial-gradient(circle at top left, #22d3ee22, #020617);
+    padding: 22px;
+    border-radius: 16px;
+    border-left: 6px solid #22d3ee;
+    margin-bottom: 20px;
     text-align: right;
-    box-shadow: 0px 4px 15px rgba(0,0,0,0.5);
+    box-shadow: 0px 10px 30px rgba(0,0,0,0.7);
 }
 
+/* Banner final */
 .total-final-banner {
-    color: #ffffff !important;
+    color: #f9fafb !important;
     font-weight: 900 !important;
-    font-size: 32px;
-    background: linear-gradient(135deg, #1e1e1e 0%, #2d3436 100%);
-    padding: 30px;
+    font-size: 30px;
+    background: linear-gradient(135deg, #020617 0%, #111827 40%, #0f172a 100%);
+    padding: 28px;
     border-radius: 20px;
     text-align: left;
     border: 2px solid #22d3ee;
     margin-top: 30px;
-    box-shadow: 0px 15px 30px rgba(0,0,0,0.7);
+    box-shadow: 0px 18px 40px rgba(0,0,0,0.85);
 }
 
+/* Expanders */
 .stExpander {
-    border: 1px solid #374151 !important;
-    border-radius: 15px !important;
-    background-color: #161b22 !important;
-    margin-bottom: 20px !important;
+    border: 1px solid #1f2937 !important;
+    border-radius: 14px !important;
+    background-color: #020617 !important;
+    margin-bottom: 18px !important;
 }
 
-.stNumberInput input,
-.stSelectbox div {
-    background-color: #0d1117 !important;
-    color: white !important;
+/* Dataframe */
+[data-testid="stDataFrame"] {
+    background-color: #020617 !important;
 }
 
+/* Footer marca de agua */
 .footer-container {
     position: fixed;
-    bottom: 10px;
+    bottom: 8px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 9999;
@@ -108,20 +106,66 @@ label, .stMarkdown, p, span, div {
 }
 
 .watermark-text {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.40);
-    letter-spacing: 0.5px;
+    color: rgba(148, 163, 184, 0.55);
+    letter-spacing: 0.6px;
 }
+
+/* Tarjetas de sección */
+.card {
+    background: #020617;
+    border-radius: 16px;
+    padding: 18px 20px;
+    border: 1px solid #1f2937;
+    box-shadow: 0px 10px 25px rgba(0,0,0,0.65);
+    margin-bottom: 18px;
+}
+
+.card-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #e5e7eb;
+    margin-bottom: 6px;
+}
+
+.card-subtitle {
+    font-size: 13px;
+    color: #9ca3af;
+    margin-bottom: 10px;
+}
+
 </style>
 
 <div class="footer-container">
 <span class="watermark-text">
-Younesse Tikent Tifaoui
+Ingeniería Pro — Younesse Tikent Tifaoui
 </span>
 </div>
-
 """, unsafe_allow_html=True)
+
+# =========================================================
+# CABECERA PROFESIONAL
+# =========================================================
+
+st.markdown("""
+# ⚡ INGENIERÍA PRO v9.1 — Cálculo Profesional de Secciones REBT + FV
+
+Aplicación profesional para **cálculo de secciones de conductores** en:
+
+- Instalaciones en **CA** según ITC-BT-19, ITC-BT-20 e ITC-BT-40  
+- Instalaciones **fotovoltaicas en corriente continua**  
+
+Se calculan:
+
+- **Sección térmica** (intensidad máxima admisible, tablas REBT)  
+- **Sección por caída de tensión** usando las ecuaciones reglamentarias  
+- **Sección mínima reglamentaria** según uso del circuito  
+- **Procedimiento detallado del cálculo**  
+- **Tabla ITC‑BT‑19** con la sección seleccionada resaltada  
+
+---
+""")
 
 # =========================================================
 # FUNCIÓN EXPORTACIÓN EXCEL
@@ -140,7 +184,7 @@ def exportar_excel(df, hoja="Datos"):
 
         formato_header = workbook.add_format({
             'bold': True,
-            'bg_color': '#1f2937',
+            'bg_color': '#111827',
             'font_color': 'white',
             'border': 1,
             'align': 'center'
@@ -159,7 +203,7 @@ def exportar_excel(df, hoja="Datos"):
 # MÓDULO ÚNICO — CÁLCULO DE SECCIONES (REBT + FV)
 # =========================================================
 
-st.header("📐 Cálculo de Secciones de Conductores (REBT + FV)")
+st.markdown("## 📐 Módulo de cálculo de secciones de conductores (REBT + FV)")
 
 st.markdown("""
 Se utilizan las **ecuaciones reglamentarias de caída de tensión**:
@@ -200,11 +244,9 @@ Con:
 ---
 """)
 
-with st.expander("📷 Tabla de ecuaciones utilizada"):
+with st.expander("📷 Tabla de ecuaciones utilizada (resumen)"):
     st.markdown("""
-**Resumen de ecuaciones implementadas**
-
-- **Monofásica**
+**Monofásica**
 
 \
 
@@ -222,7 +264,7 @@ S_{cdt,mono} = \\frac{2 \\cdot L \\cdot P}{\\sigma \\cdot U \\cdot \\Delta U_{ma
 
 
 
-- **Trifásica**
+**Trifásica**
 
 \
 
@@ -240,7 +282,7 @@ S_{cdt,tri} = \\frac{L \\cdot P}{\\sigma \\cdot U \\cdot \\Delta U_{max}}
 
 
 
-- **Fotovoltaica CC (ida y vuelta)**
+**Fotovoltaica CC (ida y vuelta)**
 
 \
 
@@ -338,6 +380,7 @@ def get_seccion_adm(metodo, aislamiento, ib):
 c1, c2 = st.columns(2)
 
 with c1:
+    st.markdown('<div class="card"><div class="card-title">Datos eléctricos</div><div class="card-subtitle">Definición del circuito y condiciones de servicio</div>', unsafe_allow_html=True)
 
     tipo_instalacion = st.selectbox(
         "🏷 Tipo de instalación",
@@ -383,7 +426,10 @@ with c1:
         ["General", "Motores", "Vehículo eléctrico", "Fotovoltaica"]
     )
 
+    st.markdown('</div>', unsafe_allow_html=True)
+
 with c2:
+    st.markdown('<div class="card"><div class="card-title">Datos de instalación</div><div class="card-subtitle">Método, aislamiento y límites reglamentarios</div>', unsafe_allow_html=True)
 
     material = st.radio(
         "Material del conductor",
@@ -412,6 +458,8 @@ with c2:
         )
     else:
         v_cc = None
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # =====================================================
 # FACTORES Y TENSIONES
@@ -456,7 +504,7 @@ else:
 s_adm = get_seccion_adm(metodo, aislamiento, ib)
 
 # =====================================================
-# CONDUCTIVIDAD σ (equivalente a γ que usabas)
+# CONDUCTIVIDAD σ
 # =====================================================
 
 if "Cobre" in material:
@@ -465,7 +513,7 @@ else:
     sigma = 30 if "PVC" in aislamiento else 28
 
 # =====================================================
-# CÁLCULO DE SECCIÓN POR CAÍDA DE TENSIÓN (USANDO TUS ECUACIONES)
+# CÁLCULO DE SECCIÓN POR CAÍDA DE TENSIÓN
 # =====================================================
 
 if tipo_instalacion == "CA REBT (general)":
@@ -528,6 +576,44 @@ Mínimo REBT = {s_min_regl} mm²
 """, unsafe_allow_html=True)
 
 # =====================================================
+# TABLA OFICIAL ITC-BT-19 CON SUBRAYADO AUTOMÁTICO
+# =====================================================
+
+st.markdown("### 📘 Tabla ITC‑BT‑19 — Intensidades admisibles (método seleccionado)")
+
+tabla_oficial = pd.DataFrame({
+    "Sección (mm²)": secciones_ref,
+    "PVC (A)": tablas_adm[metodo]["PVC"],
+    "XLPE (A)": tablas_adm[metodo]["XLPE"]
+})
+
+# Fila y columna a resaltar
+if s_final_regl in tabla_oficial["Sección (mm²)"].values:
+    fila_resaltar = tabla_oficial.index[tabla_oficial["Sección (mm²)"] == s_final_regl][0]
+else:
+    fila_resaltar = None
+
+columna_resaltar = "PVC (A)" if "PVC" in aislamiento else "XLPE (A)"
+
+def resaltar_celda(row):
+    estilos = []
+    for col in tabla_oficial.columns:
+        base = ""
+        if fila_resaltar is not None and row.name == fila_resaltar and col == columna_resaltar:
+            base = "background-color: #22d3ee; color: #020617; font-weight: 900; border: 1px solid #0f172a;"
+        elif fila_resaltar is not None and row.name == fila_resaltar:
+            base = "text-decoration: underline; font-weight: 700;"
+        elif col == columna_resaltar:
+            base = "text-decoration: underline; font-weight: 700;"
+        estilos.append(base)
+    return estilos
+
+st.dataframe(
+    tabla_oficial.style.apply(resaltar_celda, axis=1),
+    use_container_width=True
+)
+
+# =====================================================
 # PROCEDIMIENTO DETALLADO DEL CÁLCULO
 # =====================================================
 
@@ -571,6 +657,7 @@ st.markdown("""
 
 st.markdown(f"""
 **Potencia de cálculo utilizada:**  
+
 \
 
 \[
@@ -590,11 +677,11 @@ Se usa la tabla de intensidades admisibles de la **ITC-BT-19** según:
 - Material (Cu / Al)  
 
 Se busca la **primera sección normalizada** cuya intensidad admisible sea ≥ \\(I_b\\).
-
 """)
 
 st.markdown(f"""
 **Intensidad de cálculo:**  
+
 \
 
 \[
@@ -604,6 +691,7 @@ I_b = {ib:.2f}\\ \\text{{A}}
 
 
 **Sección térmica resultante:**  
+
 \
 
 \[
