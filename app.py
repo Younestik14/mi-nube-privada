@@ -99,6 +99,15 @@ st.markdown("""
     --radius-xl: 20px;
     --shadow-soft: 0 18px 45px rgba(0,0,0,0.55);
 }
+/* TODA LA TIPOGRAFÍA EN BOLD (excepto KaTeX) */
+* {
+    font-weight: 600 !important;
+}
+
+/* EXCEPCIÓN: KaTeX NO debe ser bold */
+.katex, .katex * {
+    font-weight: normal !important;
+}
 
 .stApp {
     background: radial-gradient(circle at top, #020617 0%, #020617 40%, #020617 100%);
