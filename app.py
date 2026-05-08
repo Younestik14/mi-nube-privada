@@ -361,16 +361,22 @@ with c1:
     st.markdown('</div>', unsafe_allow_html=True)
 
 with c2:
-    st.markdown('<div class="card">', unsafe_allow_html=True)
 
+    # SIN TARJETA — Material y Aislamiento limpios
     material = st.radio("Material", ["Cobre (Cu)", "Aluminio (Al)"])
     aislamiento = st.radio("Aislamiento", ["PVC (70°C)", "XLPE/EPR (90°C)"])
+
+    # Tarjeta solo para el resto
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+
     metodo = st.selectbox("Método REBT", list(tablas_adm.keys()))
     max_cdt_pct = st.number_input("Caída de tensión máx (%)", value=3.0)
 
-    v_cc = st.number_input("Tensión FV (Vcc)", value=600.0) if tipo_instalacion == "FV en corriente continua" else None
+    if tipo_instalacion == "FV en corriente continua":
+        v_cc = st.number_input("Tensión FV (Vcc)", value=600.0)
 
     st.markdown('</div>', unsafe_allow_html=True)
+
 # =========================================================
 # CÁLCULOS
 # =========================================================
