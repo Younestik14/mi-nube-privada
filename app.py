@@ -1,7 +1,6 @@
 # =========================================================
 # INGENIERÍA PRO — macOS Sonoma Glass Premium + Animaciones
-# Cálculo de secciones REBT + FV con justificación compacta
-# en tarjetas animadas estilo Apple Pro Apps
+# Secciones REBT + FV  ·  Presupuesto Vivienda REBT
 # =========================================================
 
 import streamlit as st
@@ -13,7 +12,7 @@ import math
 # CONFIGURACIÓN GENERAL
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="Ingeniería Pro — Secciones REBT + FV",
+    page_title="Ingeniería Pro — Secciones y Presupuesto",
     layout="wide",
     page_icon="⚡"
 )
@@ -63,24 +62,20 @@ st.markdown(f"""
     --text-soft: {text_soft};
 }}
 
-/* Fondo general tipo Sonoma Glass */
 body {{
     background: {bg_body} !important;
     transition: background 0.6s ease-in-out;
 }}
 
-/* Tipografía global */
 * {{
     font-weight: 600 !important;
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
 }}
 
-/* KaTeX normal (no bold) */
 .katex, .katex * {{
     font-weight: normal !important;
 }}
 
-/* Barra superior estilo macOS Pro Apps */
 .topbar {{
     width: 100%;
     padding: 10px 18px;
@@ -120,7 +115,6 @@ body {{
     color: var(--text-main);
 }}
 
-/* Inputs y selects estilo Sonoma Glass + animaciones */
 .stNumberInput input,
 .stTextInput input,
 .stSelectbox div[data-baseweb="select"],
@@ -141,17 +135,14 @@ body {{
     transform: translateY(-1px);
 }}
 
-/* Radio labels */
 .stRadio > label {{
     padding: 4px 8px !important;
 }}
 
-/* Slider label color */
 [data-testid="stSlider"] label {{
     color: var(--text-main) !important;
 }}
 
-/* Botones estilo macOS Pro */
 .stButton button {{
     border-radius: 999px !important;
     padding: 8px 20px !important;
@@ -171,7 +162,6 @@ body {{
     box-shadow: 0 8px 20px rgba(37,99,235,0.55);
 }}
 
-/* Línea divisoria entre bloques */
 .ecuacion-divider {{
     width: 100%;
     height: 3px;
@@ -181,7 +171,6 @@ body {{
     opacity: 0.9;
 }}
 
-/* Tarjetas de fórmula estilo Sonoma Glass Premium */
 .formula-card {{
     background: {card_bg};
     border-radius: 18px;
@@ -199,7 +188,6 @@ body {{
     border-color: rgba(96,165,250,0.85);
 }}
 
-/* Dataframe más integrado */
 [data-testid="stDataFrame"] {{
     border-radius: 18px !important;
     overflow: hidden !important;
@@ -212,12 +200,10 @@ body {{
     transform: translateY(-1px);
 }}
 
-/* Títulos */
 h1, h2, h3, h4 {{
     color: var(--text-main) !important;
 }}
 
-/* Scroll suave */
 html {{
     scroll-behavior: smooth;
 }}
@@ -225,7 +211,7 @@ html {{
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# BARRA SUPERIOR ESTILO macOS
+# BARRA SUPERIOR
 # ---------------------------------------------------------
 st.markdown(f"""
 <div class="topbar">
@@ -234,27 +220,14 @@ st.markdown(f"""
     <span class="topbar-title">Ingeniería Pro</span>
   </div>
   <div class="topbar-menu">
-    <span>Archivo</span>
-    <span>Exportar</span>
-    <span>Ayuda</span>
+    <span>Secciones</span>
+    <span>Presupuesto</span>
   </div>
 </div>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# CABECERA
-# ---------------------------------------------------------
-st.markdown(
-    "<h1 style='font-weight:700; margin-bottom:0.2rem;'>Cálculo de Secciones REBT + FV</h1>",
-    unsafe_allow_html=True
-)
-st.markdown(
-    f"<p style='color:{text_soft}; margin-top:0;'>Dimensionado de conductores según ITC‑BT‑19, caída de tensión, factores de corrección y cálculos avanzados de línea.</p>",
-    unsafe_allow_html=True
-)
-
-# ---------------------------------------------------------
-# UTILIDADES
+# UTILIDADES COMUNES
 # ---------------------------------------------------------
 def exportar_excel(df, hoja="Datos"):
     output = io.BytesIO()
@@ -263,493 +236,705 @@ def exportar_excel(df, hoja="Datos"):
     return output.getvalue()
 
 # ---------------------------------------------------------
-# SECCIONES NORMALIZADAS
+# SELECCIÓN DE MÓDULO
 # ---------------------------------------------------------
-secciones_ref = [
-    1.50, 2.50, 4.00, 6.00, 10.00,
-    16.00, 25.00, 35.00, 50.00, 70.00,
-    95.00, 120.00, 150.00, 185.00, 240.00
-]
+st.markdown("### Selecciona el módulo de trabajo")
+modo = st.radio(
+    "Módulo",
+    ["Cálculo de secciones REBT + FV", "Presupuesto instalación eléctrica vivienda"],
+    index=0,
+    horizontal=True
+)
 
-# ---------------------------------------------------------
-# TABLAS REBT ITC-BT-19
-# ---------------------------------------------------------
-tablas_adm = {
-    "A1 - Empotrado en tubo (pared aislante)": {
-        "PVC":  [14.50,19.50,26.00,34.00,46.00,61.00,80.00,99.00,119.00,151.00,182.00,210.00,240.00,273.00,321.00],
-        "XLPE": [18.50,25.00,33.00,43.00,59.00,77.00,102.00,126.00,153.00,194.00,233.00,268.00,307.00,352.00,415.00]
-    },
-    "B1 - Conductores en tubo sobre pared": {
-        "PVC":  [17.50,24.00,32.00,41.00,57.00,76.00,101.00,125.00,151.00,192.00,232.00,269.00,300.00,341.00,400.00],
-        "XLPE": [22.00,30.00,40.00,52.00,71.00,94.00,126.00,157.00,190.00,241.00,292.00,338.00,388.00,442.00,523.00]
-    },
-    "C - Cable directamente sobre pared": {
-        "PVC":  [19.50,27.00,36.00,46.00,63.00,85.00,112.00,138.00,168.00,213.00,258.00,299.00,344.00,391.00,461.00],
-        "XLPE": [24.00,33.00,45.00,58.00,80.00,107.00,138.00,171.00,209.00,269.00,328.00,382.00,441.00,506.00,599.00]
-    }
-}
+# =========================================================
+# MÓDULO 1 — CÁLCULO DE SECCIONES REBT + FV
+# =========================================================
+if modo == "Cálculo de secciones REBT + FV":
 
-def get_seccion_adm(metodo, aislamiento, ib):
-    ais = "PVC" if "PVC" in aislamiento else "XLPE"
-    intensidades = tablas_adm[metodo][ais]
-    for i, intensidad in enumerate(intensidades):
-        if intensidad >= ib:
-            return secciones_ref[i]
-    return 240.00
-
-# ---------------------------------------------------------
-# FORMULARIO PRINCIPAL
-# ---------------------------------------------------------
-st.markdown("### Datos de diseño")
-
-c1, c2 = st.columns(2)
-
-with c1:
-    tipo_instalacion = st.selectbox("Tipo de instalación", ["CA REBT (general)", "FV en corriente continua"])
-    sistema = st.selectbox(
-        "Sistema eléctrico",
-        ["Monofásico 230 V", "Trifásico 400 V"] if tipo_instalacion == "CA REBT (general)" else ["Corriente continua FV"]
+    st.markdown(
+        "<h1 style='margin-bottom:0.2rem;'>Cálculo de Secciones REBT + FV</h1>",
+        unsafe_allow_html=True
     )
-    modo_intensidad = st.selectbox("Modo de cálculo de intensidad", ["A partir de potencia", "Introducir intensidad directamente"])
+    st.markdown(
+        f"<p style='color:{text_soft}; margin-top:0;'>Dimensionado de conductores según ITC‑BT‑19, caída de tensión, factores de corrección y cálculos avanzados de línea.</p>",
+        unsafe_allow_html=True
+    )
 
-    if modo_intensidad == "A partir de potencia":
-        potencia = st.number_input("Potencia (W)", value=5750.0, min_value=0.0, step=50.0)
-    else:
-        ib_input = st.number_input("Intensidad Ib (A)", value=25.0, min_value=0.0, step=1.0)
-
-    longitud = st.number_input("Longitud del circuito (m)", value=30.0, min_value=0.0, step=1.0)
-    cos_phi = st.slider("cos φ", 0.70, 1.00, 0.90) if tipo_instalacion == "CA REBT (general)" else 1.00
-    uso = st.selectbox("Tipo de circuito", ["General", "Motores", "Vehículo eléctrico", "Fotovoltaica"])
-
-with c2:
-    material = st.radio("Material del conductor", ["Cobre (Cu)", "Aluminio (Al)"])
-    aislamiento = st.radio("Aislamiento", ["PVC (70 °C)", "XLPE/EPR (90 °C)"])
-    metodo = st.selectbox("Método de instalación (ITC‑BT‑19)", list(tablas_adm.keys()))
-    max_cdt_pct = st.number_input("Caída de tensión máxima permitida (%)", value=3.0, min_value=0.1, max_value=10.0, step=0.1)
-    v_cc = st.number_input("Tensión FV (Vcc)", value=600.0, min_value=0.0, step=10.0) if tipo_instalacion == "FV en corriente continua" else None
-
-    st.markdown("#### Factores de corrección (opcional)")
-    f_temp = st.number_input("Factor de temperatura", value=1.00, min_value=0.50, max_value=1.20, step=0.01)
-    f_agrup = st.number_input("Factor de agrupamiento", value=1.00, min_value=0.30, max_value=1.00, step=0.01)
-
-# ---------------------------------------------------------
-# CÁLCULOS ELÉCTRICOS BÁSICOS
-# ---------------------------------------------------------
-k_u = 1.25 if uso in ["Motores", "Vehículo eléctrico"] else 1.0
-
-if sistema == "Monofásico 230 V":
-    v_fase = 230.0
-elif sistema == "Trifásico 400 V":
-    v_fase = 400.0
-else:
-    v_fase = v_cc
-
-delta_u_max = (max_cdt_pct / 100.0) * v_fase
-
-if modo_intensidad == "Introducir intensidad directamente":
-    ib = ib_input
-    if sistema == "Trifásico 400 V":
-        potencia_calc = math.sqrt(3.0) * v_fase * ib * cos_phi
-    else:
-        potencia_calc = v_fase * ib * cos_phi
-else:
-    potencia_calc = potencia * k_u
-    if sistema == "Trifásico 400 V":
-        ib = potencia_calc / (math.sqrt(3.0) * v_fase * cos_phi)
-    else:
-        ib = potencia_calc / (v_fase * cos_phi)
-
-ib_corr = ib / (f_temp * f_agrup)
-s_adm = get_seccion_adm(metodo, aislamiento, ib_corr)
-
-sigma = 48.0 if "Cobre" in material else 30.0
-if "XLPE" in aislamiento:
-    sigma -= 4.0
-
-if sistema == "Monofásico 230 V":
-    s_cdt = (2.0 * longitud * potencia_calc) / (sigma * v_fase * delta_u_max)
-    ecuacion_cdt = r"S_{cdt,mono}=\dfrac{2\,L\,P}{\sigma\,U\,\Delta U_{{\max}}}"
-elif sistema == "Trifásico 400 V":
-    s_cdt = (longitud * potencia_calc) / (sigma * v_fase * delta_u_max)
-    ecuacion_cdt = r"S_{cdt,tri}=\dfrac{L\,P}{\sigma\,U\,\Delta U_{{\max}}}"
-else:
-    s_cdt = (2.0 * longitud * potencia_calc) / (sigma * v_fase * delta_u_max)
-    ecuacion_cdt = r"S_{cdt,FV}=\dfrac{2\,L\,P}{\sigma\,U_{{cc}}\,\Delta U_{{\max}}}"
-
-s_cdt_norm = next((s for s in secciones_ref if s >= s_cdt), 240.00)
-
-s_min_rebt = {
-    "General": 1.5,
-    "Motores": 2.5,
-    "Vehículo eléctrico": 6.0,
-    "Fotovoltaica": 4.0
-}[uso]
-
-s_final = max(s_adm, s_cdt_norm, s_min_rebt)
-
-# ---------------------------------------------------------
-# CÁLCULOS AVANZADOS (R, X, Z, ΔU real, magnetotérmico)
-# ---------------------------------------------------------
-rho = 0.018 if "Cobre" in material else 0.028
-
-r_linea = (rho * 2.0 * longitud) / s_final
-x_linea = 0.08e-3 * 2.0 * longitud
-z_linea = math.sqrt(r_linea**2 + x_linea**2)
-
-if sistema == "Trifásico 400 V":
-    delta_u_real = math.sqrt(3.0) * ib * (r_linea * cos_phi + x_linea * math.sqrt(max(0.0, 1 - cos_phi**2)))
-else:
-    delta_u_real = ib * (r_linea * cos_phi + x_linea * math.sqrt(max(0.0, 1 - cos_phi**2)))
-
-delta_u_real_pct = (delta_u_real / v_fase) * 100.0 if v_fase > 0 else 0.0
-
-magnetos = [6, 10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160]
-mt_recomendado = next((m for m in magnetos if m >= ib_corr), magnetos[-1])
-
-icc_teorica = v_fase / z_linea if z_linea > 0 else 0.0
-
-# ---------------------------------------------------------
-# JUSTIFICACIÓN EN TARJETAS — ESTILO B COMPACTO
-# ---------------------------------------------------------
-st.markdown("### Justificación de los cálculos (tarjetas compactas)")
-
-# Potencia
-with st.container():
-    st.markdown('<div class="formula-card">', unsafe_allow_html=True)
-    if sistema == "Monofásico 230 V":
-        st.latex(rf"P = U\,I\,\cos\varphi = {v_fase:.0f}\cdot{ib:.2f}\cdot{cos_phi:.2f} = {potencia_calc:.2f}\,\mathrm{{W}}")
-    elif sistema == "Trifásico 400 V":
-        st.latex(rf"P = \sqrt{{3}}\,U\,I\,\cos\varphi = \sqrt{{3}}\cdot{v_fase:.0f}\cdot{ib:.2f}\cdot{cos_phi:.2f} = {potencia_calc:.2f}\,\mathrm{{W}}")
-    else:
-        st.latex(rf"P = U_{{cc}}\,I = {v_fase:.0f}\cdot{ib:.2f} = {potencia_calc:.2f}\,\mathrm{{W}}")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# Intensidad Ib
-with st.container():
-    st.markdown('<div class="formula-card">', unsafe_allow_html=True)
-    if sistema == "Trifásico 400 V":
-        st.latex(rf"I_b = \dfrac{{P}}{{\sqrt{{3}}\,U\,\cos\varphi}} = \dfrac{{{potencia_calc:.2f}}}{{\sqrt{{3}}\cdot{v_fase:.0f}\cdot{cos_phi:.2f}}} = {ib:.2f}\,\mathrm{{A}}")
-    else:
-        st.latex(rf"I_b = \dfrac{{P}}{{U\,\cos\varphi}} = \dfrac{{{potencia_calc:.2f}}}{{{v_fase:.0f}\cdot{cos_phi:.2f}}} = {ib:.2f}\,\mathrm{{A}}")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# Intensidad corregida
-with st.container():
-    st.markdown('<div class="formula-card">', unsafe_allow_html=True)
-    st.latex(rf"I_{{b,corr}} = \dfrac{{I_b}}{{f_{{temp}}\,f_{{agrup}}}} = \dfrac{{{ib:.2f}}}{{{f_temp:.2f}\cdot{f_agrup:.2f}}} = {ib_corr:.2f}\,\mathrm{{A}}")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# Sección por caída de tensión
-with st.container():
-    st.markdown('<div class="formula-card">', unsafe_allow_html=True)
-    if sistema == "Monofásico 230 V":
-        st.latex(rf"{ecuacion_cdt} = \dfrac{{2\cdot{longitud:.2f}\cdot{potencia_calc:.2f}}}{{{sigma:.2f}\cdot{v_fase:.0f}\cdot{delta_u_max:.2f}}} = {s_cdt:.2f}\,\mathrm{{mm}}^2")
-    elif sistema == "Trifásico 400 V":
-        st.latex(rf"{ecuacion_cdt} = \dfrac{{{longitud:.2f}\cdot{potencia_calc:.2f}}}{{{sigma:.2f}\cdot{v_fase:.0f}\cdot{delta_u_max:.2f}}} = {s_cdt:.2f}\,\mathrm{{mm}}^2")
-    else:
-        st.latex(rf"{ecuacion_cdt} = \dfrac{{2\cdot{longitud:.2f}\cdot{potencia_calc:.2f}}}{{{sigma:.2f}\cdot{v_fase:.0f}\cdot{delta_u_max:.2f}}} = {s_cdt:.2f}\,\mathrm{{mm}}^2")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# Resistencia de línea
-with st.container():
-    st.markdown('<div class="formula-card">', unsafe_allow_html=True)
-    st.latex(rf"R_{{línea}} = \dfrac{{\rho\cdot2L}}{{S}} = \dfrac{{{rho:.3f}\cdot2\cdot{longitud:.2f}}}{{{s_final:.2f}}} = {r_linea:.4f}\,\Omega")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# Reactancia de línea
-with st.container():
-    st.markdown('<div class="formula-card">', unsafe_allow_html=True)
-    st.latex(rf"X_{{línea}} \approx 0.08\ \mathrm{{m\Omega/m}}\cdot2L = 0.08\cdot10^{{-3}}\cdot2\cdot{longitud:.2f} = {x_linea:.4f}\,\Omega")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# Impedancia de línea
-with st.container():
-    st.markdown('<div class="formula-card">', unsafe_allow_html=True)
-    st.latex(rf"Z_{{línea}} = \sqrt{{R_{{línea}}^2 + X_{{línea}}^2}} = \sqrt{{{r_linea:.4f}^2 + {x_linea:.4f}^2}} = {z_linea:.4f}\,\Omega")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# Caída de tensión real
-with st.container():
-    st.markdown('<div class="formula-card">', unsafe_allow_html=True)
-    if sistema == "Trifásico 400 V":
-        st.latex(rf"\Delta U = \sqrt{{3}}\,I_b\,(R_{{línea}}\cos\varphi + X_{{línea}}\sin\varphi) = \sqrt{{3}}\cdot{ib:.2f}\cdot({r_linea:.4f}\cdot{cos_phi:.2f} + {x_linea:.4f}\cdot\sqrt{{1-{cos_phi:.2f}^2}}) = {delta_u_real:.2f}\,\mathrm{{V}}")
-    else:
-        st.latex(rf"\Delta U = I_b\,(R_{{línea}}\cos\varphi + X_{{línea}}\sin\varphi) = {ib:.2f}\cdot({r_linea:.4f}\cdot{cos_phi:.2f} + {x_linea:.4f}\cdot\sqrt{{1-{cos_phi:.2f}^2}}) = {delta_u_real:.2f}\,\mathrm{{V}}")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# Corriente de cortocircuito teórica
-with st.container():
-    st.markdown('<div class="formula-card">', unsafe_allow_html=True)
-    st.latex(rf"I_{{cc,teo}} = \dfrac{{U}}{{Z_{{línea}}}} = \dfrac{{{v_fase:.0f}}}{{{z_linea:.4f}}} = {icc_teorica:.0f}\,\mathrm{{A}}")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# Magnetotérmico recomendado
-with st.container():
-    st.markdown('<div class="formula-card">', unsafe_allow_html=True)
-    st.latex(rf"I_n \ge I_{{b,corr}} \Rightarrow I_n = {mt_recomendado}\,\mathrm{{A}}")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# ---------------------------------------------------------
-# TABLA ITC-BT-19 — RESALTADO DINÁMICO
-# ---------------------------------------------------------
-st.markdown("### Tabla ITC‑BT‑19 — Intensidades admisibles")
-
-tabla = pd.DataFrame({
-    "Sección (mm²)": [f"{s:.2f}" for s in secciones_ref],
-    "PVC (A)": [f"{x:.2f}" for x in tablas_adm[metodo]["PVC"]],
-    "XLPE (A)": [f"{x:.2f}" for x in tablas_adm[metodo]["XLPE"]]
-})
-
-fila = None
-if f"{s_final:.2f}" in tabla["Sección (mm²)"].values:
-    fila = tabla.index[tabla["Sección (mm²)"] == f"{s_final:.2f}"][0]
-
-col = "PVC (A)" if "PVC" in aislamiento else "XLPE (A)"
-
-def estilo(row):
-    estilos = []
-    for c in tabla.columns:
-        if row.name == fila and c == col:
-            estilos.append(
-                "background-color: rgba(255,255,255,0.25); color: #ffffff; font-weight: 900; transition: background-color 0.25s ease;"
-            )
-        elif row.name == fila:
-            estilos.append(
-                "text-decoration: underline; font-weight: 700; color: #e2e8f0; transition: color 0.25s ease;"
-            )
-        elif c == col:
-            estilos.append(
-                "text-decoration: underline; font-weight: 700; color: #e2e8f0; transition: color 0.25s ease;"
-            )
-        else:
-            estilos.append("")
-    return estilos
-
-st.dataframe(
-    tabla.style.apply(estilo, axis=1),
-    use_container_width=True
-)
-
-# ---------------------------------------------------------
-# RESULTADOS PRINCIPALES
-# ---------------------------------------------------------
-st.markdown("### Resultados principales")
-
-c_res1, c_res2, c_res3 = st.columns(3)
-
-with c_res1:
-    st.markdown(f"**Sección térmica ITC‑BT‑19:** {s_adm:.2f} mm²")
-    st.markdown(f"**Sección por CdT normalizada:** {s_cdt_norm:.2f} mm²")
-
-with c_res2:
-    st.markdown(f"**Sección mínima REBT por uso:** {s_min_rebt:.2f} mm²")
-    st.markdown(f"**Sección final reglamentaria:** {s_final:.2f} mm²")
-
-with c_res3:
-    st.markdown(f"**Caída de tensión real:** {delta_u_real:.2f} V")
-    st.markdown(f"**Caída de tensión real:** {delta_u_real_pct:.2f} %")
-
-st.markdown(f"**Magnetotérmico recomendado (In):** {mt_recomendado} A")
-
-# ---------------------------------------------------------
-# CÁLCULOS AVANZADOS — IMPEDANCIA Y LÍNEA
-# ---------------------------------------------------------
-st.markdown("### Cálculos avanzados de línea")
-
-c_adv1, c_adv2 = st.columns(2)
-
-with c_adv1:
-    st.markdown(f"**Resistencia de línea (ida y vuelta):** {r_linea:.4f} Ω")
-    st.markdown(f"**Reactancia de línea (ida y vuelta):** {x_linea:.4f} Ω")
-with c_adv2:
-    st.markdown(f"**Impedancia de línea:** {z_linea:.4f} Ω")
-    st.markdown(f"**Corriente de cortocircuito teórica (solo línea):** {icc_teorica:.0f} A")
-
-# ---------------------------------------------------------
-# MEMORIA + EXPORTACIÓN EXCEL
-# ---------------------------------------------------------
-st.markdown("### Memoria del cálculo")
-
-df = pd.DataFrame({
-    "Parámetro": [
-        "Tema visual",
-        "Tipo instalación", "Sistema", "Uso",
-        "Potencia utilizada (W)", "Intensidad Ib (A)", "Intensidad Ib corregida (A)",
-        "Longitud (m)", "cos φ",
-        "Material", "Aislamiento", "Método REBT",
-        "Factor temperatura", "Factor agrupamiento",
-        "Sección térmica ITC‑BT‑19 (mm²)",
-        "Sección por CdT (mm²)",
-        "Sección por CdT normalizada (mm²)",
-        "Sección mínima REBT (mm²)",
-        "SECCIÓN FINAL (mm²)",
-        "Resistencia línea (Ω)",
-        "Reactancia línea (Ω)",
-        "Impedancia línea (Ω)",
-        "Caída de tensión real (V)",
-        "Caída de tensión real (%)",
-        "Magnetotérmico recomendado (A)",
-        "Icc teórica (A)"
-    ],
-    "Valor": [
-        theme,
-        tipo_instalacion, sistema, uso,
-        f"{potencia_calc:.2f}", f"{ib:.2f}", f"{ib_corr:.2f}",
-        f"{longitud:.2f}", f"{cos_phi:.2f}",
-        material, aislamiento, metodo,
-        f"{f_temp:.2f}", f"{f_agrup:.2f}",
-        f"{s_adm:.2f}",
-        f"{s_cdt:.2f}",
-        f"{s_cdt_norm:.2f}",
-        f"{s_min_rebt:.2f}",
-        f"{s_final:.2f}",
-        f"{r_linea:.4f}",
-        f"{x_linea:.4f}",
-        f"{z_linea:.4f}",
-        f"{delta_u_real:.2f}",
-        f"{delta_u_real_pct:.2f}",
-        f"{mt_recomendado:.0f}",
-        f"{icc_teorica:.0f}"
+    secciones_ref = [
+        1.50, 2.50, 4.00, 6.00, 10.00,
+        16.00, 25.00, 35.00, 50.00, 70.00,
+        95.00, 120.00, 150.00, 185.00, 240.00
     ]
-})
 
-st.dataframe(df, use_container_width=True)
+    tablas_adm = {
+        "A1 - Empotrado en tubo (pared aislante)": {
+            "PVC":  [14.50,19.50,26.00,34.00,46.00,61.00,80.00,99.00,119.00,151.00,182.00,210.00,240.00,273.00,321.00],
+            "XLPE": [18.50,25.00,33.00,43.00,59.00,77.00,102.00,126.00,153.00,194.00,233.00,268.00,307.00,352.00,415.00]
+        },
+        "B1 - Conductores en tubo sobre pared": {
+            "PVC":  [17.50,24.00,32.00,41.00,57.00,76.00,101.00,125.00,151.00,192.00,232.00,269.00,300.00,341.00,400.00],
+            "XLPE": [22.00,30.00,40.00,52.00,71.00,94.00,126.00,157.00,190.00,241.00,292.00,338.00,388.00,442.00,523.00]
+        },
+        "C - Cable directamente sobre pared": {
+            "PVC":  [19.50,27.00,36.00,46.00,63.00,85.00,112.00,138.00,168.00,213.00,258.00,299.00,344.00,391.00,461.00],
+            "XLPE": [24.00,33.00,45.00,58.00,80.00,107.00,138.00,171.00,209.00,269.00,328.00,382.00,441.00,506.00,599.00]
+        }
+    }
 
-excel = exportar_excel(df, "Calculo_Secciones")
+    def get_seccion_adm(metodo, aislamiento, ib):
+        ais = "PVC" if "PVC" in aislamiento else "XLPE"
+        intensidades = tablas_adm[metodo][ais]
+        for i, intensidad in enumerate(intensidades):
+            if intensidad >= ib:
+                return secciones_ref[i]
+        return 240.00
 
-st.download_button(
-    "📥 Descargar memoria en Excel",
-    excel,
-    "calculo_secciones.xlsx",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    use_container_width=True
-)
+    st.markdown("### Datos de diseño")
+
+    c1, c2 = st.columns(2)
+
+    with c1:
+        tipo_instalacion = st.selectbox("Tipo de instalación", ["CA REBT (general)", "FV en corriente continua"])
+        sistema = st.selectbox(
+            "Sistema eléctrico",
+            ["Monofásico 230 V", "Trifásico 400 V"] if tipo_instalacion == "CA REBT (general)" else ["Corriente continua FV"]
+        )
+        modo_intensidad = st.selectbox("Modo de cálculo de intensidad", ["A partir de potencia", "Introducir intensidad directamente"])
+
+        if modo_intensidad == "A partir de potencia":
+            potencia = st.number_input("Potencia (W)", value=5750.0, min_value=0.0, step=50.0)
+        else:
+            ib_input = st.number_input("Intensidad Ib (A)", value=25.0, min_value=0.0, step=1.0)
+
+        longitud = st.number_input("Longitud del circuito (m)", value=30.0, min_value=0.0, step=1.0)
+        cos_phi = st.slider("cos φ", 0.70, 1.00, 0.90) if tipo_instalacion == "CA REBT (general)" else 1.00
+        uso = st.selectbox("Tipo de circuito", ["General", "Motores", "Vehículo eléctrico", "Fotovoltaica"])
+
+    with c2:
+        material = st.radio("Material del conductor", ["Cobre (Cu)", "Aluminio (Al)"])
+        aislamiento = st.radio("Aislamiento", ["PVC (70 °C)", "XLPE/EPR (90 °C)"])
+        metodo = st.selectbox("Método de instalación (ITC‑BT‑19)", list(tablas_adm.keys()))
+        max_cdt_pct = st.number_input("Caída de tensión máxima permitida (%)", value=3.0, min_value=0.1, max_value=10.0, step=0.1)
+        v_cc = st.number_input("Tensión FV (Vcc)", value=600.0, min_value=0.0, step=10.0) if tipo_instalacion == "FV en corriente continua" else None
+
+        st.markdown("#### Factores de corrección (opcional)")
+        f_temp = st.number_input("Factor de temperatura", value=1.00, min_value=0.50, max_value=1.20, step=0.01)
+        f_agrup = st.number_input("Factor de agrupamiento", value=1.00, min_value=0.30, max_value=1.00, step=0.01)
+
+    k_u = 1.25 if uso in ["Motores", "Vehículo eléctrico"] else 1.0
+
+    if sistema == "Monofásico 230 V":
+        v_fase = 230.0
+    elif sistema == "Trifásico 400 V":
+        v_fase = 400.0
+    else:
+        v_fase = v_cc
+
+    delta_u_max = (max_cdt_pct / 100.0) * v_fase
+
+    if modo_intensidad == "Introducir intensidad directamente":
+        ib = ib_input
+        if sistema == "Trifásico 400 V":
+            potencia_calc = math.sqrt(3.0) * v_fase * ib * cos_phi
+        else:
+            potencia_calc = v_fase * ib * cos_phi
+    else:
+        potencia_calc = potencia * k_u
+        if sistema == "Trifásico 400 V":
+            ib = potencia_calc / (math.sqrt(3.0) * v_fase * cos_phi)
+        else:
+            ib = potencia_calc / (v_fase * cos_phi)
+
+    ib_corr = ib / (f_temp * f_agrup)
+    s_adm = get_seccion_adm(metodo, aislamiento, ib_corr)
+
+    sigma = 48.0 if "Cobre" in material else 30.0
+    if "XLPE" in aislamiento:
+        sigma -= 4.0
+
+    if sistema == "Monofásico 230 V":
+        s_cdt = (2.0 * longitud * potencia_calc) / (sigma * v_fase * delta_u_max)
+        ecuacion_cdt = r"S_{cdt,mono}=\dfrac{2\,L\,P}{\sigma\,U\,\Delta U_{{\max}}}"
+    elif sistema == "Trifásico 400 V":
+        s_cdt = (longitud * potencia_calc) / (sigma * v_fase * delta_u_max)
+        ecuacion_cdt = r"S_{cdt,tri}=\dfrac{L\,P}{\sigma\,U\,\Delta U_{{\max}}}"
+    else:
+        s_cdt = (2.0 * longitud * potencia_calc) / (sigma * v_fase * delta_u_max)
+        ecuacion_cdt = r"S_{cdt,FV}=\dfrac{2\,L\,P}{\sigma\,U_{{cc}}\,\Delta U_{{\max}}}"
+
+    s_cdt_norm = next((s for s in secciones_ref if s >= s_cdt), 240.00)
+
+    s_min_rebt = {
+        "General": 1.5,
+        "Motores": 2.5,
+        "Vehículo eléctrico": 6.0,
+        "Fotovoltaica": 4.0
+    }[uso]
+
+    s_final = max(s_adm, s_cdt_norm, s_min_rebt)
+
+    rho = 0.018 if "Cobre" in material else 0.028
+
+    r_linea = (rho * 2.0 * longitud) / s_final
+    x_linea = 0.08e-3 * 2.0 * longitud
+    z_linea = math.sqrt(r_linea**2 + x_linea**2)
+
+    if sistema == "Trifásico 400 V":
+        delta_u_real = math.sqrt(3.0) * ib * (r_linea * cos_phi + x_linea * math.sqrt(max(0.0, 1 - cos_phi**2)))
+    else:
+        delta_u_real = ib * (r_linea * cos_phi + x_linea * math.sqrt(max(0.0, 1 - cos_phi**2)))
+
+    delta_u_real_pct = (delta_u_real / v_fase) * 100.0 if v_fase > 0 else 0.0
+
+    magnetos = [6, 10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160]
+    mt_recomendado = next((m for m in magnetos if m >= ib_corr), magnetos[-1])
+
+    icc_teorica = v_fase / z_linea if z_linea > 0 else 0.0
+
+    st.markdown("### Justificación de los cálculos (tarjetas compactas)")
+
+    def tarjeta_formula(formula):
+        st.markdown(f'<div class="formula-card">{formula}</div>', unsafe_allow_html=True)
+
+    if sistema == "Monofásico 230 V":
+        tarjeta_formula(
+            rf"P = U\,I\,\cos\varphi = {v_fase:.0f}\cdot{ib:.2f}\cdot{cos_phi:.2f} = {potencia_calc:.2f}\,\mathrm{{W}}"
+        )
+    elif sistema == "Trifásico 400 V":
+        tarjeta_formula(
+            rf"P = \sqrt{{3}}\,U\,I\,\cos\varphi = \sqrt{{3}}\cdot{v_fase:.0f}\cdot{ib:.2f}\cdot{cos_phi:.2f} = {potencia_calc:.2f}\,\mathrm{{W}}"
+        )
+    else:
+        tarjeta_formula(
+            rf"P = U_{{cc}}\,I = {v_fase:.0f}\cdot{ib:.2f} = {potencia_calc:.2f}\,\mathrm{{W}}"
+        )
+
+    if sistema == "Trifásico 400 V":
+        tarjeta_formula(
+            rf"I_b = \dfrac{{P}}{{\sqrt{{3}}\,U\,\cos\varphi}} = \dfrac{{{potencia_calc:.2f}}}{{\sqrt{{3}}\cdot{v_fase:.0f}\cdot{cos_phi:.2f}}} = {ib:.2f}\,\mathrm{{A}}"
+        )
+    else:
+        tarjeta_formula(
+            rf"I_b = \dfrac{{P}}{{U\,\cos\varphi}} = \dfrac{{{potencia_calc:.2f}}}{{{v_fase:.0f}\cdot{cos_phi:.2f}}} = {ib:.2f}\,\mathrm{{A}}"
+        )
+
+    tarjeta_formula(
+        rf"I_{{b,corr}} = \dfrac{{I_b}}{{f_{{temp}}\,f_{{agrup}}}} = \dfrac{{{ib:.2f}}}{{{f_temp:.2f}\cdot{f_agrup:.2f}}} = {ib_corr:.2f}\,\mathrm{{A}}"
+    )
+
+    if sistema == "Monofásico 230 V":
+        tarjeta_formula(
+            rf"{ecuacion_cdt} = \dfrac{{2\cdot{longitud:.2f}\cdot{potencia_calc:.2f}}}{{{sigma:.2f}\cdot{v_fase:.0f}\cdot{delta_u_max:.2f}}} = {s_cdt:.2f}\,\mathrm{{mm}}^2"
+        )
+    elif sistema == "Trifásico 400 V":
+        tarjeta_formula(
+            rf"{ecuacion_cdt} = \dfrac{{{longitud:.2f}\cdot{potencia_calc:.2f}}}{{{sigma:.2f}\cdot{v_fase:.0f}\cdot{delta_u_max:.2f}}} = {s_cdt:.2f}\,\mathrm{{mm}}^2"
+        )
+    else:
+        tarjeta_formula(
+            rf"{ecuacion_cdt} = \dfrac{{2\cdot{longitud:.2f}\cdot{potencia_calc:.2f}}}{{{sigma:.2f}\cdot{v_fase:.0f}\cdot{delta_u_max:.2f}}} = {s_cdt:.2f}\,\mathrm{{mm}}^2"
+        )
+
+    tarjeta_formula(
+        rf"R_{{línea}} = \dfrac{{\rho\cdot2L}}{{S}} = \dfrac{{{rho:.3f}\cdot2\cdot{longitud:.2f}}}{{{s_final:.2f}}} = {r_linea:.4f}\,\Omega"
+    )
+
+    tarjeta_formula(
+        rf"X_{{línea}} \approx 0.08\ \mathrm{{m\Omega/m}}\cdot2L = 0.08\cdot10^{{-3}}\cdot2\cdot{longitud:.2f} = {x_linea:.4f}\,\Omega"
+    )
+
+    tarjeta_formula(
+        rf"Z_{{línea}} = \sqrt{{R_{{línea}}^2 + X_{{línea}}^2}} = \sqrt{{{r_linea:.4f}^2 + {x_linea:.4f}^2}} = {z_linea:.4f}\,\Omega"
+    )
+
+    if sistema == "Trifásico 400 V":
+        tarjeta_formula(
+            rf"\Delta U = \sqrt{{3}}\,I_b\,(R_{{línea}}\cos\varphi + X_{{línea}}\sin\varphi) = \sqrt{{3}}\cdot{ib:.2f}\cdot({r_linea:.4f}\cdot{cos_phi:.2f} + {x_linea:.4f}\cdot\sqrt{{1-{cos_phi:.2f}^2}}) = {delta_u_real:.2f}\,\mathrm{{V}}"
+        )
+    else:
+        tarjeta_formula(
+            rf"\Delta U = I_b\,(R_{{línea}}\cos\varphi + X_{{línea}}\sin\varphi) = {ib:.2f}\cdot({r_linea:.4f}\cdot{cos_phi:.2f} + {x_linea:.4f}\cdot\sqrt{{1-{cos_phi:.2f}^2}}) = {delta_u_real:.2f}\,\mathrm{{V}}"
+        )
+
+    tarjeta_formula(
+        rf"I_{{cc,teo}} = \dfrac{{U}}{{Z_{{línea}}}} = \dfrac{{{v_fase:.0f}}}{{{z_linea:.4f}}} = {icc_teorica:.0f}\,\mathrm{{A}}"
+    )
+
+    tarjeta_formula(
+        rf"I_n \ge I_{{b,corr}} \Rightarrow I_n = {mt_recomendado}\,\mathrm{{A}}"
+    )
+
+    st.markdown("### Tabla ITC‑BT‑19 — Intensidades admisibles")
+
+    tabla = pd.DataFrame({
+        "Sección (mm²)": [f"{s:.2f}" for s in secciones_ref],
+        "PVC (A)": [f"{x:.2f}" for x in tablas_adm[metodo]["PVC"]],
+        "XLPE (A)": [f"{x:.2f}" for x in tablas_adm[metodo]["XLPE"]]
+    })
+
+    fila = None
+    if f"{s_final:.2f}" in tabla["Sección (mm²)"].values:
+        fila = tabla.index[tabla["Sección (mm²)"] == f"{s_final:.2f}"][0]
+
+    col = "PVC (A)" if "PVC" in aislamiento else "XLPE (A)"
+
+    def estilo(row):
+        estilos = []
+        for c in tabla.columns:
+            if row.name == fila and c == col:
+                estilos.append(
+                    "background-color: rgba(255,255,255,0.25); color: #ffffff; font-weight: 900; transition: background-color 0.25s ease;"
+                )
+            elif row.name == fila:
+                estilos.append(
+                    "text-decoration: underline; font-weight: 700; color: #e2e8f0; transition: color 0.25s ease;"
+                )
+            elif c == col:
+                estilos.append(
+                    "text-decoration: underline; font-weight: 700; color: #e2e8f0; transition: color 0.25s ease;"
+                )
+            else:
+                estilos.append("")
+        return estilos
+
+    st.dataframe(
+        tabla.style.apply(estilo, axis=1),
+        use_container_width=True
+    )
+
+    st.markdown("### Resultados principales")
+
+    c_res1, c_res2, c_res3 = st.columns(3)
+
+    with c_res1:
+        st.markdown(f"**Sección térmica ITC‑BT‑19:** {s_adm:.2f} mm²")
+        st.markdown(f"**Sección por CdT normalizada:** {s_cdt_norm:.2f} mm²")
+
+    with c_res2:
+        st.markdown(f"**Sección mínima REBT por uso:** {s_min_rebt:.2f} mm²")
+        st.markdown(f"**Sección final reglamentaria:** {s_final:.2f} mm²")
+
+    with c_res3:
+        st.markdown(f"**Caída de tensión real:** {delta_u_real:.2f} V")
+        st.markdown(f"**Caída de tensión real:** {delta_u_real_pct:.2f} %")
+
+    st.markdown(f"**Magnetotérmico recomendado (In):** {mt_recomendado} A")
+
+    st.markdown("### Cálculos avanzados de línea")
+
+    c_adv1, c_adv2 = st.columns(2)
+
+    with c_adv1:
+        st.markdown(f"**Resistencia de línea (ida y vuelta):** {r_linea:.4f} Ω")
+        st.markdown(f"**Reactancia de línea (ida y vuelta):** {x_linea:.4f} Ω")
+    with c_adv2:
+        st.markdown(f"**Impedancia de línea:** {z_linea:.4f} Ω")
+        st.markdown(f"**Corriente de cortocircuito teórica (solo línea):** {icc_teorica:.0f} A")
+
+    st.markdown("### Memoria del cálculo")
+
+    df = pd.DataFrame({
+        "Parámetro": [
+            "Tema visual",
+            "Tipo instalación", "Sistema", "Uso",
+            "Potencia utilizada (W)", "Intensidad Ib (A)", "Intensidad Ib corregida (A)",
+            "Longitud (m)", "cos φ",
+            "Material", "Aislamiento", "Método REBT",
+            "Factor temperatura", "Factor agrupamiento",
+            "Sección térmica ITC‑BT‑19 (mm²)",
+            "Sección por CdT (mm²)",
+            "Sección por CdT normalizada (mm²)",
+            "Sección mínima REBT (mm²)",
+            "SECCIÓN FINAL (mm²)",
+            "Resistencia línea (Ω)",
+            "Reactancia línea (Ω)",
+            "Impedancia línea (Ω)",
+            "Caída de tensión real (V)",
+            "Caída de tensión real (%)",
+            "Magnetotérmico recomendado (A)",
+            "Icc teórica (A)"
+        ],
+        "Valor": [
+            theme,
+            tipo_instalacion, sistema, uso,
+            f"{potencia_calc:.2f}", f"{ib:.2f}", f"{ib_corr:.2f}",
+            f"{longitud:.2f}", f"{cos_phi:.2f}",
+            material, aislamiento, metodo,
+            f"{f_temp:.2f}", f"{f_agrup:.2f}",
+            f"{s_adm:.2f}",
+            f"{s_cdt:.2f}",
+            f"{s_cdt_norm:.2f}",
+            f"{s_min_rebt:.2f}",
+            f"{s_final:.2f}",
+            f"{r_linea:.4f}",
+            f"{x_linea:.4f}",
+            f"{z_linea:.4f}",
+            f"{delta_u_real:.2f}",
+            f"{delta_u_real_pct:.2f}",
+            f"{mt_recomendado:.0f}",
+            f"{icc_teorica:.0f}"
+        ]
+    })
+
+    st.dataframe(df, use_container_width=True)
+
+    excel = exportar_excel(df, "Calculo_Secciones")
+
+    st.download_button(
+        "📥 Descargar memoria en Excel",
+        excel,
+        "calculo_secciones.xlsx",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True
+    )
+
 # =========================================================
-# MÓDULO 2 — PRESUPUESTO DE INSTALACIÓN ELÉCTRICA VIVIENDA
+# MÓDULO 2 — PRESUPUESTO INSTALACIÓN ELÉCTRICA VIVIENDA
 # =========================================================
+else:
+    st.markdown(
+        "<h1 style='margin-bottom:0.2rem;'>Presupuesto instalación eléctrica de vivienda</h1>",
+        unsafe_allow_html=True
+    )
+    st.markdown(
+        f"<p style='color:{text_soft}; margin-top:0;'>Presupuesto por capítulos (circuitos, derivación individual y cuadro), con materiales normalizados, mano de obra, amortización, beneficio e IVA.</p>",
+        unsafe_allow_html=True
+    )
 
-st.markdown("<hr>", unsafe_allow_html=True)
-st.markdown("<h1 style='margin-top:1rem;'>📐 Presupuesto de Instalación Eléctrica (Vivienda)</h1>", unsafe_allow_html=True)
+    # -----------------------------
+    # Catálogo de productos normalizados
+    # -----------------------------
+    st.markdown("### Catálogo de productos normalizados")
 
-# -----------------------------
-# Catálogo base editable
-# -----------------------------
-catalogo_base = {
-    "Toma corriente simple": 12.50,
-    "Toma corriente doble": 18.00,
-    "Punto de luz": 14.00,
-    "Interruptor simple": 9.50,
-    "Interruptor conmutado": 12.00,
-    "Cuadro eléctrico empotrado": 85.00,
-    "ICP + IGA + ID + PIAs": 145.00,
-    "Canalización (€/m)": 4.20,
-    "Cableado (€/m)": 2.80,
-    "Mano de obra (€/h)": 22.00
-}
+    if "catalogo_productos" not in st.session_state:
+        st.session_state["catalogo_productos"] = [
+            {
+                "Referencia": "TC-S-16A",
+                "Descripción": "Toma de corriente simple 16 A",
+                "Unidad": "ud",
+                "Familia": "Tomas",
+                "Precio material (€)": 7.50,
+                "Precio mano de obra (€)": 5.00
+            },
+            {
+                "Referencia": "TC-D-16A",
+                "Descripción": "Toma de corriente doble 16 A",
+                "Unidad": "ud",
+                "Familia": "Tomas",
+                "Precio material (€)": 11.00,
+                "Precio mano de obra (€)": 7.00
+            },
+            {
+                "Referencia": "PL-LED",
+                "Descripción": "Punto de luz LED empotrado",
+                "Unidad": "ud",
+                "Familia": "Iluminación",
+                "Precio material (€)": 10.00,
+                "Precio mano de obra (€)": 4.00
+            },
+            {
+                "Referencia": "INT-S",
+                "Descripción": "Interruptor simple",
+                "Unidad": "ud",
+                "Familia": "Mecanismos",
+                "Precio material (€)": 5.00,
+                "Precio mano de obra (€)": 4.50
+            },
+            {
+                "Referencia": "INT-C",
+                "Descripción": "Interruptor conmutado",
+                "Unidad": "ud",
+                "Familia": "Mecanismos",
+                "Precio material (€)": 7.50,
+                "Precio mano de obra (€)": 5.00
+            },
+            {
+                "Referencia": "CGMP-12M",
+                "Descripción": "Cuadro general empotrado 12 módulos",
+                "Unidad": "ud",
+                "Familia": "Cuadros",
+                "Precio material (€)": 55.00,
+                "Precio mano de obra (€)": 25.00
+            },
+            {
+                "Referencia": "CONJ-PROTECC",
+                "Descripción": "Conjunto protecciones (IGA+ID+PIAs)",
+                "Unidad": "ud",
+                "Familia": "Protecciones",
+                "Precio material (€)": 90.00,
+                "Precio mano de obra (€)": 35.00
+            },
+            {
+                "Referencia": "CANAL-PVC",
+                "Descripción": "Canalización PVC empotrada",
+                "Unidad": "m",
+                "Familia": "Canalización",
+                "Precio material (€)": 2.50,
+                "Precio mano de obra (€)": 1.70
+            },
+            {
+                "Referencia": "CABLE-H07V-K",
+                "Descripción": "Cable H07V-K 2,5 mm²",
+                "Unidad": "m",
+                "Familia": "Cableado",
+                "Precio material (€)": 1.80,
+                "Precio mano de obra (€)": 1.00
+            }
+        ]
 
-st.markdown("### Catálogo de precios (editable)")
-catalogo = {}
+    df_catalogo = pd.DataFrame(st.session_state["catalogo_productos"])
+    st.dataframe(df_catalogo, use_container_width=True)
 
-for item, precio in catalogo_base.items():
-    catalogo[item] = st.number_input(f"{item}", value=float(precio), step=0.10)
+    st.markdown("#### Crear producto personalizado")
 
-# -----------------------------
-# Datos de la vivienda
-# -----------------------------
-st.markdown("### Datos de la vivienda")
+    with st.expander("➕ Crear nuevo producto"):
+        colp1, colp2, colp3 = st.columns(3)
+        with colp1:
+            ref_new = st.text_input("Referencia", value="")
+            desc_new = st.text_input("Descripción", value="")
+        with colp2:
+            unidad_new = st.text_input("Unidad (ud, m, etc.)", value="ud")
+            familia_new = st.text_input("Familia", value="Varios")
+        with colp3:
+            pm_new = st.number_input("Precio material (€)", value=0.0, min_value=0.0, step=0.10)
+            pmo_new = st.number_input("Precio mano de obra (€)", value=0.0, min_value=0.0, step=0.10)
 
-colA, colB, colC = st.columns(3)
+        if st.button("Añadir producto al catálogo"):
+            if ref_new and desc_new:
+                st.session_state["catalogo_productos"].append({
+                    "Referencia": ref_new,
+                    "Descripción": desc_new,
+                    "Unidad": unidad_new,
+                    "Familia": familia_new,
+                    "Precio material (€)": pm_new,
+                    "Precio mano de obra (€)": pmo_new
+                })
+                st.success("Producto añadido al catálogo. Recarga la tabla si es necesario.")
+            else:
+                st.warning("Referencia y descripción son obligatorias.")
 
-with colA:
-    n_habitaciones = st.number_input("Habitaciones", value=3, min_value=1, step=1)
-    n_banos = st.number_input("Baños", value=2, min_value=1, step=1)
+    # -----------------------------
+    # Parámetros económicos globales
+    # -----------------------------
+    st.markdown("### Parámetros económicos globales")
 
-with colB:
-    n_puntos_luz = st.number_input("Puntos de luz totales", value=12, min_value=1, step=1)
-    n_tomas = st.number_input("Tomas de corriente totales", value=20, min_value=1, step=1)
+    colg1, colg2, colg3, colg4 = st.columns(4)
+    with colg1:
+        iva_pct = st.number_input("IVA (%)", value=21.0, min_value=0.0, max_value=30.0, step=0.5)
+    with colg2:
+        amort_pct = st.number_input("Amortización / gastos generales (%)", value=10.0, min_value=0.0, max_value=50.0, step=0.5)
+    with colg3:
+        benef_pct = st.number_input("Beneficio industrial (%)", value=15.0, min_value=0.0, max_value=50.0, step=0.5)
+    with colg4:
+        mano_obra_hora = st.number_input("Precio mano de obra base (€/h)", value=22.0, min_value=0.0, step=0.5)
 
-with colC:
-    metros_canalizacion = st.number_input("Metros de canalización", value=45.0, min_value=0.0, step=1.0)
-    metros_cableado = st.number_input("Metros de cableado", value=120.0, min_value=0.0, step=1.0)
-    horas_mano_obra = st.number_input("Horas de mano de obra", value=18.0, min_value=0.0, step=1.0)
+    # -----------------------------
+    # Capítulos por circuito
+    # -----------------------------
+    st.markdown("### Capítulos por circuito")
 
-# -----------------------------
-# Cálculo del presupuesto
-# -----------------------------
-st.markdown("### Cálculo del presupuesto")
+    capitulos = [
+        "C1 - Iluminación",
+        "C2 - Tomas de uso general",
+        "C3 - Cocina y horno",
+        "C4 - Lavadora / lavavajillas",
+        "C5 - Baños y auxiliares",
+        "C6 - Climatización",
+        "C7 - Derivación individual",
+        "C8 - Cuadro general"
+    ]
 
-presupuesto = {
-    "Tomas de corriente": n_tomas * catalogo["Toma corriente simple"],
-    "Puntos de luz": n_puntos_luz * catalogo["Punto de luz"],
-    "Cuadro eléctrico": catalogo["Cuadro eléctrico empotrado"] + catalogo["ICP + IGA + ID + PIAs"],
-    "Canalización": metros_canalizacion * catalogo["Canalización (€/m)"],
-    "Cableado": metros_cableado * catalogo["Cableado (€/m)"],
-    "Mano de obra": horas_mano_obra * catalogo["Mano de obra (€/h)"]
-}
+    datos_capitulos = []
 
-total_presupuesto = sum(presupuesto.values())
+    for cap in capitulos:
+        st.markdown(f"#### {cap}")
+        colc1, colc2, colc3, colc4 = st.columns(4)
 
-# -----------------------------
-# Tarjetas premium de justificación
-# -----------------------------
-st.markdown("### Justificación compacta (tarjetas premium)")
+        with colc1:
+            n_puntos = st.number_input(f"Nº puntos ({cap})", value=0, min_value=0, step=1, key=f"puntos_{cap}")
+        with colc2:
+            metros_canal = st.number_input(f"m canalización ({cap})", value=0.0, min_value=0.0, step=1.0, key=f"canal_{cap}")
+        with colc3:
+            metros_cable = st.number_input(f"m cableado ({cap})", value=0.0, min_value=0.0, step=1.0, key=f"cable_{cap}")
+        with colc4:
+            horas_cap = st.number_input(f"Horas mano de obra ({cap})", value=0.0, min_value=0.0, step=0.5, key=f"horas_{cap}")
 
-def tarjeta_formula(formula):
-    st.markdown(f'<div class="formula-card">{formula}</div>', unsafe_allow_html=True)
+        # Selección de productos principales por capítulo
+        colsel1, colsel2 = st.columns(2)
+        with colsel1:
+            prod_punto = st.selectbox(
+                f"Producto principal por punto ({cap})",
+                options=df_catalogo["Descripción"].tolist(),
+                index=0,
+                key=f"prod_punto_{cap}"
+            )
+        with colsel2:
+            prod_canal = st.selectbox(
+                f"Producto canalización ({cap})",
+                options=df_catalogo[df_catalogo["Unidad"] == "m"]["Descripción"].tolist(),
+                index=0 if len(df_catalogo[df_catalogo["Unidad"] == "m"]) > 0 else 0,
+                key=f"prod_canal_{cap}"
+            )
 
-tarjeta_formula(
-    rf"\text{{Tomas}} = {n_tomas}\cdot{catalogo['Toma corriente simple']:.2f} = {presupuesto['Tomas de corriente']:.2f}\ \mathrm{{€}}"
-)
+        # Extra: cableado
+        prod_cable = st.selectbox(
+            f"Producto cableado ({cap})",
+            options=df_catalogo[df_catalogo["Unidad"] == "m"]["Descripción"].tolist(),
+            index=0 if len(df_catalogo[df_catalogo["Unidad"] == "m"]) > 0 else 0,
+            key=f"prod_cable_{cap}"
+        )
 
-tarjeta_formula(
-    rf"\text{{Puntos de luz}} = {n_puntos_luz}\cdot{catalogo['Punto de luz']:.2f} = {presupuesto['Puntos de luz']:.2f}\ \mathrm{{€}}"
-)
+        # Obtención de precios
+        def get_precios(desc):
+            fila = df_catalogo[df_catalogo["Descripción"] == desc]
+            if fila.empty:
+                return 0.0, 0.0
+            return float(fila["Precio material (€)"].iloc[0]), float(fila["Precio mano de obra (€)"].iloc[0])
 
-tarjeta_formula(
-    rf"\text{{Cuadro eléctrico}} = {catalogo['Cuadro eléctrico empotrado']:.2f} + {catalogo['ICP + IGA + ID + PIAs']:.2f} = {presupuesto['Cuadro eléctrico']:.2f}\ \mathrm{{€}}"
-)
+        pm_punto, pmo_punto = get_precios(prod_punto)
+        pm_canal, pmo_canal = get_precios(prod_canal)
+        pm_cable, pmo_cable = get_precios(prod_cable)
 
-tarjeta_formula(
-    rf"\text{{Canalización}} = {metros_canalizacion}\cdot{catalogo['Canalización (€/m)']:.2f} = {presupuesto['Canalización']:.2f}\ \mathrm{{€}}"
-)
+        # Cálculos capítulo
+        mat_puntos = n_puntos * pm_punto
+        mo_puntos = n_puntos * pmo_punto
 
-tarjeta_formula(
-    rf"\text{{Cableado}} = {metros_cableado}\cdot{catalogo['Cableado (€/m)']:.2f} = {presupuesto['Cableado']:.2f}\ \mathrm{{€}}"
-)
+        mat_canal = metros_canal * pm_canal
+        mo_canal = metros_canal * pmo_canal
 
-tarjeta_formula(
-    rf"\text{{Mano de obra}} = {horas_mano_obra}\cdot{catalogo['Mano de obra (€/h)']:.2f} = {presupuesto['Mano de obra']:.2f}\ \mathrm{{€}}"
-)
+        mat_cable = metros_cable * pm_cable
+        mo_cable = metros_cable * pmo_cable
 
-# -----------------------------
-# Tabla resumen
-# -----------------------------
-st.markdown("### Resumen del presupuesto")
+        mo_horas = horas_cap * mano_obra_hora
 
-df_presupuesto = pd.DataFrame({
-    "Concepto": list(presupuesto.keys()),
-    "Importe (€)": [f"{v:.2f}" for v in presupuesto.values()]
-})
+        mat_total = mat_puntos + mat_canal + mat_cable
+        mo_total = mo_puntos + mo_canal + mo_cable + mo_horas
+        base_cap = mat_total + mo_total
 
-st.dataframe(df_presupuesto, use_container_width=True)
+        gastos_generales = base_cap * (amort_pct / 100.0)
+        beneficio = (base_cap + gastos_generales) * (benef_pct / 100.0)
+        base_imponible = base_cap + gastos_generales + beneficio
+        iva = base_imponible * (iva_pct / 100.0)
+        total_cap = base_imponible + iva
 
-# -----------------------------
-# Total final
-# -----------------------------
-st.markdown(
-    f"<h2 style='margin-top:1rem; font-weight:700;'>💰 Presupuesto total: {total_presupuesto:.2f} €</h2>",
-    unsafe_allow_html=True
-)
+        datos_capitulos.append({
+            "Capítulo": cap,
+            "Material (€)": mat_total,
+            "Mano de obra (€)": mo_total,
+            "Base capítulo (€)": base_cap,
+            "Gastos generales (€)": gastos_generales,
+            "Beneficio (€)": beneficio,
+            "Base imponible (€)": base_imponible,
+            "IVA (€)": iva,
+            "Total capítulo (€)": total_cap
+        })
 
-# -----------------------------
-# Exportación
-# -----------------------------
-excel_presupuesto = exportar_excel(df_presupuesto, "Presupuesto_Vivienda")
+        # Justificación compacta por capítulo
+        st.markdown("Justificación capítulo (tarjetas compactas)")
+        def tarjeta_formula_pres(formula):
+            st.markdown(f'<div class="formula-card">{formula}</div>', unsafe_allow_html=True)
 
-st.download_button(
-    "📥 Descargar presupuesto (Excel)",
-    excel_presupuesto,
-    "presupuesto_vivienda.xlsx",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    use_container_width=True
-)
+        tarjeta_formula_pres(
+            rf"\text{{Material puntos}} = {n_puntos}\cdot{pm_punto:.2f} = {mat_puntos:.2f}\ \mathrm{{€}}"
+        )
+        tarjeta_formula_pres(
+            rf"\text{{Material canalización}} = {metros_canal:.2f}\cdot{pm_canal:.2f} = {mat_canal:.2f}\ \mathrm{{€}}"
+        )
+        tarjeta_formula_pres(
+            rf"\text{{Material cableado}} = {metros_cable:.2f}\cdot{pm_cable:.2f} = {mat_cable:.2f}\ \mathrm{{€}}"
+        )
+        tarjeta_formula_pres(
+            rf"\text{{Mano de obra puntos}} = {n_puntos}\cdot{pmo_punto:.2f} = {mo_puntos:.2f}\ \mathrm{{€}}"
+        )
+        tarjeta_formula_pres(
+            rf"\text{{Mano de obra canalización}} = {metros_canal:.2f}\cdot{pmo_canal:.2f} = {mo_canal:.2f}\ \mathrm{{€}}"
+        )
+        tarjeta_formula_pres(
+            rf"\text{{Mano de obra cableado}} = {metros_cable:.2f}\cdot{pmo_cable:.2f} = {mo_cable:.2f}\ \mathrm{{€}}"
+        )
+        tarjeta_formula_pres(
+            rf"\text{{Mano de obra directa}} = {horas_cap:.2f}\cdot{mano_obra_hora:.2f} = {mo_horas:.2f}\ \mathrm{{€}}"
+        )
+        tarjeta_formula_pres(
+            rf"\text{{Base capítulo}} = {mat_total:.2f} + {mo_total:.2f} = {base_cap:.2f}\ \mathrm{{€}}"
+        )
+        tarjeta_formula_pres(
+            rf"\text{{Gastos generales}} = {base_cap:.2f}\cdot{amort_pct:.2f}\% = {gastos_generales:.2f}\ \mathrm{{€}}"
+        )
+        tarjeta_formula_pres(
+            rf"\text{{Beneficio}} = ({base_cap:.2f}+{gastos_generales:.2f})\cdot{benef_pct:.2f}\% = {beneficio:.2f}\ \mathrm{{€}}"
+        )
+        tarjeta_formula_pres(
+            rf"\text{{Base imponible}} = {base_cap:.2f}+{gastos_generales:.2f}+{beneficio:.2f} = {base_imponible:.2f}\ \mathrm{{€}}"
+        )
+        tarjeta_formula_pres(
+            rf"\text{{IVA}} = {base_imponible:.2f}\cdot{iva_pct:.2f}\% = {iva:.2f}\ \mathrm{{€}}"
+        )
+        tarjeta_formula_pres(
+            rf"\text{{Total capítulo}} = {base_imponible:.2f}+{iva:.2f} = {total_cap:.2f}\ \mathrm{{€}}"
+        )
+
+        st.markdown("<hr>", unsafe_allow_html=True)
+
+    # -----------------------------
+    # Resumen global del presupuesto
+    # -----------------------------
+    st.markdown("### Resumen global del presupuesto")
+
+    df_caps = pd.DataFrame(datos_capitulos)
+
+    st.dataframe(df_caps.style.format({
+        "Material (€)": "{:.2f}",
+        "Mano de obra (€)": "{:.2f}",
+        "Base capítulo (€)": "{:.2f}",
+        "Gastos generales (€)": "{:.2f}",
+        "Beneficio (€)": "{:.2f}",
+        "Base imponible (€)": "{:.2f}",
+        "IVA (€)": "{:.2f}",
+        "Total capítulo (€)": "{:.2f}"
+    }), use_container_width=True)
+
+    total_material = df_caps["Material (€)"].sum()
+    total_mo = df_caps["Mano de obra (€)"].sum()
+    total_base = df_caps["Base capítulo (€)"].sum()
+    total_gastos = df_caps["Gastos generales (€)"].sum()
+    total_benef = df_caps["Beneficio (€)"].sum()
+    total_base_imp = df_caps["Base imponible (€)"].sum()
+    total_iva = df_caps["IVA (€)"].sum()
+    total_final = df_caps["Total capítulo (€)"].sum()
+
+    st.markdown(
+        f"<h2 style='margin-top:1rem; font-weight:700;'>💰 Presupuesto total (con IVA): {total_final:.2f} €</h2>",
+        unsafe_allow_html=True
+    )
+
+    st.markdown("### Desglose global")
+
+    coltot1, coltot2, coltot3, coltot4 = st.columns(4)
+    with coltot1:
+        st.markdown(f"**Material total:** {total_material:.2f} €")
+        st.markdown(f"**Mano de obra total:** {total_mo:.2f} €")
+    with coltot2:
+        st.markdown(f"**Base capítulos:** {total_base:.2f} €")
+        st.markdown(f"**Gastos generales:** {total_gastos:.2f} €")
+    with coltot3:
+        st.markdown(f"**Beneficio industrial:** {total_benef:.2f} €")
+        st.markdown(f"**Base imponible:** {total_base_imp:.2f} €")
+    with coltot4:
+        st.markdown(f"**IVA total:** {total_iva:.2f} €")
+        st.markdown(f"**Total presupuesto:** {total_final:.2f} €")
+
+    # -----------------------------
+    # Exportación a Excel
+    # -----------------------------
+    st.markdown("### Exportación del presupuesto")
+
+    excel_presupuesto = exportar_excel(df_caps, "Presupuesto_Vivienda")
+
+    st.download_button(
+        "📥 Descargar presupuesto (Excel)",
+        excel_presupuesto,
+        "presupuesto_vivienda.xlsx",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True
+    )
