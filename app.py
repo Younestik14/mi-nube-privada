@@ -1,5 +1,5 @@
 # ============================================================
-# app.py — Ingeniería Eléctrica PRO (macOS Sonoma Edition)
+# app.py — Ingeniería Eléctrica Profesional — Plataforma Técnica REBT
 # ============================================================
 
 import streamlit as st
@@ -34,7 +34,7 @@ logging.info("Aplicación iniciada")
 # ============================================================
 
 st.set_page_config(
-    page_title="Ingeniería Eléctrica PRO",
+    page_title="Ingeniería Eléctrica Profesional — Plataforma Técnica REBT",
     page_icon="⚡",
     layout="wide"
 )
@@ -115,6 +115,49 @@ html, body {
 }
 
 </style>
+""", unsafe_allow_html=True)
+
+# ============================================================
+# CABECERA PREMIUM — Estilo macOS Sonoma
+# ============================================================
+
+st.markdown("""
+<style>
+.header-premium {
+    width: 100%;
+    padding: 40px 0 50px 0;
+    text-align: center;
+    border-radius: 0 0 22px 22px;
+    background: linear-gradient(
+        135deg,
+        rgba(0, 122, 255, 0.35),
+        rgba(88, 86, 214, 0.35)
+    );
+    backdrop-filter: blur(22px) saturate(180%);
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+}
+
+.header-premium h1 {
+    font-size: 34px;
+    font-weight: 700;
+    margin: 0;
+    color: var(--text);
+}
+
+.header-premium p {
+    font-size: 16px;
+    opacity: 0.75;
+    margin-top: 8px;
+    color: var(--text);
+}
+</style>
+
+<div class="header-premium">
+    <h1>Ingeniería Eléctrica Profesional — Plataforma Técnica REBT</h1>
+    <p>Cálculo de secciones · Presupuestos avanzados · Documentación oficial</p>
+</div>
 """, unsafe_allow_html=True)
 
 # ============================================================
@@ -203,12 +246,12 @@ def require_role(role):
 
 def login_ui():
     card_open()
-    st.markdown("### 🔐 Iniciar sesión")
+    st.markdown("### 🔐 Acceso a la plataforma técnica")
 
     username = st.text_input("Usuario")
     password = st.text_input("Contraseña", type="password")
 
-    if st.button("Entrar", use_container_width=True):
+    if st.button("Iniciar sesión", use_container_width=True):
         ok, role, full_name = login(username, password)
         if ok:
             st.session_state["logged_in"] = True
@@ -644,7 +687,7 @@ def generar_pdf_presupuesto(proyecto, presupuesto):
     c = canvas.Canvas(buffer, pagesize=A4)
 
     c.setFont("Helvetica-Bold", 16)
-    c.drawString(40, 800, "Presupuesto — Ingeniería Eléctrica PRO")
+    c.drawString(40, 800, "Presupuesto — Ingeniería Eléctrica Profesional")
 
     c.setFont("Helvetica", 12)
     c.drawString(40, 770, f"Proyecto: {proyecto['nombre']}")
@@ -707,26 +750,19 @@ def generar_memoria_word(proyecto, secciones, protecciones, presupuesto):
 # MENÚ PRINCIPAL
 # ============================================================
 
-titulo_centrado(
-    "⚡ Ingeniería Eléctrica PRO",
-    "Cálculo profesional, presupuesto hiper‑detallado y memoria REBT — Estética macOS Sonoma"
+opcion = st.radio(
+    "Navegación",
+    [
+        "🏠 Panel principal",
+        "⚡ Cálculo profesional de secciones",
+        "💶 Presupuesto técnico detallado",
+        "📘 Generador de memoria REBT",
+        "📦 Catálogo técnico de materiales",
+        "🔐 Administración de usuarios",
+        "👤 Perfil y sesión",
+    ],
+    horizontal=True,
 )
-
-col_l, col_c, col_r = st.columns([1, 3, 1])
-with col_c:
-    opcion = st.radio(
-        "Selecciona un módulo",
-        [
-            "🏠 Inicio",
-            "📐 Cálculo de secciones",
-            "💰 Presupuesto",
-            "📘 Memoria REBT",
-            "📦 Catálogo",
-            "👥 Administración",
-            "👤 Cuenta",
-        ],
-        horizontal=True,
-    )
 
 divider()
 # ============================================================
@@ -734,7 +770,6 @@ divider()
 # ============================================================
 
 if not st.session_state["logged_in"]:
-    titulo_centrado("⚡ Ingeniería Eléctrica PRO", "Acceso técnico profesional")
     login_ui()
     st.stop()
 
@@ -742,32 +777,32 @@ if not st.session_state["logged_in"]:
 # MÓDULOS DE INTERFAZ
 # ============================================================
 
-# 1) INICIO
-if opcion == "🏠 Inicio":
+# 1) PANEL PRINCIPAL
+if opcion == "🏠 Panel principal":
     col1, col2 = st.columns(2)
 
     with col1:
         card_open()
-        st.markdown("### 👋 Bienvenido")
+        st.markdown("### 👋 Panel principal")
         st.write(f"**Usuario:** {st.session_state['username']}")
         st.write(f"**Rol:** {st.session_state['role']}")
-        st.write("Selecciona un módulo arriba para comenzar.")
+        st.write("Selecciona un módulo en la barra superior para comenzar.")
         card_close()
 
     with col2:
         card_open()
         st.markdown("### 🧩 Módulos disponibles")
-        st.markdown("- 📐 Cálculo de secciones profesional REBT / UNE")
-        st.markdown("- 💰 Presupuesto hiper‑detallado con rendimientos y parámetros configurables")
-        st.markdown("- 📘 Memoria técnica REBT (Word + PDF)")
-        st.markdown("- 📦 Catálogo editable de materiales")
-        st.markdown("- 👥 Administración avanzada de usuarios")
+        st.markdown("- ⚡ Cálculo profesional de secciones (REBT / UNE)")
+        st.markdown("- 💶 Presupuesto técnico detallado con rendimientos")
+        st.markdown("- 📘 Generación de memoria técnica REBT")
+        st.markdown("- 📦 Catálogo técnico de materiales editable")
+        st.markdown("- 🔐 Administración avanzada de usuarios")
         card_close()
 
-# 2) CÁLCULO DE SECCIONES PROFESIONAL (ESTILO TABLA TÉCNICA + LaTeX)
-elif opcion == "📐 Cálculo de secciones":
+# 2) CÁLCULO DE SECCIONES PROFESIONAL
+elif opcion == "⚡ Cálculo profesional de secciones":
     card_open()
-    st.markdown("### 📐 Cálculo de secciones — Modo INGENIERÍA COMPLETA REBT / UNE")
+    st.markdown("### ⚡ Cálculo profesional de secciones — REBT / UNE")
 
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -775,7 +810,7 @@ elif opcion == "📐 Cálculo de secciones":
         potencia = st.number_input("Potencia (W)", min_value=100.0, value=2000.0)
         longitud = st.number_input("Longitud (m)", min_value=1.0, value=15.0)
     with col2:
-        metodo = st.selectbox("Método instalación (ITC‑BT‑19)", list(METODOS_INSTALACION.keys()))
+        metodo = st.selectbox("Método de instalación (ITC‑BT‑19)", list(METODOS_INSTALACION.keys()))
         tipo_cable = st.selectbox("Tipo de cable", TIPO_CABLE)
         n_conductores_cargados = st.selectbox("Nº conductores cargados", [2,3,4,5,6])
     with col3:
@@ -785,14 +820,14 @@ elif opcion == "📐 Cálculo de secciones":
 
     col4, col5, col6 = st.columns(3)
     with col4:
-        resistividad_terreno = st.selectbox("Resistividad térmica terreno (K·m/W)", [1.0,1.2,1.5,2.0,2.5])
+        resistividad_terreno = st.selectbox("Resistividad térmica del terreno (K·m/W)", [1.0,1.2,1.5,2.0,2.5])
     with col5:
-        profundidad = st.selectbox("Profundidad enterrado (m)", [0.7,1.0,1.2])
+        profundidad = st.selectbox("Profundidad de enterramiento (m)", [0.7,1.0,1.2])
     with col6:
         tipo_bandeja = st.selectbox("Tipo de bandeja", ["Perforada","Ventilada","Cerrada"])
 
     divider()
-    st.markdown("#### 🎛 Criterios de cálculo (modo asistido)")
+    st.markdown("#### 🎛 Criterios de cálculo")
 
     colA, colB = st.columns(2)
     with colA:
@@ -831,7 +866,7 @@ elif opcion == "📐 Cálculo de secciones":
 
         tabla = [
             {"Parámetro": "Intensidad calculada", "Valor": f"{datos['intensidad_calculada_A']:.2f} A"},
-            {"Parámetro": "Método", "Valor": f"{datos['metodo']} — {datos['descripcion_metodo']}"},
+            {"Parámetro": "Método de instalación", "Valor": f"{datos['metodo']} — {datos['descripcion_metodo']}"},
             {"Parámetro": "Tipo de cable", "Valor": datos["tipo_cable"]},
         ]
 
@@ -855,21 +890,20 @@ elif opcion == "📐 Cálculo de secciones":
 
         divider()
         st.markdown("#### 🔌 Protecciones recomendadas")
-        st.write(f"**Magnetotérmico:** {datos['protecciones']['magnetotermico']}")
-        st.write(f"**Diferencial:** {datos['protecciones']['diferencial']}")
+        st.write(f"**Magnetotérmico recomendado:** {datos['protecciones']['magnetotermico']}")
+        st.write(f"**Diferencial recomendado:** {datos['protecciones']['diferencial']}")
 
         divider()
         st.markdown("#### 📐 Fórmulas utilizadas")
-
         st.latex(r"I = \frac{P}{V \cdot \cos\varphi}")
         st.latex(r"\Delta V\% = \frac{\sqrt{3} \cdot I \cdot R \cdot L}{V} \cdot 100")
 
     card_close()
 
-# 3) PRESUPUESTO HIPER‑DETALLADO (PARÁMETROS CONFIGURABLES)
-elif opcion == "💰 Presupuesto":
+# 3) PRESUPUESTO TÉCNICO DETALLADO
+elif opcion == "💶 Presupuesto técnico detallado":
     card_open()
-    st.markdown("### 💰 Presupuesto hiper‑detallado con rendimientos")
+    st.markdown("### 💶 Presupuesto técnico detallado")
 
     catalogo = cargar_catalogo()
     lista_capitulos = list(catalogo.keys())
@@ -882,7 +916,7 @@ elif opcion == "💰 Presupuesto":
         pct_seg = st.number_input("Seguridad y salud (%)", min_value=0.0, max_value=20.0, value=2.0)
     with colp2:
         pct_amort = st.number_input("Amortización (%)", min_value=0.0, max_value=20.0, value=3.0)
-        pct_benef = st.number_input("Beneficio (%)", min_value=0.0, max_value=30.0, value=6.0)
+        pct_benef = st.number_input("Beneficio industrial (%)", min_value=0.0, max_value=30.0, value=6.0)
     with colp3:
         pct_iva = st.number_input("IVA (%)", min_value=0.0, max_value=30.0, value=21.0)
 
@@ -944,7 +978,7 @@ elif opcion == "💰 Presupuesto":
             st.write(f"**Amortización:** {tot['amortizacion']:.2f} €")
         with col2:
             st.write(f"**Indirectos totales:** {tot['indirectos']:.2f} €")
-            st.write(f"**Beneficio:** {tot['beneficio']:.2f} €")
+            st.write(f"**Beneficio industrial:** {tot['beneficio']:.2f} €")
             st.write(f"**Base imponible:** {tot['base_imponible']:.2f} €")
             st.write(f"**IVA total:** {tot['iva']:.2f} €")
             st.write(f"**TOTAL PRESUPUESTO:** {tot['total_final']:.2f} €")
@@ -956,7 +990,7 @@ elif opcion == "💰 Presupuesto":
             presupuesto=presupuesto
         )
         st.download_button(
-            "📄 Descargar PDF",
+            "📄 Descargar presupuesto en PDF",
             data=pdf_bytes,
             file_name="presupuesto.pdf",
             mime="application/pdf",
@@ -965,10 +999,10 @@ elif opcion == "💰 Presupuesto":
 
     card_close()
 
-# 4) MEMORIA REBT
-elif opcion == "📘 Memoria REBT":
+# 4) GENERADOR DE MEMORIA REBT
+elif opcion == "📘 Generador de memoria REBT":
     card_open()
-    st.markdown("### 📘 Generación de Memoria Técnica REBT")
+    st.markdown("### 📘 Generación de memoria técnica REBT")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -1012,7 +1046,7 @@ elif opcion == "📘 Memoria REBT":
 
         word_bytes = generar_memoria_word(proyecto, secciones, protecciones, presupuesto_demo)
         st.download_button(
-            "📘 Descargar Memoria Word",
+            "📘 Descargar memoria en Word",
             data=word_bytes,
             file_name="memoria_rebt.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -1021,7 +1055,7 @@ elif opcion == "📘 Memoria REBT":
 
         pdf_bytes = generar_pdf_presupuesto(proyecto, presupuesto_demo)
         st.download_button(
-            "📄 Descargar Memoria PDF",
+            "📄 Descargar resumen en PDF",
             data=pdf_bytes,
             file_name="memoria_rebt.pdf",
             mime="application/pdf",
@@ -1030,16 +1064,16 @@ elif opcion == "📘 Memoria REBT":
 
     card_close()
 
-# 5) CATÁLOGO (ADMIN PUEDE AÑADIR / CAMBIAR PRODUCTOS Y CAPÍTULOS)
-elif opcion == "📦 Catálogo":
+# 5) CATÁLOGO TÉCNICO DE MATERIALES
+elif opcion == "📦 Catálogo técnico de materiales":
     require_role("admin")
     card_open()
-    st.markdown("### 📦 Catálogo de materiales (solo admin)")
+    st.markdown("### 📦 Catálogo técnico de materiales")
 
     catalogo = cargar_catalogo()
     lista_capitulos = list(catalogo.keys())
 
-    st.markdown("#### ➕ Añadir nuevo capítulo")
+    st.markdown("#### ➕ Crear nuevo capítulo")
     nuevo_cap = st.text_input("Nombre del nuevo capítulo")
     if st.button("Crear capítulo", use_container_width=True):
         if nuevo_cap and nuevo_cap not in catalogo:
@@ -1051,7 +1085,7 @@ elif opcion == "📦 Catálogo":
 
     divider()
 
-    capitulo = st.selectbox("Selecciona un capítulo", list(catalogo.keys()))
+    capitulo = st.selectbox("Capítulo a gestionar", list(catalogo.keys()))
     productos = catalogo[capitulo]
 
     st.markdown("#### ✏️ Productos del capítulo (editor dinámico)")
@@ -1075,7 +1109,7 @@ elif opcion == "📦 Catálogo":
     with colc2:
         if st.button("Borrar capítulo seleccionado", use_container_width=True):
             if capitulo == "C12 - Cuadro eléctrico" or capitulo == "C13 - Derivación individual":
-                st.warning("Mejor no borrar capítulos críticos del ejemplo base.")
+                st.warning("Se recomienda no borrar capítulos críticos del ejemplo base.")
             else:
                 del catalogo[capitulo]
                 guardar_catalogo(catalogo)
@@ -1083,11 +1117,11 @@ elif opcion == "📦 Catálogo":
 
     card_close()
 
-# 6) ADMINISTRACIÓN AVANZADA
-elif opcion == "👥 Administración":
+# 6) ADMINISTRACIÓN DE USUARIOS
+elif opcion == "🔐 Administración de usuarios":
     require_role("admin")
     card_open()
-    st.markdown("### 👥 Administración avanzada de usuarios")
+    st.markdown("### 🔐 Administración de usuarios")
 
     st.markdown("## ➕ Crear nuevo usuario")
 
@@ -1203,24 +1237,48 @@ elif opcion == "👥 Administración":
 
     card_close()
 
-# 7) CUENTA
-elif opcion == "👤 Cuenta":
+# 7) PERFIL Y SESIÓN
+elif opcion == "👤 Perfil y sesión":
     card_open()
-    st.markdown("### 👤 Cuenta de usuario")
+    st.markdown("### 👤 Perfil y sesión")
     st.write(f"**Usuario:** {st.session_state['username']}")
     st.write(f"**Rol:** {st.session_state['role']}")
-    st.write(f"**Sesión iniciada:** {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+    st.write(f"**Sesión activa:** {datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
     if st.button("Cerrar sesión", use_container_width=True):
         st.session_state["logged_in"] = False
         st.session_state["username"] = None
         st.session_state["role"] = None
         st.session_state["full_name"] = None
-        st.experimental_set_query_params()
-        st.stop()
+        st.query_params.clear()
+        st.rerun()
 
     card_close()
 
 # ============================================================
-# FIN DEL ARCHIVO APP.PY COMPLETO
+# MARCA DE AGUA — Hecho por Younesse Tikent Tifaoui
+# ============================================================
+
+st.markdown("""
+<style>
+.watermark {
+    position: fixed;
+    bottom: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    opacity: 0.20;
+    color: var(--text);
+    pointer-events: none;
+    z-index: 9999;
+}
+</style>
+
+<div class="watermark">
+Hecho por Younesse Tikent Tifaoui
+</div>
+""", unsafe_allow_html=True)
+
+# ============================================================
+# FIN DEL ARCHIVO APP.PY
 # ============================================================
