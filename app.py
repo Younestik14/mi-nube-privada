@@ -40,7 +40,7 @@ st.set_page_config(
 )
 
 # ============================================================
-# INICIALIZACIÓN SEGURA DEL ESTADO DE SESIÓN
+# INICIALIZACIÓN ESTADO DE SESIÓN
 # ============================================================
 
 if "logged_in" not in st.session_state:
@@ -200,10 +200,6 @@ def require_role(role):
     if st.session_state.get("role") != role:
         st.error("No tienes permisos para acceder a esta sección.")
         st.stop()
-
-# ============================================================
-# LOGIN UI (ESTABLE, SIN RERUN)
-# ============================================================
 
 def login_ui():
     card_open()
@@ -525,10 +521,19 @@ def calcular_linea_profesional(
     }
 
 # ============================================================
-# PRESUPUESTO HIPER‑DETALLADO CON RENDIMIENTOS
+# PRESUPUESTO HIPER‑DETALLADO CON PARÁMETROS CONFIGURABLES
 # ============================================================
 
-def calcular_capitulo_detallado(nombre_capitulo, productos, coste_hora_mo=25.0):
+def calcular_capitulo_detallado(
+    nombre_capitulo,
+    productos,
+    coste_hora_mo=25.0,
+    pct_gastos=0.15,
+    pct_seg=0.02,
+    pct_amort=0.03,
+    pct_benef=0.06,
+    pct_iva=0.21,
+):
     detalle = []
     total_material = 0.0
     total_mano_obra = 0.0
@@ -557,13 +562,13 @@ def calcular_capitulo_detallado(nombre_capitulo, productos, coste_hora_mo=25.0):
         })
 
     base_directa = total_material + total_mano_obra
-    gastos_generales = base_directa * 0.15
-    seguridad_salud = base_directa * 0.02
-    amortizacion = base_directa * 0.03
+    gastos_generales = base_directa * pct_gastos
+    seguridad_salud = base_directa * pct_seg
+    amortizacion = base_directa * pct_amort
     indirectos = gastos_generales + seguridad_salud + amortizacion
-    beneficio = base_directa * 0.06
+    beneficio = base_directa * pct_benef
     base_imponible = base_directa + indirectos + beneficio
-    iva = base_imponible * 0.21
+    iva = base_imponible * pct_iva
     total_capitulo = base_imponible + iva
 
     resumen = {
@@ -583,12 +588,30 @@ def calcular_capitulo_detallado(nombre_capitulo, productos, coste_hora_mo=25.0):
 
     return resumen, detalle
 
-def calcular_presupuesto_detallado(catalogo, lista_capitulos, coste_hora_mo=25.0):
+def calcular_presupuesto_detallado(
+    catalogo,
+    lista_capitulos,
+    coste_hora_mo=25.0,
+    pct_gastos=0.15,
+    pct_seg=0.02,
+    pct_amort=0.03,
+    pct_benef=0.06,
+    pct_iva=0.21,
+):
     capitulos_resumen = []
     lineas_detalle = []
 
     for cap in lista_capitulos:
-        resumen, detalle = calcular_capitulo_detallado(cap, catalogo.get(cap, []), coste_hora_mo)
+        resumen, detalle = calcular_capitulo_detallado(
+            cap,
+            catalogo.get(cap, []),
+            coste_hora_mo,
+            pct_gastos,
+            pct_seg,
+            pct_amort,
+            pct_benef,
+            pct_iva,
+        )
         capitulos_resumen.append(resumen)
         lineas_detalle.extend(detalle)
 
@@ -735,13 +758,13 @@ if opcion == "🏠 Inicio":
         card_open()
         st.markdown("### 🧩 Módulos disponibles")
         st.markdown("- 📐 Cálculo de secciones profesional REBT / UNE")
-        st.markdown("- 💰 Presupuesto hiper‑detallado con rendimientos")
+        st.markdown("- 💰 Presupuesto hiper‑detallado con rendimientos y parámetros configurables")
         st.markdown("- 📘 Memoria técnica REBT (Word + PDF)")
         st.markdown("- 📦 Catálogo editable de materiales")
         st.markdown("- 👥 Administración avanzada de usuarios")
         card_close()
 
-# 2) CÁLCULO DE SECCIONES PROFESIONAL
+# 2) CÁLCULO DE SECCIONES PROFESIONAL (ESTILO TABLA TÉCNICA + LaTeX)
 elif opcion == "📐 Cálculo de secciones":
     card_open()
     st.markdown("### 📐 Cálculo de secciones — Modo INGENIERÍA COMPLETA REBT / UNE")
@@ -796,12 +819,54 @@ elif opcion == "📐 Cálculo de secciones":
         )
 
         divider()
-        st.markdown("### Resultado profesional")
-        st.json(datos)
+        st.markdown("### 🟦 Sección final tomada")
+        st.markdown(
+            f"<h2 style='margin-top:0;'>Sección final: {datos['seccion_final_mm2']} mm²</h2>",
+            unsafe_allow_html=True
+        )
+
+        criterios = datos["criterios"]
+        fila_int = criterios.get("por_intensidad", {})
+        fila_caida = criterios.get("por_caida", {})
+
+        tabla = [
+            {"Parámetro": "Intensidad calculada", "Valor": f"{datos['intensidad_calculada_A']:.2f} A"},
+            {"Parámetro": "Método", "Valor": f"{datos['metodo']} — {datos['descripcion_metodo']}"},
+            {"Parámetro": "Tipo de cable", "Valor": datos["tipo_cable"]},
+        ]
+
+        if fila_int:
+            tabla.extend([
+                {"Parámetro": "Iadm base", "Valor": f"{fila_int['Iadm_base']:.2f} A"},
+                {"Parámetro": "Iadm corregida", "Valor": f"{fila_int['Iadm_corr']:.2f} A"},
+                {"Parámetro": "Sección por intensidad", "Valor": f"{fila_int['seccion']} mm²"},
+            ])
+
+        if fila_caida:
+            tabla.extend([
+                {"Parámetro": "Caída de tensión", "Valor": f"{fila_caida['caida']:.2f} %"},
+                {"Parámetro": "Sección por caída", "Valor": f"{fila_caida['seccion']} mm²"},
+            ])
+
+        tabla.append({"Parámetro": "Sección final tomada", "Valor": f"{datos['seccion_final_mm2']} mm²"})
+
+        st.markdown("#### 📊 Tabla técnica del cálculo")
+        st.table(pd.DataFrame(tabla))
+
+        divider()
+        st.markdown("#### 🔌 Protecciones recomendadas")
+        st.write(f"**Magnetotérmico:** {datos['protecciones']['magnetotermico']}")
+        st.write(f"**Diferencial:** {datos['protecciones']['diferencial']}")
+
+        divider()
+        st.markdown("#### 📐 Fórmulas utilizadas")
+
+        st.latex(r"I = \frac{P}{V \cdot \cos\varphi}")
+        st.latex(r"\Delta V\% = \frac{\sqrt{3} \cdot I \cdot R \cdot L}{V} \cdot 100")
 
     card_close()
 
-# 3) PRESUPUESTO HIPER‑DETALLADO
+# 3) PRESUPUESTO HIPER‑DETALLADO (PARÁMETROS CONFIGURABLES)
 elif opcion == "💰 Presupuesto":
     card_open()
     st.markdown("### 💰 Presupuesto hiper‑detallado con rendimientos")
@@ -811,12 +876,22 @@ elif opcion == "💰 Presupuesto":
 
     coste_hora_mo = st.number_input("Coste hora mano de obra (€ / h)", min_value=10.0, max_value=100.0, value=25.0)
 
+    colp1, colp2, colp3 = st.columns(3)
+    with colp1:
+        pct_gastos = st.number_input("Gastos generales (%)", min_value=0.0, max_value=50.0, value=15.0)
+        pct_seg = st.number_input("Seguridad y salud (%)", min_value=0.0, max_value=20.0, value=2.0)
+    with colp2:
+        pct_amort = st.number_input("Amortización (%)", min_value=0.0, max_value=20.0, value=3.0)
+        pct_benef = st.number_input("Beneficio (%)", min_value=0.0, max_value=30.0, value=6.0)
+    with colp3:
+        pct_iva = st.number_input("IVA (%)", min_value=0.0, max_value=30.0, value=21.0)
+
     st.markdown("#### ✏️ Edición de capítulos y productos")
 
     cap_sel = st.selectbox("Capítulo a editar", lista_capitulos)
     productos = catalogo[cap_sel]
 
-    st.info("Puedes editar todos los campos y añadir nuevas filas con el botón + del editor.")
+    st.info("Puedes editar todos los campos y añadir nuevas filas en el editor.")
 
     df = pd.DataFrame(productos)
     if "rendimiento_h" not in df.columns:
@@ -837,7 +912,16 @@ elif opcion == "💰 Presupuesto":
     divider()
 
     if st.button("Calcular presupuesto detallado", use_container_width=True):
-        presupuesto = calcular_presupuesto_detallado(catalogo, lista_capitulos, coste_hora_mo)
+        presupuesto = calcular_presupuesto_detallado(
+            catalogo,
+            lista_capitulos,
+            coste_hora_mo,
+            pct_gastos/100.0,
+            pct_seg/100.0,
+            pct_amort/100.0,
+            pct_benef/100.0,
+            pct_iva/100.0,
+        )
 
         st.markdown("#### 📊 Resumen por capítulos")
         st.dataframe(presupuesto["capitulos"], use_container_width=True)
@@ -946,30 +1030,56 @@ elif opcion == "📘 Memoria REBT":
 
     card_close()
 
-# 5) CATÁLOGO
+# 5) CATÁLOGO (ADMIN PUEDE AÑADIR / CAMBIAR PRODUCTOS Y CAPÍTULOS)
 elif opcion == "📦 Catálogo":
     require_role("admin")
     card_open()
     st.markdown("### 📦 Catálogo de materiales (solo admin)")
 
     catalogo = cargar_catalogo()
-    capitulo = st.selectbox("Selecciona un capítulo", list(catalogo.keys()))
+    lista_capitulos = list(catalogo.keys())
 
+    st.markdown("#### ➕ Añadir nuevo capítulo")
+    nuevo_cap = st.text_input("Nombre del nuevo capítulo")
+    if st.button("Crear capítulo", use_container_width=True):
+        if nuevo_cap and nuevo_cap not in catalogo:
+            catalogo[nuevo_cap] = []
+            guardar_catalogo(catalogo)
+            st.success(f"Capítulo '{nuevo_cap}' creado.")
+        else:
+            st.error("Nombre vacío o capítulo ya existente.")
+
+    divider()
+
+    capitulo = st.selectbox("Selecciona un capítulo", list(catalogo.keys()))
     productos = catalogo[capitulo]
 
-    st.write("### Productos del capítulo")
+    st.markdown("#### ✏️ Productos del capítulo (editor dinámico)")
+    df = pd.DataFrame(productos) if productos else pd.DataFrame(
+        columns=["nombre", "cantidad", "precio_material", "precio_mano_obra", "rendimiento_h"]
+    )
 
-    for i, p in enumerate(productos):
-        p["nombre"] = st.text_input(f"Nombre {i+1}", p.get("nombre", ""), key=f"nombre_{capitulo}_{i}")
-        p["cantidad"] = st.number_input(f"Cantidad {i+1}", value=float(p.get("cantidad", 0) or 0), key=f"cant_{capitulo}_{i}")
-        p["precio_material"] = st.number_input(f"Precio material {i+1}", value=float(p.get("precio_material", 0) or 0), key=f"pm_{capitulo}_{i}")
-        p["precio_mano_obra"] = st.number_input(f"Precio mano de obra {i+1}", value=float(p.get("precio_mano_obra", 0) or 0), key=f"mo_{capitulo}_{i}")
-        p["rendimiento_h"] = st.number_input(f"Rendimiento (h/u) {i+1}", value=float(p.get("rendimiento_h", 0.25) or 0.25), key=f"rend_{capitulo}_{i}")
-        st.markdown("---")
+    df_edit = st.data_editor(
+        df,
+        num_rows="dynamic",
+        use_container_width=True,
+        key=f"catalogo_{capitulo}",
+    )
 
-    if st.button("Guardar cambios en catálogo", use_container_width=True):
-        guardar_catalogo(catalogo)
-        st.success("Catálogo actualizado correctamente.")
+    colc1, colc2 = st.columns(2)
+    with colc1:
+        if st.button("Guardar cambios en capítulo", use_container_width=True):
+            catalogo[capitulo] = df_edit.to_dict(orient="records")
+            guardar_catalogo(catalogo)
+            st.success("Capítulo actualizado correctamente.")
+    with colc2:
+        if st.button("Borrar capítulo seleccionado", use_container_width=True):
+            if capitulo == "C12 - Cuadro eléctrico" or capitulo == "C13 - Derivación individual":
+                st.warning("Mejor no borrar capítulos críticos del ejemplo base.")
+            else:
+                del catalogo[capitulo]
+                guardar_catalogo(catalogo)
+                st.success(f"Capítulo '{capitulo}' eliminado.")
 
     card_close()
 
