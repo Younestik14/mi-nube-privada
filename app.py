@@ -145,30 +145,21 @@ body {{
 
 .stButton button {{
     border-radius: 999px !important;
-    padding: 8px 20px !important;
-    font-size: 14px !important;
+    padding: 10px 26px !important;
+    font-size: 15px !important;
     border: 1px solid rgba(148,163,184,0.55) !important;
     background: linear-gradient(135deg, rgba(59,130,246,0.98), rgba(37,99,235,0.98)) !important;
     color: #f9fafb !important;
-    box-shadow: 0 14px 32px rgba(37,99,235,0.55);
+    box-shadow: 0 18px 40px rgba(37,99,235,0.55);
     transition: transform 0.08s ease, box-shadow 0.12s ease, filter 0.12s ease;
 }}
 .stButton button:hover {{
     filter: brightness(1.05);
-    box-shadow: 0 18px 40px rgba(37,99,235,0.65);
+    box-shadow: 0 22px 55px rgba(37,99,235,0.65);
 }}
 .stButton button:active {{
     transform: translateY(1px) scale(0.99);
-    box-shadow: 0 8px 20px rgba(37,99,235,0.55);
-}}
-
-.ecuacion-divider {{
-    width: 100%;
-    height: 3px;
-    background: rgba(255,255,255,0.35);
-    margin: 22px 0;
-    border-radius: 3px;
-    opacity: 0.9;
+    box-shadow: 0 10px 24px rgba(37,99,235,0.55);
 }}
 
 .formula-card {{
@@ -235,21 +226,57 @@ def exportar_excel(df, hoja="Datos"):
         df.to_excel(writer, index=False, sheet_name=hoja)
     return output.getvalue()
 
+def tarjeta_formula_latex(latex_str: str):
+    st.markdown('<div class="formula-card">', unsafe_allow_html=True)
+    st.latex(latex_str)
+    st.markdown('</div>', unsafe_allow_html=True)
+
 # ---------------------------------------------------------
-# SELECCIÓN DE MÓDULO
+# SELECCIÓN DE MÓDULO — VENTANA CENTRAL
 # ---------------------------------------------------------
-st.markdown("### Selecciona el módulo de trabajo")
-modo = st.radio(
-    "Módulo",
-    ["Cálculo de secciones REBT + FV", "Presupuesto instalación eléctrica vivienda"],
-    index=0,
-    horizontal=True
-)
+if "modo" not in st.session_state:
+    st.session_state["modo"] = None
+
+if st.session_state["modo"] is None:
+    st.markdown("<br><br><br>", unsafe_allow_html=True)
+    c_center_left, c_center, c_center_right = st.columns([1, 2, 1])
+    with c_center:
+        st.markdown(
+            "<h1 style='text-align:center; margin-bottom:0.5rem;'>Elige el programa</h1>",
+            unsafe_allow_html=True
+        )
+        st.markdown(
+            f"<p style='text-align:center; color:{text_soft}; margin-bottom:1.5rem;'>Selecciona el módulo con el que quieres trabajar.</p>",
+            unsafe_allow_html=True
+        )
+        b1, b2 = st.columns(2)
+        with b1:
+            if st.button("⚡ Cálculo de secciones REBT + FV", use_container_width=True):
+                st.session_state["modo"] = "secciones"
+                st.experimental_rerun()
+        with b2:
+            if st.button("📐 Presupuesto instalación vivienda", use_container_width=True):
+                st.session_state["modo"] = "presupuesto"
+                st.experimental_rerun()
+    st.stop()
+
+modo = st.session_state["modo"]
+
+# Botones para cambiar de módulo en la parte superior
+c_mod1, c_mod2, c_mod3 = st.columns([1, 1, 3])
+with c_mod1:
+    if st.button("⚡ Secciones"):
+        st.session_state["modo"] = "secciones"
+        st.experimental_rerun()
+with c_mod2:
+    if st.button("📐 Presupuesto"):
+        st.session_state["modo"] = "presupuesto"
+        st.experimental_rerun()
 
 # =========================================================
 # MÓDULO 1 — CÁLCULO DE SECCIONES REBT + FV
 # =========================================================
-if modo == "Cálculo de secciones REBT + FV":
+if modo == "secciones":
 
     st.markdown(
         "<h1 style='margin-bottom:0.2rem;'>Cálculo de Secciones REBT + FV</h1>",
@@ -391,76 +418,73 @@ if modo == "Cálculo de secciones REBT + FV":
 
     icc_teorica = v_fase / z_linea if z_linea > 0 else 0.0
 
-    st.markdown("### Justificación de los cálculos (tarjetas compactas)")
-
-    def tarjeta_formula(formula):
-        st.markdown(f'<div class="formula-card">{formula}</div>', unsafe_allow_html=True)
+    st.markdown("### Justificación de los cálculos (tarjetas premium)")
 
     if sistema == "Monofásico 230 V":
-        tarjeta_formula(
+        tarjeta_formula_latex(
             rf"P = U\,I\,\cos\varphi = {v_fase:.0f}\cdot{ib:.2f}\cdot{cos_phi:.2f} = {potencia_calc:.2f}\,\mathrm{{W}}"
         )
     elif sistema == "Trifásico 400 V":
-        tarjeta_formula(
+        tarjeta_formula_latex(
             rf"P = \sqrt{{3}}\,U\,I\,\cos\varphi = \sqrt{{3}}\cdot{v_fase:.0f}\cdot{ib:.2f}\cdot{cos_phi:.2f} = {potencia_calc:.2f}\,\mathrm{{W}}"
         )
     else:
-        tarjeta_formula(
+        tarjeta_formula_latex(
             rf"P = U_{{cc}}\,I = {v_fase:.0f}\cdot{ib:.2f} = {potencia_calc:.2f}\,\mathrm{{W}}"
         )
 
     if sistema == "Trifásico 400 V":
-        tarjeta_formula(
+        tarjeta_formula_latex(
             rf"I_b = \dfrac{{P}}{{\sqrt{{3}}\,U\,\cos\varphi}} = \dfrac{{{potencia_calc:.2f}}}{{\sqrt{{3}}\cdot{v_fase:.0f}\cdot{cos_phi:.2f}}} = {ib:.2f}\,\mathrm{{A}}"
         )
     else:
-        tarjeta_formula(
+        tarjeta_formula_latex(
             rf"I_b = \dfrac{{P}}{{U\,\cos\varphi}} = \dfrac{{{potencia_calc:.2f}}}{{{v_fase:.0f}\cdot{cos_phi:.2f}}} = {ib:.2f}\,\mathrm{{A}}"
         )
 
-    tarjeta_formula(
+    tarjeta_formula_latex(
         rf"I_{{b,corr}} = \dfrac{{I_b}}{{f_{{temp}}\,f_{{agrup}}}} = \dfrac{{{ib:.2f}}}{{{f_temp:.2f}\cdot{f_agrup:.2f}}} = {ib_corr:.2f}\,\mathrm{{A}}"
     )
 
     if sistema == "Monofásico 230 V":
-        tarjeta_formula(
+        tarjeta_formula_latex(
             rf"{ecuacion_cdt} = \dfrac{{2\cdot{longitud:.2f}\cdot{potencia_calc:.2f}}}{{{sigma:.2f}\cdot{v_fase:.0f}\cdot{delta_u_max:.2f}}} = {s_cdt:.2f}\,\mathrm{{mm}}^2"
         )
     elif sistema == "Trifásico 400 V":
-        tarjeta_formula(
+        tarjeta_formula_latex(
             rf"{ecuacion_cdt} = \dfrac{{{longitud:.2f}\cdot{potencia_calc:.2f}}}{{{sigma:.2f}\cdot{v_fase:.0f}\cdot{delta_u_max:.2f}}} = {s_cdt:.2f}\,\mathrm{{mm}}^2"
         )
     else:
-        tarjeta_formula(
+        tarjeta_formula_latex(
             rf"{ecuacion_cdt} = \dfrac{{2\cdot{longitud:.2f}\cdot{potencia_calc:.2f}}}{{{sigma:.2f}\cdot{v_fase:.0f}\cdot{delta_u_max:.2f}}} = {s_cdt:.2f}\,\mathrm{{mm}}^2"
         )
 
-    tarjeta_formula(
+    tarjeta_formula_latex(
         rf"R_{{línea}} = \dfrac{{\rho\cdot2L}}{{S}} = \dfrac{{{rho:.3f}\cdot2\cdot{longitud:.2f}}}{{{s_final:.2f}}} = {r_linea:.4f}\,\Omega"
     )
 
-    tarjeta_formula(
+    tarjeta_formula_latex(
         rf"X_{{línea}} \approx 0.08\ \mathrm{{m\Omega/m}}\cdot2L = 0.08\cdot10^{{-3}}\cdot2\cdot{longitud:.2f} = {x_linea:.4f}\,\Omega"
     )
 
-    tarjeta_formula(
+    tarjeta_formula_latex(
         rf"Z_{{línea}} = \sqrt{{R_{{línea}}^2 + X_{{línea}}^2}} = \sqrt{{{r_linea:.4f}^2 + {x_linea:.4f}^2}} = {z_linea:.4f}\,\Omega"
     )
 
     if sistema == "Trifásico 400 V":
-        tarjeta_formula(
+        tarjeta_formula_latex(
             rf"\Delta U = \sqrt{{3}}\,I_b\,(R_{{línea}}\cos\varphi + X_{{línea}}\sin\varphi) = \sqrt{{3}}\cdot{ib:.2f}\cdot({r_linea:.4f}\cdot{cos_phi:.2f} + {x_linea:.4f}\cdot\sqrt{{1-{cos_phi:.2f}^2}}) = {delta_u_real:.2f}\,\mathrm{{V}}"
         )
     else:
-        tarjeta_formula(
+        tarjeta_formula_latex(
             rf"\Delta U = I_b\,(R_{{línea}}\cos\varphi + X_{{línea}}\sin\varphi) = {ib:.2f}\cdot({r_linea:.4f}\cdot{cos_phi:.2f} + {x_linea:.4f}\cdot\sqrt{{1-{cos_phi:.2f}^2}}) = {delta_u_real:.2f}\,\mathrm{{V}}"
         )
 
-    tarjeta_formula(
+    tarjeta_formula_latex(
         rf"I_{{cc,teo}} = \dfrac{{U}}{{Z_{{línea}}}} = \dfrac{{{v_fase:.0f}}}{{{z_linea:.4f}}} = {icc_teorica:.0f}\,\mathrm{{A}}"
     )
 
-    tarjeta_formula(
+    tarjeta_formula_latex(
         rf"I_n \ge I_{{b,corr}} \Rightarrow I_n = {mt_recomendado}\,\mathrm{{A}}"
     )
 
@@ -597,7 +621,7 @@ else:
         unsafe_allow_html=True
     )
     st.markdown(
-        f"<p style='color:{text_soft}; margin-top:0;'>Presupuesto por capítulos (circuitos, derivación individual y cuadro), con materiales normalizados, mano de obra, amortización, beneficio e IVA.</p>",
+        f"<p style='color:{text_soft}; margin-top:0;'>Presupuesto por capítulos (circuitos, derivación individual y cuadro), con productos normalizados, mano de obra, amortización, beneficio e IVA.</p>",
         unsafe_allow_html=True
     )
 
@@ -709,9 +733,11 @@ else:
                     "Precio material (€)": pm_new,
                     "Precio mano de obra (€)": pmo_new
                 })
-                st.success("Producto añadido al catálogo. Recarga la tabla si es necesario.")
+                st.success("Producto añadido al catálogo.")
             else:
                 st.warning("Referencia y descripción son obligatorias.")
+
+    df_catalogo = pd.DataFrame(st.session_state["catalogo_productos"])
 
     # -----------------------------
     # Parámetros económicos globales
@@ -729,9 +755,9 @@ else:
         mano_obra_hora = st.number_input("Precio mano de obra base (€/h)", value=22.0, min_value=0.0, step=0.5)
 
     # -----------------------------
-    # Capítulos por circuito
+    # Capítulos por circuito (cada uno en su bloque)
     # -----------------------------
-    st.markdown("### Capítulos por circuito")
+    st.markdown("### Capítulos por circuito y elementos principales")
 
     capitulos = [
         "C1 - Iluminación",
@@ -747,194 +773,162 @@ else:
     datos_capitulos = []
 
     for cap in capitulos:
-        st.markdown(f"#### {cap}")
-        colc1, colc2, colc3, colc4 = st.columns(4)
+        with st.expander(cap, expanded=False):
+            st.markdown(f"**{cap}**")
 
-        with colc1:
-            n_puntos = st.number_input(f"Nº puntos ({cap})", value=0, min_value=0, step=1, key=f"puntos_{cap}")
-        with colc2:
-            metros_canal = st.number_input(f"m canalización ({cap})", value=0.0, min_value=0.0, step=1.0, key=f"canal_{cap}")
-        with colc3:
-            metros_cable = st.number_input(f"m cableado ({cap})", value=0.0, min_value=0.0, step=1.0, key=f"cable_{cap}")
-        with colc4:
-            horas_cap = st.number_input(f"Horas mano de obra ({cap})", value=0.0, min_value=0.0, step=0.5, key=f"horas_{cap}")
+            colc1, colc2 = st.columns(2)
+            with colc1:
+                horas_cap = st.number_input(
+                    f"Horas de mano de obra ({cap})",
+                    value=0.0,
+                    min_value=0.0,
+                    step=0.5,
+                    key=f"horas_{cap}"
+                )
+            with colc2:
+                productos_sel = st.multiselect(
+                    f"Productos a incluir en {cap}",
+                    options=df_catalogo["Descripción"].tolist(),
+                    key=f"productos_{cap}"
+                )
 
-        # Selección de productos principales por capítulo
-        colsel1, colsel2 = st.columns(2)
-        with colsel1:
-            prod_punto = st.selectbox(
-                f"Producto principal por punto ({cap})",
-                options=df_catalogo["Descripción"].tolist(),
-                index=0,
-                key=f"prod_punto_{cap}"
+            # Cálculo de materiales y mano de obra por productos
+            mat_total = 0.0
+            mo_total_prod = 0.0
+
+            for desc in productos_sel:
+                fila = df_catalogo[df_catalogo["Descripción"] == desc]
+                if fila.empty:
+                    continue
+                pm = float(fila["Precio material (€)"].iloc[0])
+                pmo = float(fila["Precio mano de obra (€)"].iloc[0])
+                unidad = fila["Unidad"].iloc[0]
+
+                qty = st.number_input(
+                    f"Cantidad de '{desc}' ({unidad}) en {cap}",
+                    value=1.0,
+                    min_value=0.0,
+                    step=1.0 if unidad == "ud" else 0.5,
+                    key=f"qty_{cap}_{desc}"
+                )
+
+                mat_total += pm * qty
+                mo_total_prod += pmo * qty
+
+            mo_horas = horas_cap * mano_obra_hora
+            mo_total = mo_total_prod + mo_horas
+            base_cap = mat_total + mo_total
+
+            gastos_generales = base_cap * (amort_pct / 100.0)
+            beneficio = (base_cap + gastos_generales) * (benef_pct / 100.0)
+            base_imponible = base_cap + gastos_generales + beneficio
+            iva = base_imponible * (iva_pct / 100.0)
+            total_cap = base_imponible + iva
+
+            datos_capitulos.append({
+                "Capítulo": cap,
+                "Material (€)": mat_total,
+                "Mano de obra (€)": mo_total,
+                "Base capítulo (€)": base_cap,
+                "Gastos generales (€)": gastos_generales,
+                "Beneficio (€)": beneficio,
+                "Base imponible (€)": base_imponible,
+                "IVA (€)": iva,
+                "Total capítulo (€)": total_cap
+            })
+
+            st.markdown("**Justificación capítulo (tarjetas premium)**")
+
+            tarjeta_formula_latex(
+                rf"\text{{Material capítulo}} = \sum (p_{{m,i}}\cdot q_i) = {mat_total:.2f}\ \mathrm{{€}}"
             )
-        with colsel2:
-            prod_canal = st.selectbox(
-                f"Producto canalización ({cap})",
-                options=df_catalogo[df_catalogo["Unidad"] == "m"]["Descripción"].tolist(),
-                index=0 if len(df_catalogo[df_catalogo["Unidad"] == "m"]) > 0 else 0,
-                key=f"prod_canal_{cap}"
+            tarjeta_formula_latex(
+                rf"\text{{Mano de obra productos}} = \sum (p_{{mo,i}}\cdot q_i) = {mo_total_prod:.2f}\ \mathrm{{€}}"
             )
-
-        # Extra: cableado
-        prod_cable = st.selectbox(
-            f"Producto cableado ({cap})",
-            options=df_catalogo[df_catalogo["Unidad"] == "m"]["Descripción"].tolist(),
-            index=0 if len(df_catalogo[df_catalogo["Unidad"] == "m"]) > 0 else 0,
-            key=f"prod_cable_{cap}"
-        )
-
-        # Obtención de precios
-        def get_precios(desc):
-            fila = df_catalogo[df_catalogo["Descripción"] == desc]
-            if fila.empty:
-                return 0.0, 0.0
-            return float(fila["Precio material (€)"].iloc[0]), float(fila["Precio mano de obra (€)"].iloc[0])
-
-        pm_punto, pmo_punto = get_precios(prod_punto)
-        pm_canal, pmo_canal = get_precios(prod_canal)
-        pm_cable, pmo_cable = get_precios(prod_cable)
-
-        # Cálculos capítulo
-        mat_puntos = n_puntos * pm_punto
-        mo_puntos = n_puntos * pmo_punto
-
-        mat_canal = metros_canal * pm_canal
-        mo_canal = metros_canal * pmo_canal
-
-        mat_cable = metros_cable * pm_cable
-        mo_cable = metros_cable * pmo_cable
-
-        mo_horas = horas_cap * mano_obra_hora
-
-        mat_total = mat_puntos + mat_canal + mat_cable
-        mo_total = mo_puntos + mo_canal + mo_cable + mo_horas
-        base_cap = mat_total + mo_total
-
-        gastos_generales = base_cap * (amort_pct / 100.0)
-        beneficio = (base_cap + gastos_generales) * (benef_pct / 100.0)
-        base_imponible = base_cap + gastos_generales + beneficio
-        iva = base_imponible * (iva_pct / 100.0)
-        total_cap = base_imponible + iva
-
-        datos_capitulos.append({
-            "Capítulo": cap,
-            "Material (€)": mat_total,
-            "Mano de obra (€)": mo_total,
-            "Base capítulo (€)": base_cap,
-            "Gastos generales (€)": gastos_generales,
-            "Beneficio (€)": beneficio,
-            "Base imponible (€)": base_imponible,
-            "IVA (€)": iva,
-            "Total capítulo (€)": total_cap
-        })
-
-        # Justificación compacta por capítulo
-        st.markdown("Justificación capítulo (tarjetas compactas)")
-        def tarjeta_formula_pres(formula):
-            st.markdown(f'<div class="formula-card">{formula}</div>', unsafe_allow_html=True)
-
-        tarjeta_formula_pres(
-            rf"\text{{Material puntos}} = {n_puntos}\cdot{pm_punto:.2f} = {mat_puntos:.2f}\ \mathrm{{€}}"
-        )
-        tarjeta_formula_pres(
-            rf"\text{{Material canalización}} = {metros_canal:.2f}\cdot{pm_canal:.2f} = {mat_canal:.2f}\ \mathrm{{€}}"
-        )
-        tarjeta_formula_pres(
-            rf"\text{{Material cableado}} = {metros_cable:.2f}\cdot{pm_cable:.2f} = {mat_cable:.2f}\ \mathrm{{€}}"
-        )
-        tarjeta_formula_pres(
-            rf"\text{{Mano de obra puntos}} = {n_puntos}\cdot{pmo_punto:.2f} = {mo_puntos:.2f}\ \mathrm{{€}}"
-        )
-        tarjeta_formula_pres(
-            rf"\text{{Mano de obra canalización}} = {metros_canal:.2f}\cdot{pmo_canal:.2f} = {mo_canal:.2f}\ \mathrm{{€}}"
-        )
-        tarjeta_formula_pres(
-            rf"\text{{Mano de obra cableado}} = {metros_cable:.2f}\cdot{pmo_cable:.2f} = {mo_cable:.2f}\ \mathrm{{€}}"
-        )
-        tarjeta_formula_pres(
-            rf"\text{{Mano de obra directa}} = {horas_cap:.2f}\cdot{mano_obra_hora:.2f} = {mo_horas:.2f}\ \mathrm{{€}}"
-        )
-        tarjeta_formula_pres(
-            rf"\text{{Base capítulo}} = {mat_total:.2f} + {mo_total:.2f} = {base_cap:.2f}\ \mathrm{{€}}"
-        )
-        tarjeta_formula_pres(
-            rf"\text{{Gastos generales}} = {base_cap:.2f}\cdot{amort_pct:.2f}\% = {gastos_generales:.2f}\ \mathrm{{€}}"
-        )
-        tarjeta_formula_pres(
-            rf"\text{{Beneficio}} = ({base_cap:.2f}+{gastos_generales:.2f})\cdot{benef_pct:.2f}\% = {beneficio:.2f}\ \mathrm{{€}}"
-        )
-        tarjeta_formula_pres(
-            rf"\text{{Base imponible}} = {base_cap:.2f}+{gastos_generales:.2f}+{beneficio:.2f} = {base_imponible:.2f}\ \mathrm{{€}}"
-        )
-        tarjeta_formula_pres(
-            rf"\text{{IVA}} = {base_imponible:.2f}\cdot{iva_pct:.2f}\% = {iva:.2f}\ \mathrm{{€}}"
-        )
-        tarjeta_formula_pres(
-            rf"\text{{Total capítulo}} = {base_imponible:.2f}+{iva:.2f} = {total_cap:.2f}\ \mathrm{{€}}"
-        )
-
-        st.markdown("<hr>", unsafe_allow_html=True)
+            tarjeta_formula_latex(
+                rf"\text{{Mano de obra directa}} = {horas_cap:.2f}\cdot{mano_obra_hora:.2f} = {mo_horas:.2f}\ \mathrm{{€}}"
+            )
+            tarjeta_formula_latex(
+                rf"\text{{Mano de obra total}} = {mo_total_prod:.2f}+{mo_horas:.2f} = {mo_total:.2f}\ \mathrm{{€}}"
+            )
+            tarjeta_formula_latex(
+                rf"\text{{Base capítulo}} = {mat_total:.2f}+{mo_total:.2f} = {base_cap:.2f}\ \mathrm{{€}}"
+            )
+            tarjeta_formula_latex(
+                rf"\text{{Gastos generales}} = {base_cap:.2f}\cdot{amort_pct:.2f}\% = {gastos_generales:.2f}\ \mathrm{{€}}"
+            )
+            tarjeta_formula_latex(
+                rf"\text{{Beneficio}} = ({base_cap:.2f}+{gastos_generales:.2f})\cdot{benef_pct:.2f}\% = {beneficio:.2f}\ \mathrm{{€}}"
+            )
+            tarjeta_formula_latex(
+                rf"\text{{Base imponible}} = {base_cap:.2f}+{gastos_generales:.2f}+{beneficio:.2f} = {base_imponible:.2f}\ \mathrm{{€}}"
+            )
+            tarjeta_formula_latex(
+                rf"\text{{IVA}} = {base_imponible:.2f}\cdot{iva_pct:.2f}\% = {iva:.2f}\ \mathrm{{€}}"
+            )
+            tarjeta_formula_latex(
+                rf"\text{{Total capítulo}} = {base_imponible:.2f}+{iva:.2f} = {total_cap:.2f}\ \mathrm{{€}}"
+            )
 
     # -----------------------------
     # Resumen global del presupuesto
     # -----------------------------
     st.markdown("### Resumen global del presupuesto")
 
-    df_caps = pd.DataFrame(datos_capitulos)
+    if len(datos_capitulos) == 0:
+        st.info("Introduce datos en al menos un capítulo para generar el resumen.")
+    else:
+        df_caps = pd.DataFrame(datos_capitulos)
 
-    st.dataframe(df_caps.style.format({
-        "Material (€)": "{:.2f}",
-        "Mano de obra (€)": "{:.2f}",
-        "Base capítulo (€)": "{:.2f}",
-        "Gastos generales (€)": "{:.2f}",
-        "Beneficio (€)": "{:.2f}",
-        "Base imponible (€)": "{:.2f}",
-        "IVA (€)": "{:.2f}",
-        "Total capítulo (€)": "{:.2f}"
-    }), use_container_width=True)
+        st.dataframe(df_caps.style.format({
+            "Material (€)": "{:.2f}",
+            "Mano de obra (€)": "{:.2f}",
+            "Base capítulo (€)": "{:.2f}",
+            "Gastos generales (€)": "{:.2f}",
+            "Beneficio (€)": "{:.2f}",
+            "Base imponible (€)": "{:.2f}",
+            "IVA (€)": "{:.2f}",
+            "Total capítulo (€)": "{:.2f}"
+        }), use_container_width=True)
 
-    total_material = df_caps["Material (€)"].sum()
-    total_mo = df_caps["Mano de obra (€)"].sum()
-    total_base = df_caps["Base capítulo (€)"].sum()
-    total_gastos = df_caps["Gastos generales (€)"].sum()
-    total_benef = df_caps["Beneficio (€)"].sum()
-    total_base_imp = df_caps["Base imponible (€)"].sum()
-    total_iva = df_caps["IVA (€)"].sum()
-    total_final = df_caps["Total capítulo (€)"].sum()
+        total_material = df_caps["Material (€)"].sum()
+        total_mo = df_caps["Mano de obra (€)"].sum()
+        total_base = df_caps["Base capítulo (€)"].sum()
+        total_gastos = df_caps["Gastos generales (€)"].sum()
+        total_benef = df_caps["Beneficio (€)"].sum()
+        total_base_imp = df_caps["Base imponible (€)"].sum()
+        total_iva = df_caps["IVA (€)"].sum()
+        total_final = df_caps["Total capítulo (€)"].sum()
 
-    st.markdown(
-        f"<h2 style='margin-top:1rem; font-weight:700;'>💰 Presupuesto total (con IVA): {total_final:.2f} €</h2>",
-        unsafe_allow_html=True
-    )
+        st.markdown(
+            f"<h2 style='margin-top:1rem; font-weight:700;'>💰 Presupuesto total (con IVA): {total_final:.2f} €</h2>",
+            unsafe_allow_html=True
+        )
 
-    st.markdown("### Desglose global")
+        st.markdown("### Desglose global")
 
-    coltot1, coltot2, coltot3, coltot4 = st.columns(4)
-    with coltot1:
-        st.markdown(f"**Material total:** {total_material:.2f} €")
-        st.markdown(f"**Mano de obra total:** {total_mo:.2f} €")
-    with coltot2:
-        st.markdown(f"**Base capítulos:** {total_base:.2f} €")
-        st.markdown(f"**Gastos generales:** {total_gastos:.2f} €")
-    with coltot3:
-        st.markdown(f"**Beneficio industrial:** {total_benef:.2f} €")
-        st.markdown(f"**Base imponible:** {total_base_imp:.2f} €")
-    with coltot4:
-        st.markdown(f"**IVA total:** {total_iva:.2f} €")
-        st.markdown(f"**Total presupuesto:** {total_final:.2f} €")
+        coltot1, coltot2, coltot3, coltot4 = st.columns(4)
+        with coltot1:
+            st.markdown(f"**Material total:** {total_material:.2f} €")
+            st.markdown(f"**Mano de obra total:** {total_mo:.2f} €")
+        with coltot2:
+            st.markdown(f"**Base capítulos:** {total_base:.2f} €")
+            st.markdown(f"**Gastos generales:** {total_gastos:.2f} €")
+        with coltot3:
+            st.markdown(f"**Beneficio industrial:** {total_benef:.2f} €")
+            st.markdown(f"**Base imponible:** {total_base_imp:.2f} €")
+        with coltot4:
+            st.markdown(f"**IVA total:** {total_iva:.2f} €")
+            st.markdown(f"**Total presupuesto:** {total_final:.2f} €")
 
-    # -----------------------------
-    # Exportación a Excel
-    # -----------------------------
-    st.markdown("### Exportación del presupuesto")
+        st.markdown("### Exportación del presupuesto")
 
-    excel_presupuesto = exportar_excel(df_caps, "Presupuesto_Vivienda")
+        excel_presupuesto = exportar_excel(df_caps, "Presupuesto_Vivienda")
 
-    st.download_button(
-        "📥 Descargar presupuesto (Excel)",
-        excel_presupuesto,
-        "presupuesto_vivienda.xlsx",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True
-    )
+        st.download_button(
+            "📥 Descargar presupuesto (Excel)",
+            excel_presupuesto,
+            "presupuesto_vivienda.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
