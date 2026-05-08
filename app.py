@@ -15,6 +15,7 @@ from reportlab.pdfgen import canvas
 from docx import Document
 import logging
 import math
+import pandas as pd
 
 # ============================================================
 # SISTEMA DE LOGS
@@ -231,44 +232,44 @@ CATALOGO_PATH = "catalogo.json"
 
 CATALOGO_BASE = {
     "C1 - Iluminación": [
-        {"nombre": "Punto de luz", "cantidad": 8, "precio_material": 12.0, "precio_mano_obra": 8.0},
-        {"nombre": "Interruptor", "cantidad": 8, "precio_material": 6.0, "precio_mano_obra": 4.0},
+        {"nombre": "Punto de luz", "cantidad": 8, "precio_material": 12.0, "precio_mano_obra": 8.0, "rendimiento_h": 0.30},
+        {"nombre": "Interruptor", "cantidad": 8, "precio_material": 6.0, "precio_mano_obra": 4.0, "rendimiento_h": 0.20},
     ],
     "C2 - Tomas de corriente": [
-        {"nombre": "Toma de corriente", "cantidad": 10, "precio_material": 9.0, "precio_mano_obra": 6.0},
+        {"nombre": "Toma de corriente", "cantidad": 10, "precio_material": 9.0, "precio_mano_obra": 6.0, "rendimiento_h": 0.25},
     ],
     "C3 - Cocina y horno": [
-        {"nombre": "Toma especial cocina", "cantidad": 2, "precio_material": 18.0, "precio_mano_obra": 10.0},
+        {"nombre": "Toma especial cocina", "cantidad": 2, "precio_material": 18.0, "precio_mano_obra": 10.0, "rendimiento_h": 0.40},
     ],
     "C4 - Lavadora, lavavajillas": [
-        {"nombre": "Toma especial", "cantidad": 2, "precio_material": 15.0, "precio_mano_obra": 9.0},
+        {"nombre": "Toma especial", "cantidad": 2, "precio_material": 15.0, "precio_mano_obra": 9.0, "rendimiento_h": 0.35},
     ],
     "C5 - Baños": [
-        {"nombre": "Toma baño", "cantidad": 2, "precio_material": 12.0, "precio_mano_obra": 8.0},
+        {"nombre": "Toma baño", "cantidad": 2, "precio_material": 12.0, "precio_mano_obra": 8.0, "rendimiento_h": 0.30},
     ],
     "C6 - Climatización": [
-        {"nombre": "Línea aire acondicionado", "cantidad": 1, "precio_material": 40.0, "precio_mano_obra": 20.0},
+        {"nombre": "Línea aire acondicionado", "cantidad": 1, "precio_material": 40.0, "precio_mano_obra": 20.0, "rendimiento_h": 1.50},
     ],
     "C7 - Calefacción": [
-        {"nombre": "Línea calefacción", "cantidad": 1, "precio_material": 35.0, "precio_mano_obra": 18.0},
+        {"nombre": "Línea calefacción", "cantidad": 1, "precio_material": 35.0, "precio_mano_obra": 18.0, "rendimiento_h": 1.20},
     ],
     "C8 - Termo eléctrico": [
-        {"nombre": "Línea termo", "cantidad": 1, "precio_material": 22.0, "precio_mano_obra": 12.0},
+        {"nombre": "Línea termo", "cantidad": 1, "precio_material": 22.0, "precio_mano_obra": 12.0, "rendimiento_h": 0.80},
     ],
     "C9 - Automatización": [
-        {"nombre": "Actuador domótico", "cantidad": 4, "precio_material": 30.0, "precio_mano_obra": 15.0},
+        {"nombre": "Actuador domótico", "cantidad": 4, "precio_material": 30.0, "precio_mano_obra": 15.0, "rendimiento_h": 0.50},
     ],
     "C10 - Telecomunicaciones": [
-        {"nombre": "Toma RJ45", "cantidad": 4, "precio_material": 14.0, "precio_mano_obra": 8.0},
+        {"nombre": "Toma RJ45", "cantidad": 4, "precio_material": 14.0, "precio_mano_obra": 8.0, "rendimiento_h": 0.30},
     ],
     "C11 - Seguridad": [
-        {"nombre": "Detector de presencia", "cantidad": 2, "precio_material": 25.0, "precio_mano_obra": 12.0},
+        {"nombre": "Detector de presencia", "cantidad": 2, "precio_material": 25.0, "precio_mano_obra": 12.0, "rendimiento_h": 0.40},
     ],
     "C12 - Cuadro eléctrico": [
-        {"nombre": "ICP + IGA + ID + PIA", "cantidad": 1, "precio_material": 120.0, "precio_mano_obra": 40.0},
+        {"nombre": "ICP + IGA + ID + PIA", "cantidad": 1, "precio_material": 120.0, "precio_mano_obra": 40.0, "rendimiento_h": 4.00},
     ],
     "C13 - Derivación individual": [
-        {"nombre": "Cableado DI", "cantidad": 1, "precio_material": 80.0, "precio_mano_obra": 30.0},
+        {"nombre": "Cableado DI", "cantidad": 1, "precio_material": 80.0, "precio_mano_obra": 30.0, "rendimiento_h": 2.00},
     ],
 }
 
@@ -288,36 +289,114 @@ def guardar_catalogo(catalogo):
     with open(CATALOGO_PATH, "w", encoding="utf-8") as f:
         json.dump(catalogo, f, indent=4, ensure_ascii=False)
 # ============================================================
-# CÁLCULO DE SECCIONES EXTENDIDO — ITC‑BT‑19
+# CÁLCULO DE SECCIONES PROFESIONAL REBT / UNE 20460-5-523
 # ============================================================
 
-INTENSIDADES_ADM = {
-    "A1": {1.5: 14, 2.5: 18, 4: 24, 6: 31, 10: 43, 16: 57, 25: 76},
-    "A2": {1.5: 16, 2.5: 21, 4: 28, 6: 36, 10: 50, 16: 68, 25: 89},
-    "B1": {1.5: 18, 2.5: 24, 4: 32, 6: 41, 10: 57, 16: 76, 25: 101},
-    "B2": {1.5: 20, 2.5: 27, 4: 36, 6: 46, 10: 63, 16: 85, 25: 113},
+METODOS_INSTALACION = {
+    "A1": "Cable unipolar en tubo empotrado en pared aislante",
+    "A2": "Cable multipolar en tubo empotrado en pared aislante",
+    "B1": "Cable unipolar en bandeja perforada",
+    "B2": "Cable multipolar en bandeja perforada",
+    "C":  "Cable sobre pared",
+    "D1": "Cable enterrado directamente",
+    "D2": "Cable enterrado en tubo",
+    "E":  "Cable en canal protectora",
+    "F1": "Cable en bandeja cerrada",
+    "F2": "Cable en bandeja ventilada",
 }
 
-FACTORES_AGRUPAMIENTO = {1: 1.00, 2: 0.80, 3: 0.70, 4: 0.65, 5: 0.60, 6: 0.57}
-FACTORES_TEMPERATURA = {25: 1.08, 30: 1.00, 35: 0.94, 40: 0.87, 45: 0.79, 50: 0.71}
-SECCIONES = [1.5, 2.5, 4, 6, 10, 16, 25]
+TIPO_CABLE = ["PVC", "XLPE", "EPR"]
 
-def intensidad_por_potencia(potencia_w):
-    return potencia_w / (230 * 0.95)
+INT_ADM = {
+    "PVC": {
+        "A1": {1.5: 14, 2.5: 18, 4: 24, 6: 31, 10: 43, 16: 57, 25: 76},
+        "A2": {1.5: 16, 2.5: 21, 4: 28, 6: 36, 10: 50, 16: 68, 25: 89},
+        "B1": {1.5: 18, 2.5: 24, 4: 32, 6: 41, 10: 57, 16: 76, 25: 101},
+        "B2": {1.5: 20, 2.5: 27, 4: 36, 6: 46, 10: 63, 16: 85, 25: 113},
+        "C":  {1.5: 18, 2.5: 24, 4: 32, 6: 41, 10: 57, 16: 76, 25: 101},
+        "D1": {1.5: 20, 2.5: 25, 4: 33, 6: 42, 10: 57, 16: 76, 25: 99},
+        "D2": {1.5: 19, 2.5: 24, 4: 32, 6: 41, 10: 55, 16: 73, 25: 96},
+        "E":  {1.5: 17, 2.5: 22, 4: 30, 6: 39, 10: 54, 16: 72, 25: 95},
+        "F1": {1.5: 16, 2.5: 21, 4: 28, 6: 36, 10: 50, 16: 68, 25: 89},
+        "F2": {1.5: 18, 2.5: 24, 4: 32, 6: 41, 10: 57, 16: 76, 25: 101},
+    },
+    "XLPE": {
+        "A1": {1.5: 18, 2.5: 24, 4: 32, 6: 41, 10: 57, 16: 76, 25: 101},
+        "A2": {1.5: 20, 2.5: 27, 4: 36, 6: 46, 10: 63, 16: 85, 25: 113},
+        "B1": {1.5: 21, 2.5: 28, 4: 37, 6: 48, 10: 66, 16: 88, 25: 117},
+        "B2": {1.5: 23, 2.5: 30, 4: 40, 6: 52, 10: 72, 16: 96, 25: 127},
+        "C":  {1.5: 21, 2.5: 28, 4: 37, 6: 48, 10: 66, 16: 88, 25: 117},
+        "D1": {1.5: 23, 2.5: 29, 4: 38, 6: 49, 10: 67, 16: 89, 25: 118},
+        "D2": {1.5: 22, 2.5: 28, 4: 37, 6: 48, 10: 65, 16: 87, 25: 116},
+        "E":  {1.5: 20, 2.5: 26, 4: 35, 6: 45, 10: 62, 16: 83, 25: 111},
+        "F1": {1.5: 20, 2.5: 26, 4: 35, 6: 45, 10: 62, 16: 83, 25: 111},
+        "F2": {1.5: 21, 2.5: 28, 4: 37, 6: 48, 10: 66, 16: 88, 25: 117},
+    },
+    "EPR": {
+        "A1": {1.5: 19, 2.5: 25, 4: 34, 6: 44, 10: 60, 16: 80, 25: 106},
+        "A2": {1.5: 21, 2.5: 28, 4: 38, 6: 49, 10: 67, 16: 89, 25: 118},
+        "B1": {1.5: 22, 2.5: 29, 4: 39, 6: 51, 10: 70, 16: 93, 25: 123},
+        "B2": {1.5: 24, 2.5: 31, 4: 42, 6: 54, 10: 74, 16: 98, 25: 130},
+        "C":  {1.5: 22, 2.5: 29, 4: 39, 6: 51, 10: 70, 16: 93, 25: 123},
+        "D1": {1.5: 24, 2.5: 30, 4: 40, 6: 52, 10: 71, 16: 94, 25: 125},
+        "D2": {1.5: 23, 2.5: 29, 4: 39, 6: 51, 10: 69, 16: 92, 25: 122},
+        "E":  {1.5: 21, 2.5: 27, 4: 37, 6: 48, 10: 66, 16: 88, 25: 117},
+        "F1": {1.5: 21, 2.5: 27, 4: 37, 6: 48, 10: 66, 16: 88, 25: 117},
+        "F2": {1.5: 22, 2.5: 29, 4: 39, 6: 51, 10: 70, 16: 93, 25: 123},
+    },
+}
 
-def intensidad_admisible(metodo, seccion, agrupamiento, temperatura):
-    base = INTENSIDADES_ADM[metodo][seccion]
-    return base * FACTORES_AGRUPAMIENTO[agrupamiento] * FACTORES_TEMPERATURA[temperatura]
+SECCIONES_DISPONIBLES = [1.5, 2.5, 4, 6, 10, 16, 25, 35, 50]
 
-def seleccionar_seccion_extendida(I, metodo, agrupamiento, temperatura):
-    for s in SECCIONES:
-        if intensidad_admisible(metodo, s, agrupamiento, temperatura) >= I:
-            return s
-    return SECCIONES[-1]
+COEF_TEMPERATURA = {
+    10: 1.22, 15: 1.17, 20: 1.12, 25: 1.08, 30: 1.00,
+    35: 0.94, 40: 0.87, 45: 0.79, 50: 0.71, 55: 0.61, 60: 0.50,
+}
 
-def caida_tension(I, L, S):
-    r = 0.0225 / S
-    return (math.sqrt(3) * I * r * L / 230) * 100
+COEF_AGRUPAMIENTO = {
+    1: 1.00, 2: 0.80, 3: 0.70, 4: 0.65, 5: 0.60,
+    6: 0.57, 7: 0.54, 8: 0.52, 9: 0.50, 10: 0.48,
+}
+
+COEF_CONDUCTORES_CARGADOS = {
+    2: 1.00,
+    3: 0.90,
+    4: 0.80,
+    5: 0.75,
+    6: 0.72,
+}
+
+COEF_RESISTIVIDAD_TERRENO = {
+    1.0: 1.00,
+    1.2: 0.96,
+    1.5: 0.90,
+    2.0: 0.84,
+    2.5: 0.80,
+}
+
+COEF_PROFUNDIDAD = {
+    0.7: 1.00,
+    1.0: 0.96,
+    1.2: 0.93,
+}
+
+COEF_BANDEJA = {
+    "Perforada": 1.00,
+    "Ventilada": 0.95,
+    "Cerrada": 0.90,
+}
+
+def intensidad_por_potencia(potencia_w, cosfi=0.95, tension=230):
+    return potencia_w / (tension * cosfi)
+
+def intensidad_admisible_base(tipo_cable, metodo, seccion):
+    return INT_ADM[tipo_cable][metodo][seccion]
+
+def aplicar_coeficientes(Iadm, factores):
+    coef_total = 1.0
+    for f in factores:
+        coef_total *= f
+    return Iadm * coef_total
 
 def seleccionar_magnetotermico(I):
     if I <= 10: return "10 A"
@@ -334,66 +413,204 @@ def seleccionar_diferencial(I):
     if I <= 40: return "30 mA — 40 A"
     return "30 mA — 63 A"
 
-def calcular_linea_extendida(nombre, potencia, longitud, metodo, agrupamiento, temperatura):
+def seleccionar_seccion_por_intensidad(I, tipo_cable, metodo, factores):
+    for s in SECCIONES_DISPONIBLES:
+        if s not in INT_ADM[tipo_cable][metodo]:
+            continue
+        Iadm_base = intensidad_admisible_base(tipo_cable, metodo, s)
+        Iadm_corr = aplicar_coeficientes(Iadm_base, factores)
+        if Iadm_corr >= I:
+            return s, Iadm_base, Iadm_corr
+    s = SECCIONES_DISPONIBLES[-1]
+    Iadm_base = intensidad_admisible_base(tipo_cable, metodo, SECCIONES_DISPONIBLES[-2])
+    Iadm_corr = aplicar_coeficientes(Iadm_base, factores)
+    return s, Iadm_base, Iadm_corr
+
+def caida_tension_por_seccion(I, L, S, tension=230):
+    r = 0.0225 / S
+    return (math.sqrt(3) * I * r * L / tension) * 100
+
+def seleccionar_seccion_por_caida(I, L, caida_max, tipo_cable, metodo, factores):
+    for s in SECCIONES_DISPONIBLES:
+        caida = caida_tension_por_seccion(I, L, s)
+        Iadm_base = intensidad_admisible_base(tipo_cable, metodo, s)
+        Iadm_corr = aplicar_coeficientes(Iadm_base, factores)
+        if caida <= caida_max and Iadm_corr >= I:
+            return s, caida
+    s = SECCIONES_DISPONIBLES[-1]
+    caida = caida_tension_por_seccion(I, L, s)
+    return s, caida
+
+def calcular_linea_profesional(
+    nombre,
+    potencia,
+    longitud,
+    metodo,
+    tipo_cable,
+    n_circuitos,
+    n_conductores_cargados,
+    temperatura,
+    resistividad_terreno,
+    profundidad,
+    tipo_bandeja,
+    usar_intensidad,
+    usar_caida,
+    caida_max
+):
     I = intensidad_por_potencia(potencia)
-    S = seleccionar_seccion_extendida(I, metodo, agrupamiento, temperatura)
-    caida = caida_tension(I, longitud, S)
+
+    factores = []
+    factores.append(COEF_TEMPERATURA[temperatura])
+    factores.append(COEF_AGRUPAMIENTO[n_circuitos])
+    factores.append(COEF_CONDUCTORES_CARGADOS[n_conductores_cargados])
+
+    if metodo in ["D1", "D2"]:
+        factores.append(COEF_RESISTIVIDAD_TERRENO[resistividad_terreno])
+        factores.append(COEF_PROFUNDIDAD[profundidad])
+
+    if metodo in ["B1", "B2", "F1", "F2"]:
+        factores.append(COEF_BANDEJA[tipo_bandeja])
+
+    resultados = {}
+
+    if usar_intensidad:
+        S_int, Iadm_base, Iadm_corr = seleccionar_seccion_por_intensidad(
+            I, tipo_cable, metodo, factores
+        )
+        resultados["por_intensidad"] = {
+            "seccion": S_int,
+            "Iadm_base": Iadm_base,
+            "Iadm_corr": Iadm_corr,
+        }
+    else:
+        S_int = None
+
+    if usar_caida:
+        S_caida, caida = seleccionar_seccion_por_caida(
+            I, longitud, caida_max, tipo_cable, metodo, factores
+        )
+        resultados["por_caida"] = {
+            "seccion": S_caida,
+            "caida": caida,
+        }
+    else:
+        S_caida = None
+
+    secciones_validas = [s for s in [S_int, S_caida] if s is not None]
+    S_final = max(secciones_validas) if secciones_validas else None
+
+    magneto = seleccionar_magnetotermico(I)
+    diferencial = seleccionar_diferencial(I)
 
     return {
         "nombre": nombre,
-        "intensidad": I,
-        "seccion": S,
-        "caida": caida,
-        "magnetotermico": seleccionar_magnetotermico(I),
-        "diferencial": seleccionar_diferencial(I),
+        "intensidad_calculada_A": I,
+        "seccion_final_mm2": S_final,
         "metodo": metodo,
-        "agrupamiento": agrupamiento,
-        "temperatura": temperatura,
+        "descripcion_metodo": METODOS_INSTALACION[metodo],
+        "tipo_cable": tipo_cable,
+        "factores": {
+            "temperatura": COEF_TEMPERATURA[temperatura],
+            "agrupamiento": COEF_AGRUPAMIENTO[n_circuitos],
+            "conductores_cargados": COEF_CONDUCTORES_CARGADOS[n_conductores_cargados],
+            "resistividad_terreno": COEF_RESISTIVIDAD_TERRENO.get(resistividad_terreno, 1.0),
+            "profundidad": COEF_PROFUNDIDAD.get(profundidad, 1.0),
+            "bandeja": COEF_BANDEJA.get(tipo_bandeja, 1.0),
+        },
+        "criterios": resultados,
+        "protecciones": {
+            "magnetotermico": magneto,
+            "diferencial": diferencial,
+        },
     }
 
 # ============================================================
-# PRESUPUESTO COMPLETO
+# PRESUPUESTO HIPER‑DETALLADO CON RENDIMIENTOS
 # ============================================================
 
-def calcular_capitulo(nombre_capitulo, catalogo):
-    productos = catalogo.get(nombre_capitulo, [])
-    total_material = sum(p["precio_material"] * p["cantidad"] for p in productos)
-    total_mano_obra = sum(p["precio_mano_obra"] * p["cantidad"] for p in productos)
+def calcular_capitulo_detallado(nombre_capitulo, productos, coste_hora_mo=25.0):
+    detalle = []
+    total_material = 0.0
+    total_mano_obra = 0.0
 
-    base = total_material + total_mano_obra
-    gastos = base * 0.15
-    beneficio = base * 0.06
-    base_imp = base + gastos + beneficio
-    iva = base_imp * 0.21
-    total = base_imp + iva
+    for p in productos:
+        cant = float(p.get("cantidad", 0) or 0)
+        pm = float(p.get("precio_material", 0) or 0)
+        rend = float(p.get("rendimiento_h", 0) or 0)
 
-    return {
+        coste_mat = cant * pm
+        horas = cant * rend
+        coste_mo = horas * coste_hora_mo
+
+        total_material += coste_mat
+        total_mano_obra += coste_mo
+
+        detalle.append({
+            "Capítulo": nombre_capitulo,
+            "Descripción": p.get("nombre", ""),
+            "Cantidad": cant,
+            "Precio material unitario (€)": pm,
+            "Coste material (€)": coste_mat,
+            "Rendimiento (h/u)": rend,
+            "Horas totales": horas,
+            "Coste mano de obra (€)": coste_mo,
+        })
+
+    base_directa = total_material + total_mano_obra
+    gastos_generales = base_directa * 0.15
+    seguridad_salud = base_directa * 0.02
+    amortizacion = base_directa * 0.03
+    indirectos = gastos_generales + seguridad_salud + amortizacion
+    beneficio = base_directa * 0.06
+    base_imponible = base_directa + indirectos + beneficio
+    iva = base_imponible * 0.21
+    total_capitulo = base_imponible + iva
+
+    resumen = {
         "Capítulo": nombre_capitulo,
         "Material (€)": total_material,
         "Mano de obra (€)": total_mano_obra,
-        "Base capítulo (€)": base,
-        "Gastos generales (€)": gastos,
+        "Base directa (€)": base_directa,
+        "Gastos generales (€)": gastos_generales,
+        "Seguridad y salud (€)": seguridad_salud,
+        "Amortización (€)": amortizacion,
+        "Indirectos totales (€)": indirectos,
         "Beneficio (€)": beneficio,
-        "Base imponible (€)": base_imp,
+        "Base imponible (€)": base_imponible,
         "IVA (€)": iva,
-        "Total capítulo (€)": total,
+        "Total capítulo (€)": total_capitulo,
     }
 
-def calcular_presupuesto_completo(catalogo, lista_capitulos):
-    caps = [calcular_capitulo(c, catalogo) for c in lista_capitulos]
+    return resumen, detalle
 
-    tot = {
-        "material": sum(c["Material (€)"] for c in caps),
-        "mano_obra": sum(c["Mano de obra (€)"] for c in caps),
-        "base": sum(c["Base capítulo (€)"] for c in caps),
-        "gastos": sum(c["Gastos generales (€)"] for c in caps),
-        "beneficio": sum(c["Beneficio (€)"] for c in caps),
-        "base_imponible": sum(c["Base imponible (€)"] for c in caps),
-        "iva": sum(c["IVA (€)"] for c in caps),
-        "total_final": sum(c["Total capítulo (€)"] for c in caps),
+def calcular_presupuesto_detallado(catalogo, lista_capitulos, coste_hora_mo=25.0):
+    capitulos_resumen = []
+    lineas_detalle = []
+
+    for cap in lista_capitulos:
+        resumen, detalle = calcular_capitulo_detallado(cap, catalogo.get(cap, []), coste_hora_mo)
+        capitulos_resumen.append(resumen)
+        lineas_detalle.extend(detalle)
+
+    totales = {
+        "material": sum(c["Material (€)"] for c in capitulos_resumen),
+        "mano_obra": sum(c["Mano de obra (€)"] for c in capitulos_resumen),
+        "base_directa": sum(c["Base directa (€)"] for c in capitulos_resumen),
+        "gastos_generales": sum(c["Gastos generales (€)"] for c in capitulos_resumen),
+        "seguridad_salud": sum(c["Seguridad y salud (€)"] for c in capitulos_resumen),
+        "amortizacion": sum(c["Amortización (€)"] for c in capitulos_resumen),
+        "indirectos": sum(c["Indirectos totales (€)"] for c in capitulos_resumen),
+        "beneficio": sum(c["Beneficio (€)"] for c in capitulos_resumen),
+        "base_imponible": sum(c["Base imponible (€)"] for c in capitulos_resumen),
+        "iva": sum(c["IVA (€)"] for c in capitulos_resumen),
+        "total_final": sum(c["Total capítulo (€)"] for c in capitulos_resumen),
     }
 
-    return {"capitulos": caps, "totales": tot}
+    return {
+        "capitulos": capitulos_resumen,
+        "detalle": lineas_detalle,
+        "totales": totales,
+    }
 
 # ============================================================
 # GENERADOR PDF
@@ -455,8 +672,8 @@ def generar_memoria_word(proyecto, secciones, protecciones, presupuesto):
     for cap in presupuesto["capitulos"]:
         doc.add_paragraph(f"{cap['Capítulo']}: {cap['Total capítulo (€)']} €")
 
-    if "total_final" in presupuesto:
-        doc.add_paragraph(f"TOTAL: {presupuesto['total_final']} €")
+    if "total_final" in presupuesto.get("totales", {}):
+        doc.add_paragraph(f"TOTAL: {presupuesto['totales']['total_final']} €")
 
     buffer = BytesIO()
     doc.save(buffer)
@@ -469,7 +686,7 @@ def generar_memoria_word(proyecto, secciones, protecciones, presupuesto):
 
 titulo_centrado(
     "⚡ Ingeniería Eléctrica PRO",
-    "Cálculo, presupuesto y memoria REBT — Estética macOS Sonoma"
+    "Cálculo profesional, presupuesto hiper‑detallado y memoria REBT — Estética macOS Sonoma"
 )
 
 col_l, col_c, col_r = st.columns([1, 3, 1])
@@ -502,9 +719,7 @@ if not st.session_state["logged_in"]:
 # MÓDULOS DE INTERFAZ
 # ============================================================
 
-# ------------------------------------------------------------
 # 1) INICIO
-# ------------------------------------------------------------
 if opcion == "🏠 Inicio":
     col1, col2 = st.columns(2)
 
@@ -519,68 +734,133 @@ if opcion == "🏠 Inicio":
     with col2:
         card_open()
         st.markdown("### 🧩 Módulos disponibles")
-        st.markdown("- 📐 Cálculo de secciones extendido ITC‑BT‑19")
-        st.markdown("- 💰 Presupuesto completo con PDF")
+        st.markdown("- 📐 Cálculo de secciones profesional REBT / UNE")
+        st.markdown("- 💰 Presupuesto hiper‑detallado con rendimientos")
         st.markdown("- 📘 Memoria técnica REBT (Word + PDF)")
         st.markdown("- 📦 Catálogo editable de materiales")
         st.markdown("- 👥 Administración avanzada de usuarios")
         card_close()
 
-# ------------------------------------------------------------
-# 2) CÁLCULO DE SECCIONES EXTENDIDO
-# ------------------------------------------------------------
+# 2) CÁLCULO DE SECCIONES PROFESIONAL
 elif opcion == "📐 Cálculo de secciones":
     card_open()
-    st.markdown("### 📐 Cálculo de secciones — Modo EXTENDIDO ITC‑BT‑19")
+    st.markdown("### 📐 Cálculo de secciones — Modo INGENIERÍA COMPLETA REBT / UNE")
 
     col1, col2, col3 = st.columns(3)
     with col1:
         nombre = st.text_input("Nombre de la línea", "C1 - Iluminación")
-        potencia = st.number_input("Potencia (W)", min_value=100, value=2000)
+        potencia = st.number_input("Potencia (W)", min_value=100.0, value=2000.0)
+        longitud = st.number_input("Longitud (m)", min_value=1.0, value=15.0)
     with col2:
-        longitud = st.number_input("Longitud (m)", min_value=1, value=15)
-        metodo = st.selectbox("Método instalación (ITC‑BT‑19)", ["A1", "A2", "B1", "B2"])
+        metodo = st.selectbox("Método instalación (ITC‑BT‑19)", list(METODOS_INSTALACION.keys()))
+        tipo_cable = st.selectbox("Tipo de cable", TIPO_CABLE)
+        n_conductores_cargados = st.selectbox("Nº conductores cargados", [2,3,4,5,6])
     with col3:
-        agrupamiento = st.selectbox("Nº de circuitos agrupados", [1,2,3,4,5,6])
-        temperatura = st.selectbox("Temperatura ambiente (°C)", [25,30,35,40,45,50])
+        n_circuitos = st.selectbox("Nº de circuitos agrupados", list(COEF_AGRUPAMIENTO.keys()))
+        temperatura = st.selectbox("Temperatura ambiente (°C)", list(COEF_TEMPERATURA.keys()))
+        caida_max = st.number_input("Caída máxima permitida (%)", min_value=1.0, max_value=10.0, value=3.0)
 
-    if st.button("Calcular sección extendida", use_container_width=True):
-        datos = calcular_linea_extendida(nombre, potencia, longitud, metodo, agrupamiento, temperatura)
+    col4, col5, col6 = st.columns(3)
+    with col4:
+        resistividad_terreno = st.selectbox("Resistividad térmica terreno (K·m/W)", [1.0,1.2,1.5,2.0,2.5])
+    with col5:
+        profundidad = st.selectbox("Profundidad enterrado (m)", [0.7,1.0,1.2])
+    with col6:
+        tipo_bandeja = st.selectbox("Tipo de bandeja", ["Perforada","Ventilada","Cerrada"])
+
+    divider()
+    st.markdown("#### 🎛 Criterios de cálculo (modo asistido)")
+
+    colA, colB = st.columns(2)
+    with colA:
+        usar_intensidad = st.checkbox("Aplicar criterio por intensidad admisible", value=True)
+    with colB:
+        usar_caida = st.checkbox("Aplicar criterio por caída de tensión", value=True)
+
+    if st.button("Calcular sección profesional", use_container_width=True):
+        datos = calcular_linea_profesional(
+            nombre=nombre,
+            potencia=potencia,
+            longitud=longitud,
+            metodo=metodo,
+            tipo_cable=tipo_cable,
+            n_circuitos=n_circuitos,
+            n_conductores_cargados=n_conductores_cargados,
+            temperatura=temperatura,
+            resistividad_terreno=resistividad_terreno,
+            profundidad=profundidad,
+            tipo_bandeja=tipo_bandeja,
+            usar_intensidad=usar_intensidad,
+            usar_caida=usar_caida,
+            caida_max=caida_max,
+        )
 
         divider()
-        st.markdown("### Resultado extendido")
+        st.markdown("### Resultado profesional")
         st.json(datos)
 
     card_close()
 
-# ------------------------------------------------------------
-# 3) PRESUPUESTO
-# ------------------------------------------------------------
+# 3) PRESUPUESTO HIPER‑DETALLADO
 elif opcion == "💰 Presupuesto":
     card_open()
-    st.markdown("### 💰 Presupuesto completo C1–C13")
+    st.markdown("### 💰 Presupuesto hiper‑detallado con rendimientos")
 
     catalogo = cargar_catalogo()
     lista_capitulos = list(catalogo.keys())
 
-    if st.button("Calcular presupuesto", use_container_width=True):
-        presupuesto = calcular_presupuesto_completo(catalogo, lista_capitulos)
+    coste_hora_mo = st.number_input("Coste hora mano de obra (€ / h)", min_value=10.0, max_value=100.0, value=25.0)
 
-        st.markdown("#### 📊 Capítulos")
+    st.markdown("#### ✏️ Edición de capítulos y productos")
+
+    cap_sel = st.selectbox("Capítulo a editar", lista_capitulos)
+    productos = catalogo[cap_sel]
+
+    st.info("Puedes editar todos los campos y añadir nuevas filas con el botón + del editor.")
+
+    df = pd.DataFrame(productos)
+    if "rendimiento_h" not in df.columns:
+        df["rendimiento_h"] = 0.25
+
+    df_edit = st.data_editor(
+        df,
+        num_rows="dynamic",
+        use_container_width=True,
+        key=f"editor_{cap_sel}",
+    )
+
+    if st.button("Guardar capítulo editado", use_container_width=True):
+        catalogo[cap_sel] = df_edit.to_dict(orient="records")
+        guardar_catalogo(catalogo)
+        st.success("Capítulo actualizado en el catálogo.")
+
+    divider()
+
+    if st.button("Calcular presupuesto detallado", use_container_width=True):
+        presupuesto = calcular_presupuesto_detallado(catalogo, lista_capitulos, coste_hora_mo)
+
+        st.markdown("#### 📊 Resumen por capítulos")
         st.dataframe(presupuesto["capitulos"], use_container_width=True)
 
         divider()
-        st.markdown("#### 📈 Totales")
+        st.markdown("#### 📋 Detalle línea a línea")
+        st.dataframe(presupuesto["detalle"], use_container_width=True)
+
+        divider()
+        st.markdown("#### 📈 Totales globales")
 
         tot = presupuesto["totales"]
         col1, col2 = st.columns(2)
         with col1:
             st.write(f"**Material total:** {tot['material']:.2f} €")
             st.write(f"**Mano de obra total:** {tot['mano_obra']:.2f} €")
-            st.write(f"**Base capítulos:** {tot['base']:.2f} €")
-            st.write(f"**Gastos generales:** {tot['gastos']:.2f} €")
-            st.write(f"**Beneficio industrial:** {tot['beneficio']:.2f} €")
+            st.write(f"**Base directa:** {tot['base_directa']:.2f} €")
+            st.write(f"**Gastos generales:** {tot['gastos_generales']:.2f} €")
+            st.write(f"**Seguridad y salud:** {tot['seguridad_salud']:.2f} €")
+            st.write(f"**Amortización:** {tot['amortizacion']:.2f} €")
         with col2:
+            st.write(f"**Indirectos totales:** {tot['indirectos']:.2f} €")
+            st.write(f"**Beneficio:** {tot['beneficio']:.2f} €")
             st.write(f"**Base imponible:** {tot['base_imponible']:.2f} €")
             st.write(f"**IVA total:** {tot['iva']:.2f} €")
             st.write(f"**TOTAL PRESUPUESTO:** {tot['total_final']:.2f} €")
@@ -601,9 +881,7 @@ elif opcion == "💰 Presupuesto":
 
     card_close()
 
-# ------------------------------------------------------------
 # 4) MEMORIA REBT
-# ------------------------------------------------------------
 elif opcion == "📘 Memoria REBT":
     card_open()
     st.markdown("### 📘 Generación de Memoria Técnica REBT")
@@ -640,15 +918,15 @@ elif opcion == "📘 Memoria REBT":
             }
         }
 
-        presupuesto = {
+        presupuesto_demo = {
             "capitulos": [
                 {"Capítulo": "C1", "Total capítulo (€)": 230},
                 {"Capítulo": "C2", "Total capítulo (€)": 290},
             ],
-            "total_final": 520,
+            "totales": {"total_final": 520},
         }
 
-        word_bytes = generar_memoria_word(proyecto, secciones, protecciones, presupuesto)
+        word_bytes = generar_memoria_word(proyecto, secciones, protecciones, presupuesto_demo)
         st.download_button(
             "📘 Descargar Memoria Word",
             data=word_bytes,
@@ -657,7 +935,7 @@ elif opcion == "📘 Memoria REBT":
             use_container_width=True,
         )
 
-        pdf_bytes = generar_pdf_presupuesto(proyecto, presupuesto)
+        pdf_bytes = generar_pdf_presupuesto(proyecto, presupuesto_demo)
         st.download_button(
             "📄 Descargar Memoria PDF",
             data=pdf_bytes,
@@ -668,9 +946,7 @@ elif opcion == "📘 Memoria REBT":
 
     card_close()
 
-# ------------------------------------------------------------
 # 5) CATÁLOGO
-# ------------------------------------------------------------
 elif opcion == "📦 Catálogo":
     require_role("admin")
     card_open()
@@ -684,29 +960,25 @@ elif opcion == "📦 Catálogo":
     st.write("### Productos del capítulo")
 
     for i, p in enumerate(productos):
-        p["nombre"] = st.text_input(f"Nombre {i+1}", p["nombre"])
-        p["cantidad"] = st.number_input(f"Cantidad {i+1}", value=p["cantidad"])
-        p["precio_material"] = st.number_input(f"Precio material {i+1}", value=p["precio_material"])
-        p["precio_mano_obra"] = st.number_input(f"Precio mano de obra {i+1}", value=p["precio_mano_obra"])
+        p["nombre"] = st.text_input(f"Nombre {i+1}", p.get("nombre", ""), key=f"nombre_{capitulo}_{i}")
+        p["cantidad"] = st.number_input(f"Cantidad {i+1}", value=float(p.get("cantidad", 0) or 0), key=f"cant_{capitulo}_{i}")
+        p["precio_material"] = st.number_input(f"Precio material {i+1}", value=float(p.get("precio_material", 0) or 0), key=f"pm_{capitulo}_{i}")
+        p["precio_mano_obra"] = st.number_input(f"Precio mano de obra {i+1}", value=float(p.get("precio_mano_obra", 0) or 0), key=f"mo_{capitulo}_{i}")
+        p["rendimiento_h"] = st.number_input(f"Rendimiento (h/u) {i+1}", value=float(p.get("rendimiento_h", 0.25) or 0.25), key=f"rend_{capitulo}_{i}")
         st.markdown("---")
 
-    if st.button("Guardar cambios", use_container_width=True):
+    if st.button("Guardar cambios en catálogo", use_container_width=True):
         guardar_catalogo(catalogo)
         st.success("Catálogo actualizado correctamente.")
 
     card_close()
 
-# ------------------------------------------------------------
 # 6) ADMINISTRACIÓN AVANZADA
-# ------------------------------------------------------------
 elif opcion == "👥 Administración":
     require_role("admin")
     card_open()
     st.markdown("### 👥 Administración avanzada de usuarios")
 
-    # ============================================================
-    # CREAR USUARIO
-    # ============================================================
     st.markdown("## ➕ Crear nuevo usuario")
 
     new_user = st.text_input("Nuevo usuario")
@@ -737,9 +1009,6 @@ elif opcion == "👥 Administración":
 
     divider()
 
-    # ============================================================
-    # EDITAR USUARIO
-    # ============================================================
     st.markdown("## ✏️ Editar usuario existente")
 
     conn = sqlite3.connect(DB_PATH)
@@ -773,9 +1042,6 @@ elif opcion == "👥 Administración":
 
     divider()
 
-    # ============================================================
-    # CAMBIAR CONTRASEÑA
-    # ============================================================
     st.markdown("## 🔑 Cambiar contraseña")
 
     user_pass = st.selectbox("Usuario", usuarios, key="pass_user")
@@ -798,9 +1064,6 @@ elif opcion == "👥 Administración":
 
     divider()
 
-    # ============================================================
-    # BORRAR USUARIO
-    # ============================================================
     st.markdown("## 🗑️ Borrar usuario")
 
     user_delete = st.selectbox("Selecciona usuario a borrar", usuarios, key="delete_user")
@@ -819,9 +1082,6 @@ elif opcion == "👥 Administración":
 
     divider()
 
-    # ============================================================
-    # PANEL DE AUDITORÍA (LOGS)
-    # ============================================================
     st.markdown("## 📜 Panel de auditoría (logs)")
 
     if os.path.exists("app.log"):
@@ -833,9 +1093,7 @@ elif opcion == "👥 Administración":
 
     card_close()
 
-# ------------------------------------------------------------
 # 7) CUENTA
-# ------------------------------------------------------------
 elif opcion == "👤 Cuenta":
     card_open()
     st.markdown("### 👤 Cuenta de usuario")
