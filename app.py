@@ -19,7 +19,7 @@ st.set_page_config(
 )
 
 # =========================================================
-# LOGIN ESTILO APPLE
+# LOGIN ESTILO APPLE — CENTRADO Y SIN RECUADRO
 # =========================================================
 
 PASSWORD = "SEA2526"
@@ -28,45 +28,44 @@ if "auth" not in st.session_state:
     st.session_state.auth = False
 
 if not st.session_state.auth:
+
     st.markdown("""
     <style>
-    .login-container {
+    .login-wrapper {
+        height: 100vh;
         display: flex;
         justify-content: center;
         align-items: center;
-        height: 90vh;
-    }
-    .login-box {
-        background: rgba(15, 23, 42, 0.78);
-        backdrop-filter: blur(18px);
-        padding: 40px 50px;
-        border-radius: 22px;
-        border: 1px solid rgba(148, 163, 184, 0.45);
+        flex-direction: column;
         text-align: center;
-        width: 380px;
-        box-shadow: 0px 22px 50px rgba(0,0,0,0.55);
-    }
-    .login-title {
-        font-size: 30px;
-        font-weight: 700;
-        color: #f5f5f7;
-        margin-bottom: 18px;
         font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
     }
+    .login-title {
+        font-size: 42px;
+        font-weight: 700;
+        color: #f5f5f7;
+        margin-bottom: 10px;
+    }
     .login-subtitle {
-        font-size: 14px;
+        font-size: 16px;
         color: #9ca3af;
-        margin-bottom: 24px;
+        margin-bottom: 30px;
+    }
+    .login-input input {
+        text-align: center;
+        font-size: 20px;
+        padding: 14px;
+        border-radius: 14px;
     }
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="login-container"><div class="login-box">', unsafe_allow_html=True)
+    st.markdown('<div class="login-wrapper">', unsafe_allow_html=True)
 
     st.markdown('<div class="login-title">Ingeniería Pro</div>', unsafe_allow_html=True)
-    st.markdown('<div class="login-subtitle">Acceso restringido — introduce la contraseña</div>', unsafe_allow_html=True)
+    st.markdown('<div class="login-subtitle">Introduce la contraseña</div>', unsafe_allow_html=True)
 
-    password_input = st.text_input("Contraseña", type="password", label_visibility="collapsed")
+    password_input = st.text_input("", type="password", key="login", label_visibility="collapsed")
 
     if st.button("Entrar"):
         if password_input == PASSWORD:
@@ -75,8 +74,9 @@ if not st.session_state.auth:
         else:
             st.error("❌ Contraseña incorrecta")
 
-    st.markdown('</div></div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
     st.stop()
+
 
 # =========================================================
 # ESTILO GLOBAL TIPO APPLE
