@@ -248,10 +248,12 @@ def login_ui():
 
     card_close()
 
+
 if not st.session_state["logged_in"]:
     login_ui()
     st.stop()
-# Refresco seguro después del login
+
+# Refresco seguro tras login
 if st.session_state.get("just_logged_in"):
     st.session_state["just_logged_in"] = False
     st.experimental_set_query_params(refresh="1")
