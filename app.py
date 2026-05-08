@@ -1,5 +1,5 @@
 # =========================================================
-# INGENIERÍA PRO v10.0
+# INGENIERÍA PRO v10.1
 # Cálculo de Secciones REBT + FV (solo cálculo)
 # Versión profesional definitiva
 # =========================================================
@@ -14,7 +14,7 @@ import math
 # =========================================================
 
 st.set_page_config(
-    page_title="Ingeniería Pro v10.0",
+    page_title="Ingeniería Pro v10.1",
     layout="wide",
     page_icon="⚡"
 )
@@ -66,6 +66,7 @@ h1, h2, h3, h4 {
     text-align: center;
     margin-bottom: 18px;
     box-shadow: 0px 8px 20px rgba(0,0,0,0.45);
+    font-size: 22px;
 }
 
 /* Caja resultado */
@@ -129,7 +130,7 @@ Ingeniería Pro — Younesse Tikent Tifaoui
 # =========================================================
 
 st.markdown("""
-# ⚡ INGENIERÍA PRO v10.0 — Cálculo Profesional de Secciones REBT + FV
+# ⚡ INGENIERÍA PRO v10.1 — Cálculo Profesional de Secciones REBT + FV
 
 Aplicación profesional para **cálculo de secciones de conductores**:
 
@@ -175,9 +176,9 @@ def exportar_excel(df, hoja="Datos"):
 # =========================================================
 
 secciones_ref = [
-    1.5, 2.5, 4, 6, 10,
-    16, 25, 35, 50, 70,
-    95, 120, 150, 185, 240
+    1.50, 2.50, 4.00, 6.00, 10.00,
+    16.00, 25.00, 35.00, 50.00, 70.00,
+    95.00, 120.00, 150.00, 185.00, 240.00
 ]
 
 # =========================================================
@@ -186,16 +187,16 @@ secciones_ref = [
 
 tablas_adm = {
     "A1 - Empotrado en tubo (pared aislante)": {
-        "PVC":  [14.5,19.5,26,34,46,61,80,99,119,151,182,210,240,273,321],
-        "XLPE": [18.5,25,33,43,59,77,102,126,153,194,233,268,307,352,415]
+        "PVC":  [14.50,19.50,26.00,34.00,46.00,61.00,80.00,99.00,119.00,151.00,182.00,210.00,240.00,273.00,321.00],
+        "XLPE": [18.50,25.00,33.00,43.00,59.00,77.00,102.00,126.00,153.00,194.00,233.00,268.00,307.00,352.00,415.00]
     },
     "B1 - Conductores en tubo sobre pared": {
-        "PVC":  [17.5,24,32,41,57,76,101,125,151,192,232,269,300,341,400],
-        "XLPE": [22,30,40,52,71,94,126,157,190,241,292,338,388,442,523]
+        "PVC":  [17.50,24.00,32.00,41.00,57.00,76.00,101.00,125.00,151.00,192.00,232.00,269.00,300.00,341.00,400.00],
+        "XLPE": [22.00,30.00,40.00,52.00,71.00,94.00,126.00,157.00,190.00,241.00,292.00,338.00,388.00,442.00,523.00]
     },
     "C - Cable directamente sobre pared": {
-        "PVC":  [19.5,27,36,46,63,85,112,138,168,213,258,299,344,391,461],
-        "XLPE": [24,33,45,58,80,107,138,171,209,269,328,382,441,506,599]
+        "PVC":  [19.50,27.00,36.00,46.00,63.00,85.00,112.00,138.00,168.00,213.00,258.00,299.00,344.00,391.00,461.00],
+        "XLPE": [24.00,33.00,45.00,58.00,80.00,107.00,138.00,171.00,209.00,269.00,328.00,382.00,441.00,506.00,599.00]
     }
 }
 
@@ -209,7 +210,7 @@ def get_seccion_adm(metodo, aislamiento, ib):
     for i, intensidad in enumerate(intensidades):
         if intensidad >= ib:
             return secciones_ref[i]
-    return 240
+    return 240.00
 
 # =========================================================
 # FORMULARIO
@@ -277,7 +278,7 @@ else:
     s_cdt = (2*longitud*potencia_calc)/(sigma*v_fase*delta_u_max)
     ecuacion_usada = r"S_{cdt,FV}=\frac{2\cdot L\cdot P}{\sigma\cdot U_{cc}\cdot\Delta U_{\max}}"
 
-s_cdt_norm = next((s for s in secciones_ref if s>=s_cdt), 240)
+s_cdt_norm = next((s for s in secciones_ref if s>=s_cdt), 240.00)
 
 s_min_rebt = {"General":1.5,"Motores":2.5,"Vehículo eléctrico":6.0,"Fotovoltaica":4.0}[uso]
 s_final = max(s_adm, s_cdt_norm, s_min_rebt)
@@ -288,23 +289,24 @@ s_final = max(s_adm, s_cdt_norm, s_min_rebt)
 
 st.markdown(f"""
 <div class="resultado-caja">
-SECCIÓN FINAL REGLAMENTARIA: {s_final} mm²
+SECCIÓN FINAL REGLAMENTARIA: {s_final:.2f} mm²
 <br>
 <small>
 Ib = {ib:.2f} A |
-Térmica = {s_adm} mm² |
-CdT = {s_cdt:.2f} mm² (→ {s_cdt_norm} mm²) |
-Mínimo REBT = {s_min_rebt} mm²
+Térmica = {s_adm:.2f} mm² |
+CdT = {s_cdt:.2f} mm² (→ {s_cdt_norm:.2f} mm²) |
+Mínimo REBT = {s_min_rebt:.2f} mm²
 </small>
 </div>
 """, unsafe_allow_html=True)
 
 # =========================================================
-# TARJETAS DE FÓRMULAS (ESTILO PREMIUM)
+# TARJETAS DE FÓRMULAS (CORREGIDAS)
 # =========================================================
 
 st.markdown("### 📘 Ecuaciones aplicadas")
 
+# Fórmula principal
 st.markdown(f"""
 <div class="formula-card">
 \
@@ -317,19 +319,32 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
+# Resultado numérico
+st.markdown(f"""
+<div class="formula-card">
+\
+
+\[
+S_{{cdt}} = {s_cdt:.2f}\\ \\text{{mm}}^2
+\\]
+
+
+</div>
+""", unsafe_allow_html=True)
+
 # =========================================================
-# TABLA ITC‑BT‑19 CON SUBRAYADO
+# TABLA ITC‑BT‑19 — DOS DECIMALES
 # =========================================================
 
 st.markdown("### 📘 Tabla ITC‑BT‑19 — Intensidades admisibles")
 
 tabla = pd.DataFrame({
-    "Sección (mm²)": secciones_ref,
-    "PVC (A)": [round(x,2) for x in tablas_adm[metodo]["PVC"]],
-    "XLPE (A)": [round(x,2) for x in tablas_adm[metodo]["XLPE"]]
+    "Sección (mm²)": [f"{s:.2f}" for s in secciones_ref],
+    "PVC (A)": [f"{x:.2f}" for x in tablas_adm[metodo]["PVC"]],
+    "XLPE (A)": [f"{x:.2f}" for x in tablas_adm[metodo]["XLPE"]]
 })
 
-fila = tabla.index[tabla["Sección (mm²)"]==s_final][0] if s_final in tabla["Sección (mm²)"].values else None
+fila = tabla.index[tabla["Sección (mm²)"]==f"{s_final:.2f}"][0] if f"{s_final:.2f}" in tabla["Sección (mm²)"].values else None
 col = "PVC (A)" if "PVC" in aislamiento else "XLPE (A)"
 
 def estilo(row):
@@ -375,7 +390,7 @@ st.markdown("""
 #### 2️⃣ Sección térmica (ITC‑BT‑19)
 """)
 
-st.markdown(f"**Sección térmica:** {s_adm} mm²")
+st.markdown(f"**Sección térmica:** {s_adm:.2f} mm²")
 
 st.markdown("""
 #### 3️⃣ Caída de tensión
@@ -393,17 +408,17 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown(f"**Sección por CdT normalizada:** {s_cdt_norm} mm²")
+st.markdown(f"**Sección por CdT normalizada:** {s_cdt_norm:.2f} mm²")
 
 st.markdown("""
 #### 4️⃣ Mínimos reglamentarios
 """)
 
-st.markdown(f"**Sección mínima REBT:** {s_min_rebt} mm²")
+st.markdown(f"**Sección mínima REBT:** {s_min_rebt:.2f} mm²")
 
 st.markdown(f"""
 <div class="total-final-banner">
-SECCIÓN FINAL REGLAMENTARIA: {s_final} mm²
+SECCIÓN FINAL REGLAMENTARIA: {s_final:.2f} mm²
 </div>
 """, unsafe_allow_html=True)
 
@@ -418,19 +433,4 @@ df = pd.DataFrame({
         "S térmica","S CdT","S CdT norm","S mínima REBT","S FINAL"
     ],
     "Valor":[
-        tipo_instalacion,sistema,uso,round(potencia_calc,2),round(ib,2),
-        longitud,cos_phi,material,aislamiento,metodo,
-        s_adm,round(s_cdt,2),s_cdt_norm,s_min_rebt,s_final
-    ]
-})
-
-excel = exportar_excel(df,"Calculo_Secciones")
-
-st.download_button(
-    "📥 Descargar memoria (Excel)",
-    excel,
-    "calculo_secciones.xlsx",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    use_container_width=True
-)
-
+        tipo_instalacion,sistema,uso,round(pot
