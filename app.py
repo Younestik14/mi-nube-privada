@@ -29,7 +29,6 @@ logging.basicConfig(
 
 logging.info("Aplicación iniciada")
 
-
 # ============================================================
 # CONFIGURACIÓN STREAMLIT
 # ============================================================
@@ -39,6 +38,22 @@ st.set_page_config(
     page_icon="⚡",
     layout="wide"
 )
+
+# ============================================================
+# INICIALIZACIÓN SEGURA DEL ESTADO DE SESIÓN
+# ============================================================
+
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+
+if "username" not in st.session_state:
+    st.session_state["username"] = None
+
+if "role" not in st.session_state:
+    st.session_state["role"] = None
+
+if "full_name" not in st.session_state:
+    st.session_state["full_name"] = None
 
 # ============================================================
 # CSS SONOMA EMBEBIDO
@@ -134,7 +149,6 @@ input:focus, select:focus, textarea:focus {
 </style>
 """, unsafe_allow_html=True)
 
-
 # ============================================================
 # UTILIDADES DE UI
 # ============================================================
@@ -159,7 +173,6 @@ def titulo_centrado(titulo, subtitulo=""):
         unsafe_allow_html=True
     )
 
-
 # ============================================================
 # BASE DE DATOS SQLITE (AUTOGENERADA)
 # ============================================================
@@ -182,7 +195,6 @@ def init_db():
         """)
         conn.commit()
 
-        # Crear usuario admin por defecto
         admin_pass = hashlib.sha256("admin".encode()).hexdigest()
         c.execute("""
             INSERT INTO users (username, password_hash, full_name, role, created_at)
@@ -193,7 +205,6 @@ def init_db():
         logging.info("Base de datos creada y usuario admin generado")
 
 init_db()
-
 
 # ============================================================
 # AUTENTICACIÓN
@@ -217,15 +228,13 @@ def login(username, password):
     logging.warning(f"Intento fallido de login para {username}")
     return False, None, None
 
-
 def require_role(role):
     if st.session_state.get("role") != role:
         st.error("No tienes permisos para acceder a esta sección.")
         st.stop()
 
-
 # ============================================================
-# LOGIN UI
+# LOGIN UI (VERSIÓN ESTABLE, SIN RERUN)
 # ============================================================
 
 def login_ui():
@@ -242,22 +251,10 @@ def login_ui():
             st.session_state["username"] = username
             st.session_state["role"] = role
             st.session_state["full_name"] = full_name
-            st.session_state["just_logged_in"] = True
         else:
             st.error("Usuario o contraseña incorrectos")
 
     card_close()
-
-
-if not st.session_state["logged_in"]:
-    login_ui()
-    st.stop()
-
-# Refresco seguro tras login
-if st.session_state.get("just_logged_in"):
-    st.session_state["just_logged_in"] = False
-    st.experimental_set_query_params(refresh="1")
-
 
 # ============================================================
 # CATÁLOGO EMBEBIDO (AUTOGENERADO)
@@ -323,7 +320,6 @@ def cargar_catalogo():
 def guardar_catalogo(catalogo):
     with open(CATALOGO_PATH, "w", encoding="utf-8") as f:
         json.dump(catalogo, f, indent=4, ensure_ascii=False)
-
 
 # ============================================================
 # FIN BLOQUE 1/3
@@ -495,7 +491,9 @@ def generar_memoria_word(proyecto, secciones, protecciones, presupuesto):
     for cap in presupuesto["capitulos"]:
         doc.add_paragraph(f"{cap['Capítulo']}: {cap['Total capítulo (€)']} €")
 
-    doc.add_paragraph(f"TOTAL: {presupuesto['total_final']} €")
+    total = presupuesto.get("total_final", None)
+    if total:
+        doc.add_paragraph(f"TOTAL: {total} €")
 
     buffer = BytesIO()
     doc.save(buffer)
@@ -506,14 +504,6 @@ def generar_memoria_word(proyecto, secciones, protecciones, presupuesto):
 # ============================================================
 # INTERFAZ PRINCIPAL
 # ============================================================
-
-if "logged_in" not in st.session_state:
-    st.session_state["logged_in"] = False
-
-if not st.session_state["logged_in"]:
-    titulo_centrado("⚡ Ingeniería Eléctrica PRO", "Acceso técnico profesional")
-    login_ui()
-    st.stop()
 
 titulo_centrado(
     "⚡ Ingeniería Eléctrica PRO",
@@ -538,6 +528,16 @@ with col_c:
 
 divider()
 # ============================================================
+# CONTROL DE ACCESO
+# ============================================================
+
+if not st.session_state["logged_in"]:
+    titulo_centrado("⚡ Ingeniería Eléctrica PRO", "Acceso técnico profesional")
+    login_ui()
+    st.stop()
+
+
+# ============================================================
 # MÓDULOS DE INTERFAZ — PANTALLAS COMPLETAS
 # ============================================================
 
@@ -559,7 +559,7 @@ if opcion == "🏠 Inicio":
         card_open()
         st.markdown("### 🧩 Módulos disponibles")
         st.markdown("- 📐 Cálculo de secciones y protecciones")
-        st.markdown("- 💰 Presupuesto completo con Excel y PDF")
+        st.markdown("- 💰 Presupuesto completo con PDF")
         st.markdown("- 📘 Memoria técnica REBT (Word + PDF)")
         st.markdown("- 📦 Catálogo editable de materiales")
         st.markdown("- 👥 Administración de usuarios (solo admin)")
@@ -638,23 +638,17 @@ elif opcion == "💰 Presupuesto":
 
         divider()
 
-        col_e1, col_e2 = st.columns(2)
-
-        with col_e1:
-            pdf_bytes = generar_pdf_presupuesto(
-                proyecto={"nombre": "Proyecto genérico"},
-                presupuesto=presupuesto
-            )
-            st.download_button(
-                "📄 Descargar PDF",
-                data=pdf_bytes,
-                file_name="presupuesto.pdf",
-                mime="application/pdf",
-                use_container_width=True,
-            )
-
-        with col_e2:
-            st.info("Exportación Excel no incluida en este archivo único.")
+        pdf_bytes = generar_pdf_presupuesto(
+            proyecto={"nombre": "Proyecto genérico"},
+            presupuesto=presupuesto
+        )
+        st.download_button(
+            "📄 Descargar PDF",
+            data=pdf_bytes,
+            file_name="presupuesto.pdf",
+            mime="application/pdf",
+            use_container_width=True,
+        )
 
     card_close()
 
@@ -766,7 +760,7 @@ elif opcion == "👥 Administración":
     card_open()
     st.markdown("### 👥 Administración de usuarios")
 
-    st.info("Gestión de usuarios no incluida en este archivo único para simplificar.")
+    st.info("Gestión de usuarios no incluida en esta versión simplificada.")
 
     card_close()
 
@@ -782,8 +776,12 @@ elif opcion == "👤 Cuenta":
     st.write(f"**Sesión iniciada:** {datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
     if st.button("Cerrar sesión", use_container_width=True):
-        st.session_state.clear()
-        st.experimental_rerun()
+        st.session_state["logged_in"] = False
+        st.session_state["username"] = None
+        st.session_state["role"] = None
+        st.session_state["full_name"] = None
+        st.experimental_set_query_params()  # limpia URL
+        st.stop()
 
     card_close()
 
