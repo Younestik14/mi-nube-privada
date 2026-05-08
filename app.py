@@ -15,11 +15,11 @@ import math
 st.set_page_config(
     page_title="Ingeniería Pro",
     layout="wide",
-    page_icon="⚡"
+    page_icon="🔌"
 )
 
 # =========================================================
-# LOGIN ESTILO APPLE — CENTRADO Y SIN RECUADRO
+# LOGIN APPLE — CENTRADO + ENTER PARA ENVIAR
 # =========================================================
 
 PASSWORD = "SEA2526"
@@ -33,12 +33,14 @@ if not st.session_state.auth:
     <style>
     .login-wrapper {
         height: 100vh;
+        width: 100%;
         display: flex;
         justify-content: center;
         align-items: center;
         flex-direction: column;
         text-align: center;
-        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+        margin: 0;
+        padding: 0;
     }
     .login-title {
         font-size: 42px;
@@ -51,12 +53,6 @@ if not st.session_state.auth:
         color: #9ca3af;
         margin-bottom: 30px;
     }
-    .login-input input {
-        text-align: center;
-        font-size: 20px;
-        padding: 14px;
-        border-radius: 14px;
-    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -67,6 +63,12 @@ if not st.session_state.auth:
 
     password_input = st.text_input("", type="password", key="login", label_visibility="collapsed")
 
+    # Permitir enviar con ENTER
+    if password_input == PASSWORD:
+        st.session_state.auth = True
+        st.rerun()
+
+    # Botón opcional
     if st.button("Entrar"):
         if password_input == PASSWORD:
             st.session_state.auth = True
