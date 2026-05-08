@@ -115,25 +115,25 @@ h1 {
     margin-bottom: 0.4rem !important;
 }
 
-/* Tarjetas */
+/* Tarjetas principales */
 .card {
     background: var(--bg-glass);
     border-radius: var(--radius-xl);
-    padding: 20px 22px;
+    padding: 32px 34px;              /* ← AUMENTADO */
     border: 1px solid var(--border-soft);
     box-shadow: var(--shadow-soft);
-    margin-bottom: 18px;
-    backdrop-filter: blur(18px);
+    margin-bottom: 26px;             /* ← AUMENTADO */
+    backdrop-filter: blur(22px);     /* ← MÁS EFECTO GLASS */
 }
 
 /* Tarjetas de fórmulas */
 .formula-card {
     background: var(--bg-card);
-    padding: 22px;
+    padding: 34px 36px;              /* ← AUMENTADO */
     border-radius: var(--radius-xl);
     border: 1px solid var(--border-soft);
     text-align: center;
-    margin-bottom: 18px;
+    margin-bottom: 26px;             /* ← AUMENTADO */
     box-shadow: var(--shadow-soft);
 }
 
@@ -141,12 +141,12 @@ h1 {
 .resultado-caja {
     color: var(--text-main) !important;
     font-weight: 800 !important;
-    font-size: 26px;
+    font-size: 30px;                 /* ← MÁS GRANDE */
     background: radial-gradient(circle at top left, var(--accent-soft), #020617);
-    padding: 22px;
+    padding: 34px 36px;              /* ← AUMENTADO */
     border-radius: var(--radius-xl);
-    border-left: 5px solid var(--accent);
-    margin-bottom: 20px;
+    border-left: 6px solid var(--accent);
+    margin-bottom: 28px;             /* ← AUMENTADO */
     text-align: right;
     box-shadow: var(--shadow-soft);
 }
@@ -155,15 +155,16 @@ h1 {
 .total-final-banner {
     color: var(--text-main) !important;
     font-weight: 800 !important;
-    font-size: 28px;
+    font-size: 32px;                 /* ← MÁS GRANDE */
     background: linear-gradient(135deg, #020617 0%, #020617 40%, #020617 100%);
-    padding: 24px;
+    padding: 36px 38px;              /* ← AUMENTADO */
     border-radius: var(--radius-xl);
     text-align: left;
     border: 1px solid var(--border-soft);
-    margin-top: 26px;
+    margin-top: 32px;                /* ← AUMENTADO */
     box-shadow: var(--shadow-soft);
 }
+
 
 /* Inputs tipo Apple */
 .stNumberInput input,
