@@ -242,15 +242,20 @@ def login_ui():
             st.session_state["username"] = username
             st.session_state["role"] = role
             st.session_state["full_name"] = full_name
-            st.session_state["refresh"] = True
+            st.session_state["just_logged_in"] = True
         else:
             st.error("Usuario o contraseña incorrectos")
 
     card_close()
 
-if st.session_state.get("refresh"):
-    st.session_state["refresh"] = False
+if not st.session_state["logged_in"]:
+    login_ui()
     st.stop()
+# Refresco seguro después del login
+if st.session_state.get("just_logged_in"):
+    st.session_state["just_logged_in"] = False
+    st.experimental_set_query_params(refresh="1")
+
 
 # ============================================================
 # CATÁLOGO EMBEBIDO (AUTOGENERADO)
