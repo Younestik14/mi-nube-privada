@@ -1,5 +1,5 @@
 # =========================================================
-# INGENIERÍA PRO v10.1
+# INGENIERÍA PRO v10.2
 # Cálculo de Secciones REBT + FV (solo cálculo)
 # Versión profesional definitiva
 # =========================================================
@@ -14,7 +14,7 @@ import math
 # =========================================================
 
 st.set_page_config(
-    page_title="Ingeniería Pro v10.1",
+    page_title="Ingeniería Pro v10.2",
     layout="wide",
     page_icon="⚡"
 )
@@ -130,7 +130,7 @@ Ingeniería Pro — Younesse Tikent Tifaoui
 # =========================================================
 
 st.markdown("""
-# ⚡ INGENIERÍA PRO v10.1 — Cálculo Profesional de Secciones REBT + FV
+# ⚡ INGENIERÍA PRO v10.2 — Cálculo Profesional de Secciones REBT + FV
 
 Aplicación profesional para **cálculo de secciones de conductores**:
 
@@ -147,7 +147,6 @@ Incluye:
 
 ---
 """)
-
 # =========================================================
 # FUNCIÓN EXPORTACIÓN EXCEL
 # =========================================================
@@ -246,45 +245,96 @@ with c2:
     v_cc = st.number_input("Tensión FV (Vcc)", value=600.0) if tipo_instalacion=="FV en corriente continua" else None
 
     st.markdown('</div>', unsafe_allow_html=True)
-
 # =========================================================
 # CÁLCULOS
 # =========================================================
 
+# Factor de utilización según tipo de circuito
 k_u = 1.25 if uso in ["Motores", "Vehículo eléctrico"] else 1.0
-v_fase = 230 if sistema=="Monofásico 230V" else (400 if sistema=="Trifásico 400V" else v_cc)
-delta_u_max = max_cdt_pct/100 * v_fase
+
+# Tensión según sistema
+v_fase = 230 if sistema == "Monofásico 230V" else (400 if sistema == "Trifásico 400V" else v_cc)
+
+# Caída de tensión máxima permitida en voltios
+delta_u_max = (max_cdt_pct / 100) * v_fase
+
+# =========================================================
+# CÁLCULO DE POTENCIA E INTENSIDAD
+# =========================================================
 
 if modo_intensidad == "Introducir intensidad directamente":
     ib = ib_input
-    potencia_calc = (v_fase * ib * cos_phi) if sistema=="Monofásico 230V" else (math.sqrt(3)*v_fase*ib*cos_phi if sistema=="Trifásico 400V" else v_fase*ib)
+
+    if sistema == "Monofásico 230V":
+        potencia_calc = v_fase * ib * cos_phi
+    elif sistema == "Trifásico 400V":
+        potencia_calc = math.sqrt(3) * v_fase * ib * cos_phi
+    else:
+        potencia_calc = v_fase * ib  # FV CC
+
 else:
     potencia_calc = potencia * k_u
-    ib = potencia_calc/(v_fase*cos_phi) if sistema=="Monofásico 230V" else (potencia_calc/(math.sqrt(3)*v_fase*cos_phi) if sistema=="Trifásico 400V" else potencia_calc/v_fase)
+
+    if sistema == "Monofásico 230V":
+        ib = potencia_calc / (v_fase * cos_phi)
+    elif sistema == "Trifásico 400V":
+        ib = potencia_calc / (math.sqrt(3) * v_fase * cos_phi)
+    else:
+        ib = potencia_calc / v_fase  # FV CC
+
+# =========================================================
+# SECCIÓN TÉRMICA (TABLAS REBT)
+# =========================================================
 
 s_adm = get_seccion_adm(metodo, aislamiento, ib)
 
-sigma = 48 if ("Cobre" in material and "PVC" in aislamiento) else \
-        44 if ("Cobre" in material and "XLPE" in aislamiento) else \
-        30 if ("Aluminio" in material and "PVC" in aislamiento) else 28
+# =========================================================
+# CONDUCTIVIDAD σ SEGÚN MATERIAL Y AISLAMIENTO
+# =========================================================
 
-if sistema=="Monofásico 230V":
-    s_cdt = (2*longitud*potencia_calc)/(sigma*v_fase*delta_u_max)
-    ecuacion_usada = r"S_{cdt,mono}=\frac{2\cdot L\cdot P}{\sigma\cdot U\cdot\Delta U_{\max}}"
-elif sistema=="Trifásico 400V":
-    s_cdt = (longitud*potencia_calc)/(sigma*v_fase*delta_u_max)
-    ecuacion_usada = r"S_{cdt,tri}=\frac{L\cdot P}{\sigma\cdot U\cdot\Delta U_{\max}}"
+if "Cobre" in material:
+    sigma = 48 if "PVC" in aislamiento else 44
 else:
-    s_cdt = (2*longitud*potencia_calc)/(sigma*v_fase*delta_u_max)
+    sigma = 30 if "PVC" in aislamiento else 28
+
+# =========================================================
+# CÁLCULO DE SECCIÓN POR CAÍDA DE TENSIÓN
+# =========================================================
+
+if sistema == "Monofásico 230V":
+    s_cdt = (2 * longitud * potencia_calc) / (sigma * v_fase * delta_u_max)
+    ecuacion_usada = r"S_{cdt,mono}=\frac{2\cdot L\cdot P}{\sigma\cdot U\cdot\Delta U_{\max}}"
+
+elif sistema == "Trifásico 400V":
+    s_cdt = (longitud * potencia_calc) / (sigma * v_fase * delta_u_max)
+    ecuacion_usada = r"S_{cdt,tri}=\frac{L\cdot P}{\sigma\cdot U\cdot\Delta U_{\max}}"
+
+else:  # FV CC
+    s_cdt = (2 * longitud * potencia_calc) / (sigma * v_fase * delta_u_max)
     ecuacion_usada = r"S_{cdt,FV}=\frac{2\cdot L\cdot P}{\sigma\cdot U_{cc}\cdot\Delta U_{\max}}"
 
-s_cdt_norm = next((s for s in secciones_ref if s>=s_cdt), 240.00)
+# Normalización a sección comercial
+s_cdt_norm = next((s for s in secciones_ref if s >= s_cdt), 240.00)
 
-s_min_rebt = {"General":1.5,"Motores":2.5,"Vehículo eléctrico":6.0,"Fotovoltaica":4.0}[uso]
+# =========================================================
+# SECCIÓN MÍNIMA REGLAMENTARIA
+# =========================================================
+
+s_min_rebt = {
+    "General": 1.5,
+    "Motores": 2.5,
+    "Vehículo eléctrico": 6.0,
+    "Fotovoltaica": 4.0
+}[uso]
+
+# =========================================================
+# SECCIÓN FINAL
+# =========================================================
+
 s_final = max(s_adm, s_cdt_norm, s_min_rebt)
 
 # =========================================================
-# RESULTADO
+# RESULTADO PRINCIPAL
 # =========================================================
 
 st.markdown(f"""
@@ -299,162 +349,130 @@ Mínimo REBT = {s_min_rebt:.2f} mm²
 </small>
 </div>
 """, unsafe_allow_html=True)
-
 # =========================================================
-# TARJETAS DE FÓRMULAS (CORREGIDAS)
+# TARJETAS DE FÓRMULAS (KaTeX PERFECTO)
 # =========================================================
 
 st.markdown("### 📘 Ecuaciones aplicadas")
 
-# Fórmula principal
-st.markdown(f"""
-<div class="formula-card">
-\
+# -----------------------------
+# Fórmula principal (KaTeX)
+# -----------------------------
+st.markdown('<div class="formula-card">', unsafe_allow_html=True)
+st.latex(rf"{ecuacion_usada}")
+st.markdown('</div>', unsafe_allow_html=True)
 
-\[
-{ecuacion_usada}
-\\]
+# -----------------------------
+# Resultado numérico de la fórmula
+# -----------------------------
+st.markdown('<div class="formula-card">', unsafe_allow_html=True)
+st.latex(rf"S_{{cdt}} = {s_cdt:.2f}\ \text{{mm}}^2")
+st.markdown('</div>', unsafe_allow_html=True)
 
+# -----------------------------
+# Fórmula de potencia (siempre útil)
+# -----------------------------
+st.markdown('<div class="formula-card">', unsafe_allow_html=True)
 
-</div>
-""", unsafe_allow_html=True)
+if sistema == "Monofásico 230V":
+    st.latex(r"P = U \cdot I \cdot \cos\varphi")
+elif sistema == "Trifásico 400V":
+    st.latex(r"P = \sqrt{3}\cdot U \cdot I \cdot \cos\varphi")
+else:
+    st.latex(r"P = U_{cc} \cdot I")
 
-# Resultado numérico
-st.markdown(f"""
-<div class="formula-card">
-\
+st.markdown('</div>', unsafe_allow_html=True)
 
-\[
-S_{{cdt}} = {s_cdt:.2f}\\ \\text{{mm}}^2
-\\]
-
-
-</div>
-""", unsafe_allow_html=True)
-
+# -----------------------------
+# Resultado numérico de potencia
+# -----------------------------
+st.markdown('<div class="formula-card">', unsafe_allow_html=True)
+st.latex(rf"P = {potencia_calc:.2f}\ \text{{W}}")
+st.markdown('</div>', unsafe_allow_html=True)
 # =========================================================
-# TABLA ITC‑BT‑19 — DOS DECIMALES
+# TABLA ITC‑BT‑19 — DOS DECIMALES + SUBRAYADO DINÁMICO
 # =========================================================
 
 st.markdown("### 📘 Tabla ITC‑BT‑19 — Intensidades admisibles")
 
+# Construcción de tabla con dos decimales siempre
 tabla = pd.DataFrame({
     "Sección (mm²)": [f"{s:.2f}" for s in secciones_ref],
     "PVC (A)": [f"{x:.2f}" for x in tablas_adm[metodo]["PVC"]],
     "XLPE (A)": [f"{x:.2f}" for x in tablas_adm[metodo]["XLPE"]]
 })
 
-fila = tabla.index[tabla["Sección (mm²)"]==f"{s_final:.2f}"][0] if f"{s_final:.2f}" in tabla["Sección (mm²)"].values else None
+# Determinar fila seleccionada
+fila = tabla.index[tabla["Sección (mm²)"] == f"{s_final:.2f}"][0] \
+       if f"{s_final:.2f}" in tabla["Sección (mm²)"].values else None
+
+# Determinar columna según aislamiento
 col = "PVC (A)" if "PVC" in aislamiento else "XLPE (A)"
 
+# Estilo dinámico
 def estilo(row):
-    estilos=[]
+    estilos = []
     for c in tabla.columns:
-        if row.name==fila and c==col:
+        if row.name == fila and c == col:
             estilos.append("background-color:#22d3ee;color:#020617;font-weight:900;")
-        elif row.name==fila:
+        elif row.name == fila:
             estilos.append("text-decoration:underline;font-weight:700;")
-        elif c==col:
+        elif c == col:
             estilos.append("text-decoration:underline;font-weight:700;")
         else:
             estilos.append("")
     return estilos
 
-st.dataframe(tabla.style.apply(estilo,axis=1), use_container_width=True)
-
+# Mostrar tabla
+st.dataframe(
+    tabla.style.apply(estilo, axis=1),
+    use_container_width=True
+)
 # =========================================================
-# PROCEDIMIENTO DETALLADO
+# EXPORTACIÓN Y MEMORIA FINAL
 # =========================================================
 
-st.markdown("### 📘 Procedimiento del cálculo")
-
-st.markdown("""
-#### 1️⃣ Potencia de diseño
-""")
-
-st.markdown("""
-<div class="formula-card">
-\
-
-\[
-P = U\\cdot I\\cdot\\cos\\varphi
-\\]
-
-
-</div>
-""", unsafe_allow_html=True)
-
-st.markdown(f"**Potencia utilizada:** {potencia_calc:.2f} W")
-
-st.markdown("""
-#### 2️⃣ Sección térmica (ITC‑BT‑19)
-""")
-
-st.markdown(f"**Sección térmica:** {s_adm:.2f} mm²")
-
-st.markdown("""
-#### 3️⃣ Caída de tensión
-""")
-
-st.markdown(f"""
-<div class="formula-card">
-\
-
-\[
-{ecuacion_usada}
-\\]
-
-
-</div>
-""", unsafe_allow_html=True)
-
-st.markdown(f"**Sección por CdT normalizada:** {s_cdt_norm:.2f} mm²")
-
-st.markdown("""
-#### 4️⃣ Mínimos reglamentarios
-""")
-
-st.markdown(f"**Sección mínima REBT:** {s_min_rebt:.2f} mm²")
-
-st.markdown(f"""
-<div class="total-final-banner">
-SECCIÓN FINAL REGLAMENTARIA: {s_final:.2f} mm²
-</div>
-""", unsafe_allow_html=True)
-
-# =========================================================
-# EXPORTACIÓN
-# =========================================================
+st.markdown("### 📘 Memoria del cálculo")
 
 df = pd.DataFrame({
-    "Parámetro":[
-        "Tipo instalación","Sistema","Uso","Potencia (W)","Ib (A)",
-        "Longitud (m)","cos φ","Material","Aislamiento","Método",
-        "S térmica","S CdT","S CdT norm","S mínima REBT","S FINAL"
+    "Parámetro": [
+        "Tipo instalación", "Sistema", "Uso",
+        "Potencia utilizada (W)", "Intensidad Ib (A)",
+        "Longitud (m)", "cos φ",
+        "Material", "Aislamiento", "Método REBT",
+        "Sección térmica (mm²)",
+        "Sección por CdT (mm²)",
+        "Sección por CdT normalizada (mm²)",
+        "Sección mínima REBT (mm²)",
+        "SECCIÓN FINAL (mm²)"
     ],
-    "Valor":[
+    "Valor": [
         tipo_instalacion,
         sistema,
         uso,
-        round(potencia_calc,2),
-        round(ib,2),
-        round(longitud,2),
-        round(cos_phi,2),
+        f"{potencia_calc:.2f}",
+        f"{ib:.2f}",
+        f"{longitud:.2f}",
+        f"{cos_phi:.2f}",
         material,
         aislamiento,
         metodo,
-        round(s_adm,2),
-        round(s_cdt,2),
-        round(s_cdt_norm,2),
-        round(s_min_rebt,2),
-        round(s_final,2)
+        f"{s_adm:.2f}",
+        f"{s_cdt:.2f}",
+        f"{s_cdt_norm:.2f}",
+        f"{s_min_rebt:.2f}",
+        f"{s_final:.2f}"
     ]
 })
 
-excel = exportar_excel(df,"Calculo_Secciones")
+st.dataframe(df, use_container_width=True)
 
+# Generar Excel
+excel = exportar_excel(df, "Calculo_Secciones")
+
+# Botón de descarga
 st.download_button(
-    "📥 Descargar memoria (Excel)",
+    "📥 Descargar memoria en Excel",
     excel,
     "calculo_secciones.xlsx",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
