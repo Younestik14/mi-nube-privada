@@ -433,4 +433,30 @@ df = pd.DataFrame({
         "S térmica","S CdT","S CdT norm","S mínima REBT","S FINAL"
     ],
     "Valor":[
-        tipo_instalacion,sistema,uso,round(pot
+        tipo_instalacion,
+        sistema,
+        uso,
+        round(potencia_calc,2),
+        round(ib,2),
+        round(longitud,2),
+        round(cos_phi,2),
+        material,
+        aislamiento,
+        metodo,
+        round(s_adm,2),
+        round(s_cdt,2),
+        round(s_cdt_norm,2),
+        round(s_min_rebt,2),
+        round(s_final,2)
+    ]
+})
+
+excel = exportar_excel(df,"Calculo_Secciones")
+
+st.download_button(
+    "📥 Descargar memoria (Excel)",
+    excel,
+    "calculo_secciones.xlsx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    use_container_width=True
+)
