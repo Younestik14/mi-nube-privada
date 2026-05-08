@@ -1,6 +1,5 @@
 # ============================================================
-# app.py — Archivo único, completo y autocontenido
-# Ingeniería Eléctrica PRO — Estilo macOS Sonoma
+# app.py — Ingeniería Eléctrica PRO (macOS Sonoma Edition)
 # ============================================================
 
 import streamlit as st
@@ -56,7 +55,7 @@ if "full_name" not in st.session_state:
     st.session_state["full_name"] = None
 
 # ============================================================
-# CSS SONOMA EMBEBIDO
+# CSS SONOMA
 # ============================================================
 
 st.markdown("""
@@ -66,7 +65,6 @@ html, body {
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif;
     background: var(--bg);
     color: var(--text);
-    transition: background 0.3s ease, color 0.3s ease;
 }
 
 @media (prefers-color-scheme: light) {
@@ -92,18 +90,11 @@ html, body {
 .glass-card {
     background: var(--card-bg);
     backdrop-filter: blur(18px) saturate(180%);
-    -webkit-backdrop-filter: blur(18px) saturate(180%);
     border-radius: 18px;
     padding: 22px;
     margin-bottom: 20px;
     border: 1px solid var(--border);
     box-shadow: 0 8px 24px var(--shadow);
-    transition: transform 0.25s ease, box-shadow 0.25s ease;
-}
-
-.glass-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 12px 32px var(--shadow);
 }
 
 .stButton > button {
@@ -113,30 +104,6 @@ html, body {
     padding: 10px 18px;
     border: none;
     font-weight: 600;
-    transition: all 0.2s ease;
-}
-
-.stButton > button:hover {
-    background: linear-gradient(180deg, #0a84ff, #0062cc);
-    transform: translateY(-2px);
-}
-
-.stButton > button:active {
-    transform: scale(0.97);
-}
-
-input, select, textarea {
-    background: var(--card-bg) !important;
-    border-radius: 10px !important;
-    border: 1px solid var(--border) !important;
-    color: var(--text) !important;
-    padding: 8px 12px !important;
-    transition: border 0.2s ease;
-}
-
-input:focus, select:focus, textarea:focus {
-    border: 1px solid #0a84ff !important;
-    outline: none !important;
 }
 
 .divider {
@@ -174,7 +141,7 @@ def titulo_centrado(titulo, subtitulo=""):
     )
 
 # ============================================================
-# BASE DE DATOS SQLITE (AUTOGENERADA)
+# BASE DE DATOS SQLITE (ADMIN = 1868628 / Laaljorra_2002)
 # ============================================================
 
 DB_PATH = "usuarios.db"
@@ -195,11 +162,11 @@ def init_db():
         """)
         conn.commit()
 
-        admin_pass = hashlib.sha256("admin".encode()).hexdigest()
+        admin_pass = hashlib.sha256("Laaljorra_2002".encode()).hexdigest()
         c.execute("""
             INSERT INTO users (username, password_hash, full_name, role, created_at)
             VALUES (?, ?, ?, ?, ?)
-        """, ("admin", admin_pass, "Administrador", "admin", datetime.now().isoformat()))
+        """, ("1868628", admin_pass, "Administrador", "admin", datetime.now().isoformat()))
         conn.commit()
         conn.close()
         logging.info("Base de datos creada y usuario admin generado")
@@ -234,7 +201,7 @@ def require_role(role):
         st.stop()
 
 # ============================================================
-# LOGIN UI (VERSIÓN ESTABLE, SIN RERUN)
+# LOGIN UI (ESTABLE, SIN RERUN)
 # ============================================================
 
 def login_ui():
@@ -257,7 +224,7 @@ def login_ui():
     card_close()
 
 # ============================================================
-# CATÁLOGO EMBEBIDO (AUTOGENERADO)
+# CATÁLOGO BASE
 # ============================================================
 
 CATALOGO_PATH = "catalogo.json"
@@ -320,70 +287,69 @@ def cargar_catalogo():
 def guardar_catalogo(catalogo):
     with open(CATALOGO_PATH, "w", encoding="utf-8") as f:
         json.dump(catalogo, f, indent=4, ensure_ascii=False)
-
 # ============================================================
-# FIN BLOQUE 1/3
-# ============================================================
-# ============================================================
-# CÁLCULO DE SECCIONES Y PROTECCIONES
+# CÁLCULO DE SECCIONES EXTENDIDO — ITC‑BT‑19
 # ============================================================
 
-RESISTIVIDAD_CU = 0.0225  # ohm·mm²/m
-COSFI = 0.95
-V = 230  # tensión monofásica
+INTENSIDADES_ADM = {
+    "A1": {1.5: 14, 2.5: 18, 4: 24, 6: 31, 10: 43, 16: 57, 25: 76},
+    "A2": {1.5: 16, 2.5: 21, 4: 28, 6: 36, 10: 50, 16: 68, 25: 89},
+    "B1": {1.5: 18, 2.5: 24, 4: 32, 6: 41, 10: 57, 16: 76, 25: 101},
+    "B2": {1.5: 20, 2.5: 27, 4: 36, 6: 46, 10: 63, 16: 85, 25: 113},
+}
+
+FACTORES_AGRUPAMIENTO = {1: 1.00, 2: 0.80, 3: 0.70, 4: 0.65, 5: 0.60, 6: 0.57}
+FACTORES_TEMPERATURA = {25: 1.08, 30: 1.00, 35: 0.94, 40: 0.87, 45: 0.79, 50: 0.71}
+SECCIONES = [1.5, 2.5, 4, 6, 10, 16, 25]
 
 def intensidad_por_potencia(potencia_w):
-    return potencia_w / (V * COSFI)
+    return potencia_w / (230 * 0.95)
 
-def caida_tension(intensidad, longitud_m, seccion_mm2):
-    r = RESISTIVIDAD_CU / seccion_mm2
-    caida_v = math.sqrt(3) * intensidad * r * longitud_m
-    return (caida_v / V) * 100
+def intensidad_admisible(metodo, seccion, agrupamiento, temperatura):
+    base = INTENSIDADES_ADM[metodo][seccion]
+    return base * FACTORES_AGRUPAMIENTO[agrupamiento] * FACTORES_TEMPERATURA[temperatura]
 
-def seleccionar_seccion(intensidad):
-    if intensidad <= 10: return 1.5
-    if intensidad <= 16: return 2.5
-    if intensidad <= 20: return 4
-    if intensidad <= 25: return 6
-    if intensidad <= 32: return 10
-    if intensidad <= 40: return 16
-    if intensidad <= 63: return 25
-    return 35
+def seleccionar_seccion_extendida(I, metodo, agrupamiento, temperatura):
+    for s in SECCIONES:
+        if intensidad_admisible(metodo, s, agrupamiento, temperatura) >= I:
+            return s
+    return SECCIONES[-1]
 
-def seleccionar_magnetotermico(intensidad):
-    if intensidad <= 10: return "10 A"
-    if intensidad <= 16: return "16 A"
-    if intensidad <= 20: return "20 A"
-    if intensidad <= 25: return "25 A"
-    if intensidad <= 32: return "32 A"
-    if intensidad <= 40: return "40 A"
-    if intensidad <= 50: return "50 A"
+def caida_tension(I, L, S):
+    r = 0.0225 / S
+    return (math.sqrt(3) * I * r * L / 230) * 100
+
+def seleccionar_magnetotermico(I):
+    if I <= 10: return "10 A"
+    if I <= 16: return "16 A"
+    if I <= 20: return "20 A"
+    if I <= 25: return "25 A"
+    if I <= 32: return "32 A"
+    if I <= 40: return "40 A"
+    if I <= 50: return "50 A"
     return "63 A"
 
-def seleccionar_diferencial(intensidad):
-    if intensidad <= 25: return "30 mA — 25 A"
-    if intensidad <= 40: return "30 mA — 40 A"
+def seleccionar_diferencial(I):
+    if I <= 25: return "30 mA — 25 A"
+    if I <= 40: return "30 mA — 40 A"
     return "30 mA — 63 A"
 
-def calcular_linea(nombre, potencia_w, longitud_m):
-    intensidad = intensidad_por_potencia(potencia_w)
-    seccion = seleccionar_seccion(intensidad)
-    caida = caida_tension(intensidad, longitud_m, seccion)
-    magneto = seleccionar_magnetotermico(intensidad)
-    diferencial = seleccionar_diferencial(intensidad)
+def calcular_linea_extendida(nombre, potencia, longitud, metodo, agrupamiento, temperatura):
+    I = intensidad_por_potencia(potencia)
+    S = seleccionar_seccion_extendida(I, metodo, agrupamiento, temperatura)
+    caida = caida_tension(I, longitud, S)
 
     return {
         "nombre": nombre,
-        "potencia_w": potencia_w,
-        "longitud_m": longitud_m,
-        "intensidad": intensidad,
-        "seccion": seccion,
+        "intensidad": I,
+        "seccion": S,
         "caida": caida,
-        "magnetotermico": magneto,
-        "diferencial": diferencial,
-        "descripcion": f"Línea {nombre}: {seccion} mm², {magneto}, caída {caida:.2f}%",
+        "magnetotermico": seleccionar_magnetotermico(I),
+        "diferencial": seleccionar_diferencial(I),
+        "metodo": metodo,
+        "agrupamiento": agrupamiento,
+        "temperatura": temperatura,
     }
-
 
 # ============================================================
 # PRESUPUESTO COMPLETO
@@ -394,44 +360,43 @@ def calcular_capitulo(nombre_capitulo, catalogo):
     total_material = sum(p["precio_material"] * p["cantidad"] for p in productos)
     total_mano_obra = sum(p["precio_mano_obra"] * p["cantidad"] for p in productos)
 
-    base_capitulo = total_material + total_mano_obra
-    gastos_generales = base_capitulo * 0.15
-    beneficio = base_capitulo * 0.06
-    base_imponible = base_capitulo + gastos_generales + beneficio
-    iva = base_imponible * 0.21
-    total_capitulo = base_imponible + iva
+    base = total_material + total_mano_obra
+    gastos = base * 0.15
+    beneficio = base * 0.06
+    base_imp = base + gastos + beneficio
+    iva = base_imp * 0.21
+    total = base_imp + iva
 
     return {
         "Capítulo": nombre_capitulo,
         "Material (€)": total_material,
         "Mano de obra (€)": total_mano_obra,
-        "Base capítulo (€)": base_capitulo,
-        "Gastos generales (€)": gastos_generales,
+        "Base capítulo (€)": base,
+        "Gastos generales (€)": gastos,
         "Beneficio (€)": beneficio,
-        "Base imponible (€)": base_imponible,
+        "Base imponible (€)": base_imp,
         "IVA (€)": iva,
-        "Total capítulo (€)": total_capitulo,
+        "Total capítulo (€)": total,
     }
 
 def calcular_presupuesto_completo(catalogo, lista_capitulos):
-    resultados = [calcular_capitulo(cap, catalogo) for cap in lista_capitulos]
+    caps = [calcular_capitulo(c, catalogo) for c in lista_capitulos]
 
-    totales = {
-        "material": sum(r["Material (€)"] for r in resultados),
-        "mano_obra": sum(r["Mano de obra (€)"] for r in resultados),
-        "base": sum(r["Base capítulo (€)"] for r in resultados),
-        "gastos": sum(r["Gastos generales (€)"] for r in resultados),
-        "beneficio": sum(r["Beneficio (€)"] for r in resultados),
-        "base_imponible": sum(r["Base imponible (€)"] for r in resultados),
-        "iva": sum(r["IVA (€)"] for r in resultados),
-        "total_final": sum(r["Total capítulo (€)"] for r in resultados),
+    tot = {
+        "material": sum(c["Material (€)"] for c in caps),
+        "mano_obra": sum(c["Mano de obra (€)"] for c in caps),
+        "base": sum(c["Base capítulo (€)"] for c in caps),
+        "gastos": sum(c["Gastos generales (€)"] for c in caps),
+        "beneficio": sum(c["Beneficio (€)"] for c in caps),
+        "base_imponible": sum(c["Base imponible (€)"] for c in caps),
+        "iva": sum(c["IVA (€)"] for c in caps),
+        "total_final": sum(c["Total capítulo (€)"] for c in caps),
     }
 
-    return {"capitulos": resultados, "totales": totales}
-
+    return {"capitulos": caps, "totales": tot}
 
 # ============================================================
-# GENERADOR PDF PRESUPUESTO
+# GENERADOR PDF
 # ============================================================
 
 def generar_pdf_presupuesto(proyecto, presupuesto):
@@ -465,7 +430,6 @@ def generar_pdf_presupuesto(proyecto, presupuesto):
     buffer.seek(0)
     return buffer.getvalue()
 
-
 # ============================================================
 # GENERADOR WORD MEMORIA REBT
 # ============================================================
@@ -491,18 +455,16 @@ def generar_memoria_word(proyecto, secciones, protecciones, presupuesto):
     for cap in presupuesto["capitulos"]:
         doc.add_paragraph(f"{cap['Capítulo']}: {cap['Total capítulo (€)']} €")
 
-    total = presupuesto.get("total_final", None)
-    if total:
-        doc.add_paragraph(f"TOTAL: {total} €")
+    if "total_final" in presupuesto:
+        doc.add_paragraph(f"TOTAL: {presupuesto['total_final']} €")
 
     buffer = BytesIO()
     doc.save(buffer)
     buffer.seek(0)
     return buffer.getvalue()
 
-
 # ============================================================
-# INTERFAZ PRINCIPAL
+# MENÚ PRINCIPAL
 # ============================================================
 
 titulo_centrado(
@@ -536,9 +498,8 @@ if not st.session_state["logged_in"]:
     login_ui()
     st.stop()
 
-
 # ============================================================
-# MÓDULOS DE INTERFAZ — PANTALLAS COMPLETAS
+# MÓDULOS DE INTERFAZ
 # ============================================================
 
 # ------------------------------------------------------------
@@ -558,51 +519,39 @@ if opcion == "🏠 Inicio":
     with col2:
         card_open()
         st.markdown("### 🧩 Módulos disponibles")
-        st.markdown("- 📐 Cálculo de secciones y protecciones")
+        st.markdown("- 📐 Cálculo de secciones extendido ITC‑BT‑19")
         st.markdown("- 💰 Presupuesto completo con PDF")
         st.markdown("- 📘 Memoria técnica REBT (Word + PDF)")
         st.markdown("- 📦 Catálogo editable de materiales")
-        st.markdown("- 👥 Administración de usuarios (solo admin)")
+        st.markdown("- 👥 Administración avanzada de usuarios")
         card_close()
 
-
 # ------------------------------------------------------------
-# 2) CÁLCULO DE SECCIONES
+# 2) CÁLCULO DE SECCIONES EXTENDIDO
 # ------------------------------------------------------------
 elif opcion == "📐 Cálculo de secciones":
     card_open()
-    st.markdown("### 📐 Cálculo de secciones y protecciones")
+    st.markdown("### 📐 Cálculo de secciones — Modo EXTENDIDO ITC‑BT‑19")
 
     col1, col2, col3 = st.columns(3)
     with col1:
         nombre = st.text_input("Nombre de la línea", "C1 - Iluminación")
-    with col2:
         potencia = st.number_input("Potencia (W)", min_value=100, value=2000)
-    with col3:
+    with col2:
         longitud = st.number_input("Longitud (m)", min_value=1, value=15)
+        metodo = st.selectbox("Método instalación (ITC‑BT‑19)", ["A1", "A2", "B1", "B2"])
+    with col3:
+        agrupamiento = st.selectbox("Nº de circuitos agrupados", [1,2,3,4,5,6])
+        temperatura = st.selectbox("Temperatura ambiente (°C)", [25,30,35,40,45,50])
 
-    if st.button("Calcular línea", use_container_width=True):
-        datos = calcular_linea(nombre, potencia, longitud)
+    if st.button("Calcular sección extendida", use_container_width=True):
+        datos = calcular_linea_extendida(nombre, potencia, longitud, metodo, agrupamiento, temperatura)
 
         divider()
-        c1, c2 = st.columns(2)
-
-        with c1:
-            st.markdown("#### Resultado numérico")
-            st.json(datos)
-
-        with c2:
-            st.markdown("#### Resumen técnico")
-            st.write(
-                f"- Intensidad: **{datos['intensidad']:.2f} A**\n"
-                f"- Sección: **{datos['seccion']} mm²**\n"
-                f"- Caída de tensión: **{datos['caida']:.2f} %**\n"
-                f"- Magnetotérmico: **{datos['magnetotermico']}**\n"
-                f"- Diferencial: **{datos['diferencial']}**"
-            )
+        st.markdown("### Resultado extendido")
+        st.json(datos)
 
     card_close()
-
 
 # ------------------------------------------------------------
 # 3) PRESUPUESTO
@@ -652,7 +601,6 @@ elif opcion == "💰 Presupuesto":
 
     card_close()
 
-
 # ------------------------------------------------------------
 # 4) MEMORIA REBT
 # ------------------------------------------------------------
@@ -700,7 +648,6 @@ elif opcion == "📘 Memoria REBT":
             "total_final": 520,
         }
 
-        # Word
         word_bytes = generar_memoria_word(proyecto, secciones, protecciones, presupuesto)
         st.download_button(
             "📘 Descargar Memoria Word",
@@ -710,7 +657,6 @@ elif opcion == "📘 Memoria REBT":
             use_container_width=True,
         )
 
-        # PDF
         pdf_bytes = generar_pdf_presupuesto(proyecto, presupuesto)
         st.download_button(
             "📄 Descargar Memoria PDF",
@@ -721,7 +667,6 @@ elif opcion == "📘 Memoria REBT":
         )
 
     card_close()
-
 
 # ------------------------------------------------------------
 # 5) CATÁLOGO
@@ -751,19 +696,142 @@ elif opcion == "📦 Catálogo":
 
     card_close()
 
-
 # ------------------------------------------------------------
-# 6) ADMINISTRACIÓN
+# 6) ADMINISTRACIÓN AVANZADA
 # ------------------------------------------------------------
 elif opcion == "👥 Administración":
     require_role("admin")
     card_open()
-    st.markdown("### 👥 Administración de usuarios")
+    st.markdown("### 👥 Administración avanzada de usuarios")
 
-    st.info("Gestión de usuarios no incluida en esta versión simplificada.")
+    # ============================================================
+    # CREAR USUARIO
+    # ============================================================
+    st.markdown("## ➕ Crear nuevo usuario")
+
+    new_user = st.text_input("Nuevo usuario")
+    new_pass = st.text_input("Contraseña", type="password")
+    new_name = st.text_input("Nombre completo")
+    new_role = st.selectbox("Rol", ["admin", "tecnico", "invitado"])
+
+    if st.button("Crear usuario", use_container_width=True):
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        try:
+            c.execute("""
+                INSERT INTO users (username, password_hash, full_name, role, created_at)
+                VALUES (?, ?, ?, ?, ?)
+            """, (
+                new_user,
+                hashlib.sha256(new_pass.encode()).hexdigest(),
+                new_name,
+                new_role,
+                datetime.now().isoformat()
+            ))
+            conn.commit()
+            st.success("Usuario creado correctamente.")
+            logging.info(f"Usuario creado: {new_user} ({new_role})")
+        except:
+            st.error("Error: el usuario ya existe.")
+        conn.close()
+
+    divider()
+
+    # ============================================================
+    # EDITAR USUARIO
+    # ============================================================
+    st.markdown("## ✏️ Editar usuario existente")
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT username FROM users")
+    usuarios = [u[0] for u in c.fetchall()]
+    conn.close()
+
+    user_to_edit = st.selectbox("Selecciona usuario", usuarios)
+
+    if user_to_edit:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT full_name, role FROM users WHERE username=?", (user_to_edit,))
+        full_name, role = c.fetchone()
+        conn.close()
+
+        new_full_name = st.text_input("Nuevo nombre completo", full_name)
+        new_role_edit = st.selectbox("Nuevo rol", ["admin", "tecnico", "invitado"], index=["admin","tecnico","invitado"].index(role))
+
+        if st.button("Guardar cambios", use_container_width=True):
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute("""
+                UPDATE users SET full_name=?, role=? WHERE username=?
+            """, (new_full_name, new_role_edit, user_to_edit))
+            conn.commit()
+            conn.close()
+            st.success("Usuario actualizado correctamente.")
+            logging.info(f"Usuario editado: {user_to_edit} → {new_role_edit}")
+
+    divider()
+
+    # ============================================================
+    # CAMBIAR CONTRASEÑA
+    # ============================================================
+    st.markdown("## 🔑 Cambiar contraseña")
+
+    user_pass = st.selectbox("Usuario", usuarios, key="pass_user")
+    new_pass_1 = st.text_input("Nueva contraseña", type="password")
+    new_pass_2 = st.text_input("Repetir contraseña", type="password")
+
+    if st.button("Actualizar contraseña", use_container_width=True):
+        if new_pass_1 != new_pass_2:
+            st.error("Las contraseñas no coinciden.")
+        else:
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute("""
+                UPDATE users SET password_hash=? WHERE username=?
+            """, (hashlib.sha256(new_pass_1.encode()).hexdigest(), user_pass))
+            conn.commit()
+            conn.close()
+            st.success("Contraseña actualizada correctamente.")
+            logging.info(f"Contraseña cambiada para usuario: {user_pass}")
+
+    divider()
+
+    # ============================================================
+    # BORRAR USUARIO
+    # ============================================================
+    st.markdown("## 🗑️ Borrar usuario")
+
+    user_delete = st.selectbox("Selecciona usuario a borrar", usuarios, key="delete_user")
+
+    if st.button("Borrar usuario", use_container_width=True):
+        if user_delete == "1868628":
+            st.error("No puedes borrar el usuario administrador principal.")
+        else:
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute("DELETE FROM users WHERE username=?", (user_delete,))
+            conn.commit()
+            conn.close()
+            st.success(f"Usuario '{user_delete}' eliminado.")
+            logging.warning(f"Usuario eliminado: {user_delete}")
+
+    divider()
+
+    # ============================================================
+    # PANEL DE AUDITORÍA (LOGS)
+    # ============================================================
+    st.markdown("## 📜 Panel de auditoría (logs)")
+
+    if os.path.exists("app.log"):
+        with open("app.log", "r", encoding="utf-8") as f:
+            logs = f.readlines()[-200:]
+        st.text("".join(logs))
+    else:
+        st.info("No hay logs disponibles.")
 
     card_close()
-
 
 # ------------------------------------------------------------
 # 7) CUENTA
@@ -780,11 +848,10 @@ elif opcion == "👤 Cuenta":
         st.session_state["username"] = None
         st.session_state["role"] = None
         st.session_state["full_name"] = None
-        st.experimental_set_query_params()  # limpia URL
+        st.experimental_set_query_params()
         st.stop()
 
     card_close()
-
 
 # ============================================================
 # FIN DEL ARCHIVO APP.PY COMPLETO
