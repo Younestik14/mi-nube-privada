@@ -236,18 +236,18 @@ def login_ui():
     password = st.text_input("Contraseña", type="password")
 
     if st.button("Entrar", use_container_width=True):
-    ok, role, full_name = login(username, password)
-    if ok:
-        st.session_state["logged_in"] = True
-        st.session_state["username"] = username
-        st.session_state["role"] = role
-        st.session_state["full_name"] = full_name
-        st.session_state["refresh"] = True
-    else:
-        st.error("Usuario o contraseña incorrectos")
-
+        ok, role, full_name = login(username, password)
+        if ok:
+            st.session_state["logged_in"] = True
+            st.session_state["username"] = username
+            st.session_state["role"] = role
+            st.session_state["full_name"] = full_name
+            st.session_state["refresh"] = True
+        else:
+            st.error("Usuario o contraseña incorrectos")
 
     card_close()
+
 if st.session_state.get("refresh"):
     st.session_state["refresh"] = False
     st.stop()
