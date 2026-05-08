@@ -228,7 +228,7 @@ def require_role(role):
 # LOGIN UI
 # ============================================================
 
-ddef login_ui():
+def login_ui():
     card_open()
     st.markdown("### 🔐 Iniciar sesión")
 
