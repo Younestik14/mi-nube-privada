@@ -1,6 +1,6 @@
 # =========================================================
-# INGENIERÍA PRO — Estilo macOS Sonoma Glass (Opción A)
-# Cálculo de Secciones REBT + FV
+# INGENIERÍA PRO — macOS Sonoma Glass + Animaciones + Cálculos avanzados
+# Cálculo de secciones REBT + FV con extras eléctricos
 # =========================================================
 
 import streamlit as st
@@ -12,162 +12,232 @@ import math
 # CONFIGURACIÓN GENERAL
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="Ingeniería Pro",
+    page_title="Ingeniería Pro — Secciones REBT + FV",
     layout="wide",
     page_icon="⚡"
 )
 
 # ---------------------------------------------------------
-# LOGIN — ARRIBA, ESTILO SONOMA GLASS, ENTER ACTIVO
+# MODO CLARO / OSCURO (macOS Sonoma Glass)
 # ---------------------------------------------------------
-PASSWORD = "SEA2526"
+if "theme" not in st.session_state:
+    st.session_state["theme"] = "Oscuro"
 
-if "auth" not in st.session_state:
-    st.session_state.auth = False
+top_left, top_mid, top_right = st.columns([1.5, 2, 2])
 
-if not st.session_state.auth:
+with top_left:
+    theme = st.radio("Tema", ["Oscuro", "Claro"], index=0 if st.session_state["theme"] == "Oscuro" else 1)
+    st.session_state["theme"] = theme
 
-    st.markdown("""
-    <style>
-    body {
-        background: radial-gradient(circle at top, #020617 0%, #020617 40%, #020617 100%) !important;
-    }
-    .login-wrapper {
-        height: 100vh;
-        width: 100%;
-        display: flex;
-        justify-content: flex-start;
-        align-items: center;
-        flex-direction: column;
-        padding-top: 2vh; /* login muy arriba */
-        text-align: center;
-        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
-    }
-    .login-title {
-        font-size: 40px;
-        font-weight: 700;
-        color: #f5f5f7;
-        margin-bottom: 6px;
-    }
-    .login-subtitle {
-        font-size: 15px;
-        color: #9ca3af;
-        margin-bottom: 22px;
-    }
-    .stTextInput input {
-        text-align: center;
-        font-size: 18px;
-        padding: 12px 16px;
-        border-radius: 14px;
-        background: rgba(15,23,42,0.85);
-        border: 1px solid rgba(148,163,184,0.45);
-        color: #e5e7eb;
-        backdrop-filter: blur(18px);
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    st.markdown('<div class="login-wrapper">', unsafe_allow_html=True)
-    st.markdown('<div class="login-title">Ingeniería Pro</div>', unsafe_allow_html=True)
-    st.markdown('<div class="login-subtitle">Introduce la contraseña</div>', unsafe_allow_html=True)
-
-    password_input = st.text_input("", type="password", key="login", label_visibility="collapsed")
-
-    # ENTER = validar
-    if password_input == PASSWORD:
-        st.session_state.auth = True
-        st.rerun()
-
-    if st.button("Entrar"):
-        if password_input == PASSWORD:
-            st.session_state.auth = True
-            st.rerun()
-        else:
-            st.error("❌ Contraseña incorrecta")
-
-    st.markdown('</div>', unsafe_allow_html=True)
-    st.stop()
+if theme == "Oscuro":
+    bg_body = "radial-gradient(circle at top, #020617 0%, #020617 40%, #020617 100%)"
+    text_main = "#f9fafb"
+    text_soft = "#9ca3af"
+    input_bg = "rgba(15,23,42,0.85)"
+    input_border = "rgba(148,163,184,0.55)"
+    df_bg = "rgba(15,23,42,0.90)"
+    bar_bg = "rgba(15,23,42,0.85)"
+    bar_border = "rgba(148,163,184,0.45)"
+else:
+    bg_body = "radial-gradient(circle at top, #e5e7eb 0%, #f3f4f6 40%, #f9fafb 100%)"
+    text_main = "#020617"
+    text_soft = "#4b5563"
+    input_bg = "rgba(255,255,255,0.85)"
+    input_border = "rgba(148,163,184,0.55)"
+    df_bg = "rgba(255,255,255,0.95)"
+    bar_bg = "rgba(255,255,255,0.85)"
+    bar_border = "rgba(148,163,184,0.45)"
 
 # ---------------------------------------------------------
-# ESTILO GLOBAL — macOS SONOMA GLASS
+# ESTILO GLOBAL — macOS SONOMA GLASS + ANIMACIONES
 # ---------------------------------------------------------
-st.markdown("""
+st.markdown(f"""
 <style>
-:root {
-    --text-main: #f9fafb;
-    --text-soft: #9ca3af;
-}
+:root {{
+    --text-main: {text_main};
+    --text-soft: {text_soft};
+}}
 
 /* Fondo general tipo Sonoma Glass */
-body {
-    background: radial-gradient(circle at top, #020617 0%, #020617 40%, #020617 100%) !important;
-}
+body {{
+    background: {bg_body} !important;
+    transition: background 0.6s ease-in-out;
+}}
 
-/* Toda la tipografía en semi-bold */
-* {
+/* Tipografía global */
+* {{
     font-weight: 600 !important;
-}
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+}}
 
 /* KaTeX normal (no bold) */
-.katex, .katex * {
+.katex, .katex * {{
     font-weight: normal !important;
-}
+}}
 
-/* Inputs y selects estilo Sonoma Glass */
+/* Barra superior estilo macOS */
+.topbar {{
+    width: 100%;
+    padding: 10px 18px;
+    margin-bottom: 10px;
+    border-radius: 16px;
+    background: {bar_bg};
+    border: 1px solid {bar_border};
+    backdrop-filter: blur(22px);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--text-main);
+    transition: box-shadow 0.25s ease, transform 0.25s ease, background 0.4s ease;
+}}
+.topbar:hover {{
+    box-shadow: 0 18px 45px rgba(15,23,42,0.45);
+    transform: translateY(-1px);
+}}
+.topbar-left {{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}}
+.topbar-title {{
+    font-size: 18px;
+    font-weight: 700;
+}}
+.topbar-menu span {{
+    margin-left: 18px;
+    font-size: 14px;
+    color: var(--text-soft);
+    cursor: default;
+    transition: color 0.2s ease;
+}}
+.topbar-menu span:hover {{
+    color: var(--text-main);
+}}
+
+/* Inputs y selects estilo Sonoma Glass + animaciones */
 .stNumberInput input,
 .stTextInput input,
 .stSelectbox div[data-baseweb="select"],
-.stRadio > label {
-    background: rgba(15,23,42,0.82) !important;
+.stRadio > label {{
+    background: {input_bg} !important;
     color: var(--text-main) !important;
     border-radius: 14px !important;
-    border: 1px solid rgba(148,163,184,0.45) !important;
-    padding: 12px 16px !important;
-    font-size: 16px !important;
+    border: 1px solid {input_border} !important;
+    padding: 10px 14px !important;
+    font-size: 15px !important;
     backdrop-filter: blur(18px);
-}
+    transition: border 0.2s ease, box-shadow 0.2s ease, transform 0.08s ease;
+}}
+.stNumberInput input:focus,
+.stTextInput input:focus {{
+    border: 1px solid rgba(96,165,250,0.9) !important;
+    box-shadow: 0 0 0 1px rgba(96,165,250,0.7);
+    transform: translateY(-1px);
+}}
 
 /* Radio labels */
-.stRadio > label {
-    padding: 6px 10px !important;
-}
+.stRadio > label {{
+    padding: 4px 8px !important;
+}}
+
+/* Slider label color */
+[data-testid="stSlider"] label {{
+    color: var(--text-main) !important;
+}}
+
+/* Botones estilo macOS */
+.stButton button {{
+    border-radius: 999px !important;
+    padding: 8px 20px !important;
+    font-size: 14px !important;
+    border: 1px solid rgba(148,163,184,0.55) !important;
+    background: linear-gradient(135deg, rgba(59,130,246,0.95), rgba(37,99,235,0.95)) !important;
+    color: #f9fafb !important;
+    box-shadow: 0 10px 25px rgba(37,99,235,0.45);
+    transition: transform 0.08s ease, box-shadow 0.12s ease, filter 0.12s ease;
+}}
+.stButton button:hover {{
+    filter: brightness(1.05);
+    box-shadow: 0 14px 32px rgba(37,99,235,0.55);
+}}
+.stButton button:active {{
+    transform: translateY(1px) scale(0.99);
+    box-shadow: 0 6px 16px rgba(37,99,235,0.45);
+}}
 
 /* Línea divisoria entre ecuaciones */
-.ecuacion-divider {
+.ecuacion-divider {{
     width: 100%;
     height: 3px;
     background: rgba(255,255,255,0.35);
-    margin: 26px 0;
+    margin: 22px 0;
     border-radius: 3px;
-}
+    opacity: 0.9;
+}}
 
 /* Sin recuadros en contenedores personalizados */
 .card,
 .formula-card,
 .resultado-caja,
-.total-final-banner {
+.total-final-banner {{
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
     padding: 0 !important;
-    margin: 0 0 28px 0 !important;
-}
+    margin: 0 0 24px 0 !important;
+}}
 
 /* Dataframe más integrado */
-[data-testid="stDataFrame"] {
+[data-testid="stDataFrame"] {{
     border-radius: 14px !important;
     overflow: hidden !important;
-    background: rgba(15,23,42,0.85) !important;
+    background: {df_bg} !important;
     backdrop-filter: blur(18px);
-}
+    transition: box-shadow 0.25s ease, transform 0.15s ease;
+}}
+[data-testid="stDataFrame"]:hover {{
+    box-shadow: 0 18px 45px rgba(15,23,42,0.35);
+    transform: translateY(-1px);
+}}
+
+/* Títulos */
+h1, h2, h3, h4 {{
+    color: var(--text-main) !important;
+}}
+
+/* Scroll suave */
+html {{
+    scroll-behavior: smooth;
+}}
 </style>
+""", unsafe_allow_html=True)
+
+# ---------------------------------------------------------
+# BARRA SUPERIOR ESTILO macOS
+# ---------------------------------------------------------
+st.markdown(f"""
+<div class="topbar">
+  <div class="topbar-left">
+    <span style="font-size:20px;">⚡</span>
+    <span class="topbar-title">Ingeniería Pro</span>
+  </div>
+  <div class="topbar-menu">
+    <span>Archivo</span>
+    <span>Exportar</span>
+    <span>Ayuda</span>
+  </div>
+</div>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
 # CABECERA
 # ---------------------------------------------------------
 st.markdown(
-    "<h1 style='color:#f9fafb; font-weight:700;'>⚡ Ingeniería Pro — Cálculo de Secciones REBT + FV</h1>",
+    "<h1 style='font-weight:700; margin-bottom:0.2rem;'>Cálculo de Secciones REBT + FV</h1>",
+    unsafe_allow_html=True
+)
+st.markdown(
+    f"<p style='color:{text_soft}; margin-top:0;'>Dimensionado de conductores según ITC‑BT‑19, caída de tensión y criterios mínimos reglamentarios.</p>",
     unsafe_allow_html=True
 )
 
@@ -218,74 +288,86 @@ def get_seccion_adm(metodo, aislamiento, ib):
 # ---------------------------------------------------------
 # FORMULARIO PRINCIPAL
 # ---------------------------------------------------------
+st.markdown("### Datos de diseño")
+
 c1, c2 = st.columns(2)
 
 with c1:
     tipo_instalacion = st.selectbox("Tipo de instalación", ["CA REBT (general)", "FV en corriente continua"])
     sistema = st.selectbox(
         "Sistema eléctrico",
-        ["Monofásico 230V", "Trifásico 400V"] if tipo_instalacion == "CA REBT (general)" else ["Corriente continua FV"]
+        ["Monofásico 230 V", "Trifásico 400 V"] if tipo_instalacion == "CA REBT (general)" else ["Corriente continua FV"]
     )
     modo_intensidad = st.selectbox("Modo de cálculo de intensidad", ["A partir de potencia", "Introducir intensidad directamente"])
 
     if modo_intensidad == "A partir de potencia":
-        potencia = st.number_input("Potencia (W)", value=5750.0)
+        potencia = st.number_input("Potencia (W)", value=5750.0, min_value=0.0, step=50.0)
     else:
-        ib_input = st.number_input("Intensidad Ib (A)", value=25.0)
+        ib_input = st.number_input("Intensidad Ib (A)", value=25.0, min_value=0.0, step=1.0)
 
-    longitud = st.number_input("Longitud (m)", value=30.0)
+    longitud = st.number_input("Longitud del circuito (m)", value=30.0, min_value=0.0, step=1.0)
     cos_phi = st.slider("cos φ", 0.70, 1.00, 0.90) if tipo_instalacion == "CA REBT (general)" else 1.00
     uso = st.selectbox("Tipo de circuito", ["General", "Motores", "Vehículo eléctrico", "Fotovoltaica"])
 
 with c2:
-    material = st.radio("Material", ["Cobre (Cu)", "Aluminio (Al)"])
-    aislamiento = st.radio("Aislamiento", ["PVC (70°C)", "XLPE/EPR (90°C)"])
-    metodo = st.selectbox("Método REBT", list(tablas_adm.keys()))
-    max_cdt_pct = st.number_input("Caída de tensión máx (%)", value=3.0)
-    v_cc = st.number_input("Tensión FV (Vcc)", value=600.0) if tipo_instalacion == "FV en corriente continua" else None
+    material = st.radio("Material del conductor", ["Cobre (Cu)", "Aluminio (Al)"])
+    aislamiento = st.radio("Aislamiento", ["PVC (70 °C)", "XLPE/EPR (90 °C)"])
+    metodo = st.selectbox("Método de instalación (ITC‑BT‑19)", list(tablas_adm.keys()))
+    max_cdt_pct = st.number_input("Caída de tensión máxima permitida (%)", value=3.0, min_value=0.1, max_value=10.0, step=0.1)
+    v_cc = st.number_input("Tensión FV (Vcc)", value=600.0, min_value=0.0, step=10.0) if tipo_instalacion == "FV en corriente continua" else None
+
+    st.markdown("#### Factores de corrección (opcional)")
+    f_temp = st.number_input("Factor de temperatura", value=1.00, min_value=0.50, max_value=1.20, step=0.01)
+    f_agrup = st.number_input("Factor de agrupamiento", value=1.00, min_value=0.30, max_value=1.00, step=0.01)
 
 # ---------------------------------------------------------
-# CÁLCULOS ELÉCTRICOS
+# CÁLCULOS ELÉCTRICOS BÁSICOS
 # ---------------------------------------------------------
 k_u = 1.25 if uso in ["Motores", "Vehículo eléctrico"] else 1.0
 
-if sistema == "Monofásico 230V":
-    v_fase = 230
-elif sistema == "Trifásico 400V":
-    v_fase = 400
+if sistema == "Monofásico 230 V":
+    v_fase = 230.0
+elif sistema == "Trifásico 400 V":
+    v_fase = 400.0
 else:
     v_fase = v_cc
 
-delta_u_max = (max_cdt_pct / 100) * v_fase
+delta_u_max = (max_cdt_pct / 100.0) * v_fase
 
 if modo_intensidad == "Introducir intensidad directamente":
     ib = ib_input
-    if sistema == "Trifásico 400V":
-        potencia_calc = math.sqrt(3) * v_fase * ib * cos_phi
+    if sistema == "Trifásico 400 V":
+        potencia_calc = math.sqrt(3.0) * v_fase * ib * cos_phi
     else:
         potencia_calc = v_fase * ib * cos_phi
 else:
     potencia_calc = potencia * k_u
-    if sistema == "Trifásico 400V":
-        ib = potencia_calc / (math.sqrt(3) * v_fase * cos_phi)
+    if sistema == "Trifásico 400 V":
+        ib = potencia_calc / (math.sqrt(3.0) * v_fase * cos_phi)
     else:
         ib = potencia_calc / (v_fase * cos_phi)
 
-s_adm = get_seccion_adm(metodo, aislamiento, ib)
+# Intensidad corregida por factores
+ib_corr = ib / (f_temp * f_agrup)
 
-sigma = 48 if "Cobre" in material else 30
+# Sección térmica por ITC‑BT‑19
+s_adm = get_seccion_adm(metodo, aislamiento, ib_corr)
+
+# Conductividad equivalente
+sigma = 48.0 if "Cobre" in material else 30.0
 if "XLPE" in aislamiento:
-    sigma -= 4
+    sigma -= 4.0
 
-if sistema == "Monofásico 230V":
-    s_cdt = (2 * longitud * potencia_calc) / (sigma * v_fase * delta_u_max)
-    ecuacion_usada = r"S_{cdt,mono}=\frac{2\cdot L\cdot P}{\sigma\cdot U\cdot\Delta U_{\max}}"
-elif sistema == "Trifásico 400V":
+# Sección por caída de tensión
+if sistema == "Monofásico 230 V":
+    s_cdt = (2.0 * longitud * potencia_calc) / (sigma * v_fase * delta_u_max)
+    ecuacion_usada = r"S_{cdt,mono}=\dfrac{2\,L\,P}{\sigma\,U\,\Delta U_{{\max}}}"
+elif sistema == "Trifásico 400 V":
     s_cdt = (longitud * potencia_calc) / (sigma * v_fase * delta_u_max)
-    ecuacion_usada = r"S_{cdt,tri}=\frac{L\cdot P}{\sigma\cdot U\cdot\Delta U_{\max}}"
+    ecuacion_usada = r"S_{cdt,tri}=\dfrac{L\,P}{\sigma\,U\,\Delta U_{{\max}}}"
 else:
-    s_cdt = (2 * longitud * potencia_calc) / (sigma * v_fase * delta_u_max)
-    ecuacion_usada = r"S_{cdt,FV}=\frac{2\cdot L\cdot P}{\sigma\cdot U_{cc}\cdot\Delta U_{\max}}"
+    s_cdt = (2.0 * longitud * potencia_calc) / (sigma * v_fase * delta_u_max)
+    ecuacion_usada = r"S_{cdt,FV}=\dfrac{2\,L\,P}{\sigma\,U_{{cc}}\,\Delta U_{{\max}}}"
 
 s_cdt_norm = next((s for s in secciones_ref if s >= s_cdt), 240.00)
 
@@ -299,28 +381,60 @@ s_min_rebt = {
 s_final = max(s_adm, s_cdt_norm, s_min_rebt)
 
 # ---------------------------------------------------------
-# ECUACIONES — SIN RECUADROS + LÍNEAS BLANCAS
+# CÁLCULOS AVANZADOS (R, X, Z, ΔU real, magnetotérmico)
 # ---------------------------------------------------------
-st.latex(rf"{ecuacion_usada}")
-st.markdown('<div class="ecuacion-divider"></div>', unsafe_allow_html=True)
+# Resistividad aproximada (Ω·mm²/m)
+rho = 0.018 if "Cobre" in material else 0.028
 
-st.latex(rf"S_{{cdt}} = {s_cdt:.2f}\ \\text{{mm}}^2")
-st.markdown('<div class="ecuacion-divider"></div>', unsafe_allow_html=True)
+# Resistencia de línea (ida y vuelta) en Ω
+r_linea = (rho * 2.0 * longitud) / s_final  # Ω
 
-if sistema == "Monofásico 230V":
-    st.latex(r"P = U \cdot I \cdot \cos\varphi")
-elif sistema == "Trifásico 400V":
-    st.latex(r"P = \sqrt{3}\cdot U \cdot I \cdot \cos\varphi")
+# Reactancia aproximada (Ω) — valor típico muy simplificado
+x_linea = 0.08e-3 * 2.0 * longitud  # Ω (aprox 0.08 mΩ/m ida y vuelta)
+
+# Impedancia de línea
+z_linea = math.sqrt(r_linea**2 + x_linea**2)
+
+# Caída de tensión real con sección final
+if sistema == "Trifásico 400 V":
+    delta_u_real = math.sqrt(3.0) * ib * (r_linea * cos_phi + x_linea * math.sqrt(1 - cos_phi**2))
 else:
-    st.latex(r"P = U_{cc} \cdot I")
+    delta_u_real = ib * (r_linea * cos_phi + x_linea * math.sqrt(1 - cos_phi**2))
 
+delta_u_real_pct = (delta_u_real / v_fase) * 100.0 if v_fase > 0 else 0.0
+
+# Magnetotérmico recomendado (serie estándar)
+magnetos = [6, 10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160]
+mt_recomendado = next((m for m in magnetos if m >= ib_corr), magnetos[-1])
+
+# ---------------------------------------------------------
+# BLOQUE DE ECUACIONES Y CÁLCULO DE INTENSIDAD
+# ---------------------------------------------------------
+st.markdown("### Ecuaciones utilizadas")
+
+st.latex(ecuacion_usada)
 st.markdown('<div class="ecuacion-divider"></div>', unsafe_allow_html=True)
-st.latex(rf"P = {potencia_calc:.2f}\ \\text{{W}}")
+
+if sistema == "Monofásico 230 V":
+    st.latex(r"P = U\,I\,\cos\varphi")
+elif sistema == "Trifásico 400 V":
+    st.latex(r"P = \sqrt{3}\,U\,I\,\cos\varphi")
+else:
+    st.latex(r"P = U_{{cc}}\,I")
+st.markdown('<div class="ecuacion-divider"></div>', unsafe_allow_html=True)
+
+st.latex(rf"P = {potencia_calc:.2f}\,\mathrm{{W}}")
+st.markdown('<div class="ecuacion-divider"></div>', unsafe_allow_html=True)
+st.latex(rf"I_b = {ib:.2f}\,\mathrm{{A}}")
+st.markdown('<div class="ecuacion-divider"></div>', unsafe_allow_html=True)
+st.latex(rf"I_{{b,corr}} = \dfrac{{I_b}}{{f_{{temp}}\,f_{{agrup}}}} = {ib_corr:.2f}\,\mathrm{{A}}")
+st.markdown('<div class="ecuacion-divider"></div>', unsafe_allow_html=True)
+st.latex(rf"S_{{cdt}} = {s_cdt:.2f}\,\mathrm{{mm}}^2")
 
 # ---------------------------------------------------------
 # TABLA ITC-BT-19 — RESALTADO DINÁMICO SONOMA GLASS
 # ---------------------------------------------------------
-st.markdown("## Tabla ITC‑BT‑19 — Intensidades admisibles")
+st.markdown("### Tabla ITC‑BT‑19 — Intensidades admisibles")
 
 tabla = pd.DataFrame({
     "Sección (mm²)": [f"{s:.2f}" for s in secciones_ref],
@@ -339,16 +453,15 @@ def estilo(row):
     for c in tabla.columns:
         if row.name == fila and c == col:
             estilos.append(
-                "background-color: rgba(255,255,255,0.25); "
-                "color: #ffffff; font-weight: 900;"
+                "background-color: rgba(255,255,255,0.25); color: #ffffff; font-weight: 900; transition: background-color 0.25s ease;"
             )
         elif row.name == fila:
             estilos.append(
-                "text-decoration: underline; font-weight: 700; color: #e2e8f0;"
+                "text-decoration: underline; font-weight: 700; color: #e2e8f0; transition: color 0.25s ease;"
             )
         elif c == col:
             estilos.append(
-                "text-decoration: underline; font-weight: 700; color: #e2e8f0;"
+                "text-decoration: underline; font-weight: 700; color: #e2e8f0; transition: color 0.25s ease;"
             )
         else:
             estilos.append("")
@@ -360,36 +473,85 @@ st.dataframe(
 )
 
 # ---------------------------------------------------------
-# RESULTADO FINAL
+# RESULTADOS PRINCIPALES
 # ---------------------------------------------------------
-st.markdown(
-    f"<h2 style='color:#f9fafb; font-weight:700;'>SECCIÓN FINAL REGLAMENTARIA: {s_final:.2f} mm²</h2>",
-    unsafe_allow_html=True
-)
+st.markdown("### Resultados principales")
+
+c_res1, c_res2, c_res3 = st.columns(3)
+
+with c_res1:
+    st.markdown(f"**Sección térmica ITC‑BT‑19:** {s_adm:.2f} mm²")
+    st.markdown(f"**Sección por CdT normalizada:** {s_cdt_norm:.2f} mm²")
+
+with c_res2:
+    st.markdown(f"**Sección mínima REBT por uso:** {s_min_rebt:.2f} mm²")
+    st.markdown(f"**Sección final reglamentaria:** {s_final:.2f} mm²")
+
+with c_res3:
+    st.markdown(f"**Caída de tensión real:** {delta_u_real:.2f} V")
+    st.markdown(f"**Caída de tensión real:** {delta_u_real_pct:.2f} %")
+
+st.markdown(f"**Magnetotérmico recomendado (In):** {mt_recomendado} A")
+
+# ---------------------------------------------------------
+# CÁLCULOS AVANZADOS — IMPEDANCIA Y LÍNEA
+# ---------------------------------------------------------
+st.markdown("### Cálculos avanzados de línea")
+
+c_adv1, c_adv2 = st.columns(2)
+
+with c_adv1:
+    st.markdown(f"**Resistencia de línea (ida y vuelta):** {r_linea:.4f} Ω")
+    st.markdown(f"**Reactancia de línea (ida y vuelta):** {x_linea:.4f} Ω")
+with c_adv2:
+    st.markdown(f"**Impedancia de línea:** {z_linea:.4f} Ω")
+    if z_linea > 0:
+        icc_teorica = v_fase / z_linea
+        st.markdown(f"**Corriente de cortocircuito teórica (solo línea):** {icc_teorica:.0f} A")
 
 # ---------------------------------------------------------
 # MEMORIA + EXPORTACIÓN EXCEL
 # ---------------------------------------------------------
+st.markdown("### Memoria del cálculo")
+
 df = pd.DataFrame({
     "Parámetro": [
+        "Tema visual",
         "Tipo instalación", "Sistema", "Uso",
-        "Potencia utilizada (W)", "Intensidad Ib (A)",
+        "Potencia utilizada (W)", "Intensidad Ib (A)", "Intensidad Ib corregida (A)",
         "Longitud (m)", "cos φ",
         "Material", "Aislamiento", "Método REBT",
-        "Sección térmica (mm²)",
+        "Factor temperatura", "Factor agrupamiento",
+        "Sección térmica ITC‑BT‑19 (mm²)",
         "Sección por CdT (mm²)",
         "Sección por CdT normalizada (mm²)",
         "Sección mínima REBT (mm²)",
-        "SECCIÓN FINAL (mm²)"
+        "SECCIÓN FINAL (mm²)",
+        "Resistencia línea (Ω)",
+        "Reactancia línea (Ω)",
+        "Impedancia línea (Ω)",
+        "Caída de tensión real (V)",
+        "Caída de tensión real (%)",
+        "Magnetotérmico recomendado (A)"
     ],
     "Valor": [
+        theme,
         tipo_instalacion, sistema, uso,
-        f"{potencia_calc:.2f}", f"{ib:.2f}",
+        f"{potencia_calc:.2f}", f"{ib:.2f}", f"{ib_corr:.2f}",
         f"{longitud:.2f}", f"{cos_phi:.2f}",
         material, aislamiento, metodo,
-        f"{s_adm:.2f}", f"{s_cdt:.2f}",
-        f"{s_cdt_norm:.2f}", f"{s_min_rebt:.2f}",
-        f"{s_final:.2f}"
+        f"{f_temp:.2f}", f"{f_agrup:.2f}",
+        f"{s_adm:.2f}",
+        f"{s_cdt:.2f}",
+        f"{s_cdt_norm:.2f}",
+        f"{s_min_rebt:.2f}",
+        f"{s_final:.2f}",
+        f"{r_linea:.4f}",
+        f"{x_linea:.4f}",
+        f"{z_linea:.4f}",
+        f"{delta_u_real:.2f}",
+        f"{delta_u_real_pct:.2f}",
+        f"{mt_recomendado:.0f}"
     ]
 })
 
