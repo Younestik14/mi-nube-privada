@@ -1,5 +1,5 @@
 # =========================================================
-# INGENIERÍA PRO — Estilo Apple + Login
+# INGENIERÍA PRO — Estilo Apple Minimalista + Login
 # Cálculo de Secciones REBT + FV
 # =========================================================
 
@@ -15,11 +15,11 @@ import math
 st.set_page_config(
     page_title="Ingeniería Pro",
     layout="wide",
-    page_icon="🔌"
+    page_icon="⚡"
 )
 
 # =========================================================
-# LOGIN APPLE — CENTRADO + ENTER PARA ENVIAR
+# LOGIN APPLE — CENTRADO + ELEVADO + ENTER
 # =========================================================
 
 PASSWORD = "SEA2526"
@@ -35,12 +35,11 @@ if not st.session_state.auth:
         height: 100vh;
         width: 100%;
         display: flex;
-        justify-content: center;
+        justify-content: flex-start;
         align-items: center;
         flex-direction: column;
+        padding-top: 12vh; /* ← SUBE EL LOGIN */
         text-align: center;
-        margin: 0;
-        padding: 0;
     }
     .login-title {
         font-size: 42px;
@@ -63,12 +62,11 @@ if not st.session_state.auth:
 
     password_input = st.text_input("", type="password", key="login", label_visibility="collapsed")
 
-    # Permitir enviar con ENTER
+    # ENTER = validar
     if password_input == PASSWORD:
         st.session_state.auth = True
         st.rerun()
 
-    # Botón opcional
     if st.button("Entrar"):
         if password_input == PASSWORD:
             st.session_state.auth = True
@@ -79,163 +77,63 @@ if not st.session_state.auth:
     st.markdown('</div>', unsafe_allow_html=True)
     st.stop()
 
-
 # =========================================================
-# ESTILO GLOBAL TIPO APPLE
+# ESTILO GLOBAL APPLE MINIMALISTA
 # =========================================================
 
 st.markdown("""
 <style>
 
 :root {
-    --bg-main: #020617;
-    --bg-card: rgba(15, 23, 42, 0.92);
-    --bg-glass: rgba(15, 23, 42, 0.78);
-    --border-soft: rgba(148, 163, 184, 0.35);
-    --accent: #0ea5e9;
-    --accent-soft: rgba(56, 189, 248, 0.18);
     --text-main: #f9fafb;
     --text-soft: #9ca3af;
-    --radius-xl: 20px;
-    --shadow-soft: 0 18px 45px rgba(0,0,0,0.55);
 }
-/* TODA LA TIPOGRAFÍA EN BOLD (excepto KaTeX) */
+
+/* TODA LA TIPOGRAFÍA EN BOLD */
 * {
     font-weight: 600 !important;
 }
 
-/* EXCEPCIÓN: KaTeX NO debe ser bold */
+/* EXCEPCIÓN: KaTeX NO bold */
 .katex, .katex * {
     font-weight: normal !important;
 }
 
-.stApp {
-    background: radial-gradient(circle at top, #020617 0%, #020617 40%, #020617 100%);
-    color: var(--text-main);
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-}
-
-/* Títulos */
-h1, h2, h3, h4 {
-    color: var(--text-main) !important;
-    font-weight: 700 !important;
-    letter-spacing: 0.02em;
-}
-h1 {
-    font-size: 2.4rem !important;
-    margin-bottom: 0.4rem !important;
-}
-
-/* Tarjetas principales */
-.card {
-    background: var(--bg-glass);
-    border-radius: var(--radius-xl);
-    padding: 32px 34px;              /* ← AUMENTADO */
-    border: 1px solid var(--border-soft);
-    box-shadow: var(--shadow-soft);
-    margin-bottom: 26px;             /* ← AUMENTADO */
-    backdrop-filter: blur(22px);     /* ← MÁS EFECTO GLASS */
-}
-
-/* Tarjetas de fórmulas */
-.formula-card {
-    background: var(--bg-card);
-    padding: 34px 36px;              /* ← AUMENTADO */
-    border-radius: var(--radius-xl);
-    border: 1px solid var(--border-soft);
-    text-align: center;
-    margin-bottom: 26px;             /* ← AUMENTADO */
-    box-shadow: var(--shadow-soft);
-}
-
-/* Caja resultado principal */
-.resultado-caja {
-    color: var(--text-main) !important;
-    font-weight: 800 !important;
-    font-size: 30px;                 /* ← MÁS GRANDE */
-    background: radial-gradient(circle at top left, var(--accent-soft), #020617);
-    padding: 34px 36px;              /* ← AUMENTADO */
-    border-radius: var(--radius-xl);
-    border-left: 6px solid var(--accent);
-    margin-bottom: 28px;             /* ← AUMENTADO */
-    text-align: right;
-    box-shadow: var(--shadow-soft);
-}
-
-/* Banner final */
-.total-final-banner {
-    color: var(--text-main) !important;
-    font-weight: 800 !important;
-    font-size: 32px;                 /* ← MÁS GRANDE */
-    background: linear-gradient(135deg, #020617 0%, #020617 40%, #020617 100%);
-    padding: 36px 38px;              /* ← AUMENTADO */
-    border-radius: var(--radius-xl);
-    text-align: left;
-    border: 1px solid var(--border-soft);
-    margin-top: 32px;                /* ← AUMENTADO */
-    box-shadow: var(--shadow-soft);
-}
-
-
-/* Inputs tipo Apple */
+/* Inputs estilo Apple */
 .stNumberInput input,
 .stTextInput input,
 .stSelectbox div[data-baseweb="select"],
-.stRadio > label,
-.stSlider > div {
-    background: rgba(15, 23, 42, 0.9) !important;
+.stRadio > label {
+    background: rgba(255,255,255,0.06) !important;
     color: var(--text-main) !important;
-    border-radius: 12px !important;
-    border: 1px solid rgba(148, 163, 184, 0.45) !important;
+    border-radius: 14px !important;
+    border: 1px solid rgba(255,255,255,0.18) !important;
+    padding: 14px 18px !important;
+    font-size: 18px !important;
 }
 
-/* Botones */
-button[kind="primary"] {
-    background: linear-gradient(135deg, #0ea5e9, #22c55e) !important;
-    color: white !important;
-    border-radius: 999px !important;
-    border: none !important;
-    padding: 0.45rem 1.4rem !important;
-    font-weight: 600 !important;
-    box-shadow: 0 12px 30px rgba(34, 197, 94, 0.35) !important;
-}
-button[kind="primary"]:hover {
-    filter: brightness(1.05);
-}
-
-/* Dataframe */
-[data-testid="stDataFrame"] {
-    border-radius: var(--radius-xl);
-    overflow: hidden;
-    box-shadow: var(--shadow-soft);
-}
-
-/* Footer */
-.footer-container {
-    position: fixed;
-    bottom: 8px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 9999;
-    pointer-events: none;
-    text-align: center;
+/* Línea divisoria entre ecuaciones */
+.ecuacion-divider {
     width: 100%;
+    height: 3px;
+    background: rgba(255,255,255,0.35);
+    margin: 26px 0;
+    border-radius: 3px;
 }
 
-.watermark-text {
-    font-size: 13px;
-    font-weight: 500;
-    color: rgba(148, 163, 184, 0.7);
-    letter-spacing: 0.08em;
+/* Sin recuadros en toda la app */
+.card,
+.formula-card,
+.resultado-caja,
+.total-final-banner {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 0 28px 0 !important;
 }
 
 </style>
-
-<div class="footer-container">
-<span class="watermark-text">
-Ingeniería Pro — Younesse Tikent Tifaoui
-</span>
-</div>
 """, unsafe_allow_html=True)
 
 # =========================================================
@@ -244,48 +142,16 @@ Ingeniería Pro — Younesse Tikent Tifaoui
 
 st.markdown("""
 # ⚡ Ingeniería Pro — Cálculo de Secciones REBT + FV
-
-Aplicación profesional para **cálculo de secciones de conductores**:
-
-- Instalaciones en **CA** (ITC‑BT‑19, ITC‑BT‑20, ITC‑BT‑40)  
-- Instalaciones **fotovoltaicas en corriente continua**  
-
-Incluye:
-
-- Sección térmica (tablas REBT)
-- Sección por caída de tensión (ecuaciones oficiales)
-- Sección mínima reglamentaria
-- Procedimiento detallado
-- Tabla ITC‑BT‑19 con fila y columna resaltadas
-
----
 """)
+
 # =========================================================
-# FUNCIÓN EXPORTACIÓN EXCEL
+# EXPORTACIÓN EXCEL
 # =========================================================
 
 def exportar_excel(df, hoja="Datos"):
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name=hoja)
-        workbook = writer.book
-        worksheet = writer.sheets[hoja]
-
-        formato_header = workbook.add_format({
-            'bold': True,
-            'bg_color': '#0f172a',
-            'font_color': 'white',
-            'border': 1,
-            'align': 'center'
-        })
-
-        formato_texto = workbook.add_format({'border': 1})
-
-        for col_num, value in enumerate(df.columns.values):
-            worksheet.write(0, col_num, value, formato_header)
-
-        worksheet.set_column('A:Z', 35, formato_texto)
-
     return output.getvalue()
 
 # =========================================================
@@ -299,7 +165,7 @@ secciones_ref = [
 ]
 
 # =========================================================
-# TABLAS REBT — Intensidades admisibles
+# TABLAS REBT
 # =========================================================
 
 tablas_adm = {
@@ -317,10 +183,6 @@ tablas_adm = {
     }
 }
 
-# =========================================================
-# FUNCIÓN — Sección térmica
-# =========================================================
-
 def get_seccion_adm(metodo, aislamiento, ib):
     ais = "PVC" if "PVC" in aislamiento else "XLPE"
     intensidades = tablas_adm[metodo][ais]
@@ -330,136 +192,62 @@ def get_seccion_adm(metodo, aislamiento, ib):
     return 240.00
 
 # =========================================================
-# FORMULARIO PRINCIPAL (ESTILO APPLE)
+# FORMULARIO
 # =========================================================
 
 c1, c2 = st.columns(2)
 
 with c1:
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-
-    tipo_instalacion = st.selectbox(
-        "🏷 Tipo de instalación",
-        ["CA REBT (general)", "FV en corriente continua"]
-    )
-
-    sistema = st.selectbox(
-        "🔌 Sistema eléctrico",
-        ["Monofásico 230V", "Trifásico 400V"] if tipo_instalacion == "CA REBT (general)" else ["Corriente continua FV"]
-    )
-
-    modo_intensidad = st.selectbox(
-        "Modo de cálculo de intensidad",
-        ["A partir de potencia", "Introducir intensidad directamente"]
-    )
-
+    tipo_instalacion = st.selectbox("Tipo de instalación", ["CA REBT (general)", "FV en corriente continua"])
+    sistema = st.selectbox("Sistema eléctrico", ["Monofásico 230V", "Trifásico 400V"] if tipo_instalacion=="CA REBT (general)" else ["Corriente continua FV"])
+    modo_intensidad = st.selectbox("Modo de cálculo de intensidad", ["A partir de potencia", "Introducir intensidad directamente"])
     if modo_intensidad == "A partir de potencia":
-        potencia = st.number_input("⚡ Potencia (W)", value=5750.0)
+        potencia = st.number_input("Potencia (W)", value=5750.0)
     else:
-        ib_input = st.number_input("🔁 Intensidad Ib (A)", value=25.0)
-
-    longitud = st.number_input("📏 Longitud (m)", value=30.0)
-
-    cos_phi = st.slider("cos φ", 0.70, 1.00, 0.90) if tipo_instalacion == "CA REBT (general)" else 1.00
-
-    uso = st.selectbox(
-        "🏷 Tipo de circuito",
-        ["General", "Motores", "Vehículo eléctrico", "Fotovoltaica"]
-    )
-
-    st.markdown('</div>', unsafe_allow_html=True)
+        ib_input = st.number_input("Intensidad Ib (A)", value=25.0)
+    longitud = st.number_input("Longitud (m)", value=30.0)
+    cos_phi = st.slider("cos φ", 0.70, 1.00, 0.90) if tipo_instalacion=="CA REBT (general)" else 1.00
+    uso = st.selectbox("Tipo de circuito", ["General", "Motores", "Vehículo eléctrico", "Fotovoltaica"])
 
 with c2:
-
-    # SIN TARJETA — Material y Aislamiento limpios
     material = st.radio("Material", ["Cobre (Cu)", "Aluminio (Al)"])
     aislamiento = st.radio("Aislamiento", ["PVC (70°C)", "XLPE/EPR (90°C)"])
-
-    # Tarjeta solo para el resto
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-
     metodo = st.selectbox("Método REBT", list(tablas_adm.keys()))
     max_cdt_pct = st.number_input("Caída de tensión máx (%)", value=3.0)
-
-    if tipo_instalacion == "FV en corriente continua":
-        v_cc = st.number_input("Tensión FV (Vcc)", value=600.0)
-
-    st.markdown('</div>', unsafe_allow_html=True)
+    v_cc = st.number_input("Tensión FV (Vcc)", value=600.0) if tipo_instalacion=="FV en corriente continua" else None
 
 # =========================================================
 # CÁLCULOS
 # =========================================================
 
-# Factor de utilización según tipo de circuito
-k_u = 1.25 if uso in ["Motores", "Vehículo eléctrico"] else 1.0
+k_u = 1.25 if uso in ["Motores","Vehículo eléctrico"] else 1.0
+v_fase = 230 if sistema=="Monofásico 230V" else (400 if sistema=="Trifásico 400V" else v_cc)
+delta_u_max = (max_cdt_pct/100)*v_fase
 
-# Tensión según sistema
-v_fase = 230 if sistema == "Monofásico 230V" else (400 if sistema == "Trifásico 400V" else v_cc)
-
-# Caída de tensión máxima permitida en voltios
-delta_u_max = (max_cdt_pct / 100) * v_fase
-
-# =========================================================
-# CÁLCULO DE POTENCIA E INTENSIDAD
-# =========================================================
-
-if modo_intensidad == "Introducir intensidad directamente":
+if modo_intensidad=="Introducir intensidad directamente":
     ib = ib_input
-
-    if sistema == "Monofásico 230V":
-        potencia_calc = v_fase * ib * cos_phi
-    elif sistema == "Trifásico 400V":
-        potencia_calc = math.sqrt(3) * v_fase * ib * cos_phi
-    else:
-        potencia_calc = v_fase * ib  # FV CC
-
+    potencia_calc = v_fase*ib*cos_phi if sistema!="Trifásico 400V" else math.sqrt(3)*v_fase*ib*cos_phi
 else:
-    potencia_calc = potencia * k_u
-
-    if sistema == "Monofásico 230V":
-        ib = potencia_calc / (v_fase * cos_phi)
-    elif sistema == "Trifásico 400V":
-        ib = potencia_calc / (math.sqrt(3) * v_fase * cos_phi)
-    else:
-        ib = potencia_calc / v_fase  # FV CC
-
-# =========================================================
-# SECCIÓN TÉRMICA (TABLAS REBT)
-# =========================================================
+    potencia_calc = potencia*k_u
+    ib = potencia_calc/(v_fase*cos_phi) if sistema!="Trifásico 400V" else potencia_calc/(math.sqrt(3)*v_fase*cos_phi)
 
 s_adm = get_seccion_adm(metodo, aislamiento, ib)
 
-# =========================================================
-# CONDUCTIVIDAD σ SEGÚN MATERIAL Y AISLAMIENTO
-# =========================================================
+sigma = 48 if "Cobre" in material else 30
+if "XLPE" in aislamiento:
+    sigma -= 4
 
-if "Cobre" in material:
-    sigma = 48 if "PVC" in aislamiento else 44
-else:
-    sigma = 30 if "PVC" in aislamiento else 28
-
-# =========================================================
-# CÁLCULO DE SECCIÓN POR CAÍDA DE TENSIÓN
-# =========================================================
-
-if sistema == "Monofásico 230V":
-    s_cdt = (2 * longitud * potencia_calc) / (sigma * v_fase * delta_u_max)
+if sistema=="Monofásico 230V":
+    s_cdt = (2*longitud*potencia_calc)/(sigma*v_fase*delta_u_max)
     ecuacion_usada = r"S_{cdt,mono}=\frac{2\cdot L\cdot P}{\sigma\cdot U\cdot\Delta U_{\max}}"
-
-elif sistema == "Trifásico 400V":
-    s_cdt = (longitud * potencia_calc) / (sigma * v_fase * delta_u_max)
+elif sistema=="Trifásico 400V":
+    s_cdt = (longitud*potencia_calc)/(sigma*v_fase*delta_u_max)
     ecuacion_usada = r"S_{cdt,tri}=\frac{L\cdot P}{\sigma\cdot U\cdot\Delta U_{\max}}"
-
-else:  # FV CC
-    s_cdt = (2 * longitud * potencia_calc) / (sigma * v_fase * delta_u_max)
+else:
+    s_cdt = (2*longitud*potencia_calc)/(sigma*v_fase*delta_u_max)
     ecuacion_usada = r"S_{cdt,FV}=\frac{2\cdot L\cdot P}{\sigma\cdot U_{cc}\cdot\Delta U_{\max}}"
 
-# Normalización a sección comercial
-s_cdt_norm = next((s for s in secciones_ref if s >= s_cdt), 240.00)
-
-# =========================================================
-# SECCIÓN MÍNIMA REGLAMENTARIA
-# =========================================================
+s_cdt_norm = next((s for s in secciones_ref if s>=s_cdt), 240.00)
 
 s_min_rebt = {
     "General": 1.5,
@@ -468,125 +256,40 @@ s_min_rebt = {
     "Fotovoltaica": 4.0
 }[uso]
 
-# =========================================================
-# SECCIÓN FINAL
-# =========================================================
-
 s_final = max(s_adm, s_cdt_norm, s_min_rebt)
 
 # =========================================================
-# RESULTADO PRINCIPAL — ESTILO APPLE
+# ECUACIONES (SIN RECUADROS + LÍNEAS BLANCAS)
 # =========================================================
 
-st.markdown(f"""
-<div class="resultado-caja">
-SECCIÓN FINAL REGLAMENTARIA: {s_final:.2f} mm²
-<br>
-<small>
-Ib = {ib:.2f} A |
-Térmica = {s_adm:.2f} mm² |
-CdT = {s_cdt:.2f} mm² (→ {s_cdt_norm:.2f} mm²) |
-Mínimo REBT = {s_min_rebt:.2f} mm²
-</small>
-</div>
-""", unsafe_allow_html=True)
-# =========================================================
-# TARJETAS DE FÓRMULAS (KaTeX PERFECTO — ESTILO APPLE)
-# =========================================================
-
-st.markdown("### 📘 Ecuaciones aplicadas")
-
-# -----------------------------
-# Fórmula principal (KaTeX)
-# -----------------------------
-st.markdown('<div class="formula-card">', unsafe_allow_html=True)
 st.latex(rf"{ecuacion_usada}")
-st.markdown('</div>', unsafe_allow_html=True)
+st.markdown('<div class="ecuacion-divider"></div>', unsafe_allow_html=True)
 
-# -----------------------------
-# Resultado numérico de la fórmula
-# -----------------------------
-st.markdown('<div class="formula-card">', unsafe_allow_html=True)
 st.latex(rf"S_{{cdt}} = {s_cdt:.2f}\ \text{{mm}}^2")
-st.markdown('</div>', unsafe_allow_html=True)
+st.markdown('<div class="ecuacion-divider"></div>', unsafe_allow_html=True)
 
-# -----------------------------
-# Fórmula de potencia (según sistema)
-# -----------------------------
-st.markdown('<div class="formula-card">', unsafe_allow_html=True)
-
-if sistema == "Monofásico 230V":
+if sistema=="Monofásico 230V":
     st.latex(r"P = U \cdot I \cdot \cos\varphi")
-elif sistema == "Trifásico 400V":
+elif sistema=="Trifásico 400V":
     st.latex(r"P = \sqrt{3}\cdot U \cdot I \cdot \cos\varphi")
 else:
     st.latex(r"P = U_{cc} \cdot I")
 
-st.markdown('</div>', unsafe_allow_html=True)
+st.markdown('<div class="ecuacion-divider"></div>', unsafe_allow_html=True)
 
-# -----------------------------
-# Resultado numérico de potencia
-# -----------------------------
-st.markdown('<div class="formula-card">', unsafe_allow_html=True)
 st.latex(rf"P = {potencia_calc:.2f}\ \text{{W}}")
-st.markdown('</div>', unsafe_allow_html=True)
+
 # =========================================================
-# TABLA ITC‑BT‑19 — DOS DECIMALES + SUBRAYADO DINÁMICO
-# =========================================================
-
-st.markdown("### 📘 Tabla ITC‑BT‑19 — Intensidades admisibles")
-
-# Construcción de tabla con dos decimales siempre
-tabla = pd.DataFrame({
-    "Sección (mm²)": [f"{s:.2f}" for s in secciones_ref],
-    "PVC (A)": [f"{x:.2f}" for x in tablas_adm[metodo]["PVC"]],
-    "XLPE (A)": [f"{x:.2f}" for x in tablas_adm[metodo]["XLPE"]]
-})
-
-# Determinar fila seleccionada
-fila = tabla.index[tabla["Sección (mm²)"] == f"{s_final:.2f}"][0] \
-       if f"{s_final:.2f}" in tabla["Sección (mm²)"].values else None
-
-# Determinar columna según aislamiento
-col = "PVC (A)" if "PVC" in aislamiento else "XLPE (A)"
-
-# Estilo dinámico estilo Apple
-def estilo(row):
-    estilos = []
-    for c in tabla.columns:
-        # Intersección → resaltado Apple
-        if row.name == fila and c == col:
-            estilos.append(
-                "background-color: rgba(14,165,233,0.35); "
-                "color: #f9fafb; font-weight: 900; "
-                "border: 1px solid rgba(14,165,233,0.55);"
-            )
-        # Fila seleccionada
-        elif row.name == fila:
-            estilos.append(
-                "text-decoration: underline; font-weight: 700; "
-                "color: #e2e8f0;"
-            )
-        # Columna seleccionada
-        elif c == col:
-            estilos.append(
-                "text-decoration: underline; font-weight: 700; "
-                "color: #e2e8f0;"
-            )
-        else:
-            estilos.append("")
-    return estilos
-
-# Mostrar tabla con estilo Apple
-st.dataframe(
-    tabla.style.apply(estilo, axis=1),
-    use_container_width=True
-)
-# =========================================================
-# EXPORTACIÓN Y MEMORIA FINAL — ESTILO APPLE
+# RESULTADO FINAL
 # =========================================================
 
-st.markdown("### 📘 Memoria del cálculo")
+st.markdown(f"""
+## SECCIÓN FINAL REGLAMENTARIA: **{s_final:.2f} mm²**
+""")
+
+# =========================================================
+# MEMORIA + EXCEL
+# =========================================================
 
 df = pd.DataFrame({
     "Parámetro": [
@@ -601,31 +304,20 @@ df = pd.DataFrame({
         "SECCIÓN FINAL (mm²)"
     ],
     "Valor": [
-        tipo_instalacion,
-        sistema,
-        uso,
-        f"{potencia_calc:.2f}",
-        f"{ib:.2f}",
-        f"{longitud:.2f}",
-        f"{cos_phi:.2f}",
-        material,
-        aislamiento,
-        metodo,
-        f"{s_adm:.2f}",
-        f"{s_cdt:.2f}",
-        f"{s_cdt_norm:.2f}",
-        f"{s_min_rebt:.2f}",
+        tipo_instalacion, sistema, uso,
+        f"{potencia_calc:.2f}", f"{ib:.2f}",
+        f"{longitud:.2f}", f"{cos_phi:.2f}",
+        material, aislamiento, metodo,
+        f"{s_adm:.2f}", f"{s_cdt:.2f}",
+        f"{s_cdt_norm:.2f}", f"{s_min_rebt:.2f}",
         f"{s_final:.2f}"
     ]
 })
 
-# Mostrar tabla memoria estilo Apple
 st.dataframe(df, use_container_width=True)
 
-# Generar Excel
 excel = exportar_excel(df, "Calculo_Secciones")
 
-# Botón de descarga estilo Apple
 st.download_button(
     "📥 Descargar memoria en Excel",
     excel,
