@@ -1,7 +1,6 @@
 # =========================================================
-# INGENIERÍA PRO v10.2
-# Cálculo de Secciones REBT + FV (solo cálculo)
-# Versión profesional definitiva
+# INGENIERÍA PRO — Estilo Apple + Login
+# Cálculo de Secciones REBT + FV
 # =========================================================
 
 import streamlit as st
@@ -14,87 +13,189 @@ import math
 # =========================================================
 
 st.set_page_config(
-    page_title="Ingeniería Pro v10.2",
+    page_title="Ingeniería Pro",
     layout="wide",
     page_icon="⚡"
 )
 
 # =========================================================
-# ESTILO VISUAL PREMIUM
+# LOGIN ESTILO APPLE
+# =========================================================
+
+PASSWORD = "SEA2526"
+
+if "auth" not in st.session_state:
+    st.session_state.auth = False
+
+if not st.session_state.auth:
+    st.markdown("""
+    <style>
+    .login-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 90vh;
+    }
+    .login-box {
+        background: rgba(15, 23, 42, 0.78);
+        backdrop-filter: blur(18px);
+        padding: 40px 50px;
+        border-radius: 22px;
+        border: 1px solid rgba(148, 163, 184, 0.45);
+        text-align: center;
+        width: 380px;
+        box-shadow: 0px 22px 50px rgba(0,0,0,0.55);
+    }
+    .login-title {
+        font-size: 30px;
+        font-weight: 700;
+        color: #f5f5f7;
+        margin-bottom: 18px;
+        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+    }
+    .login-subtitle {
+        font-size: 14px;
+        color: #9ca3af;
+        margin-bottom: 24px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown('<div class="login-container"><div class="login-box">', unsafe_allow_html=True)
+
+    st.markdown('<div class="login-title">Ingeniería Pro</div>', unsafe_allow_html=True)
+    st.markdown('<div class="login-subtitle">Acceso restringido — introduce la contraseña</div>', unsafe_allow_html=True)
+
+    password_input = st.text_input("Contraseña", type="password", label_visibility="collapsed")
+
+    if st.button("Entrar"):
+        if password_input == PASSWORD:
+            st.session_state.auth = True
+            st.rerun()
+        else:
+            st.error("❌ Contraseña incorrecta")
+
+    st.markdown('</div></div>', unsafe_allow_html=True)
+    st.stop()
+
+# =========================================================
+# ESTILO GLOBAL TIPO APPLE
 # =========================================================
 
 st.markdown("""
 <style>
 
+:root {
+    --bg-main: #020617;
+    --bg-card: rgba(15, 23, 42, 0.92);
+    --bg-glass: rgba(15, 23, 42, 0.78);
+    --border-soft: rgba(148, 163, 184, 0.35);
+    --accent: #0ea5e9;
+    --accent-soft: rgba(56, 189, 248, 0.18);
+    --text-main: #f9fafb;
+    --text-soft: #9ca3af;
+    --radius-xl: 20px;
+    --shadow-soft: 0 18px 45px rgba(0,0,0,0.55);
+}
+
 .stApp {
-    background-color: #050816;
-    color: #e5e7eb;
-    font-family: "Segoe UI", system-ui, sans-serif;
+    background: radial-gradient(circle at top, #020617 0%, #020617 40%, #020617 100%);
+    color: var(--text-main);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
 }
 
 /* Títulos */
 h1, h2, h3, h4 {
-    color: #f9fafb !important;
-    font-weight: 800 !important;
+    color: var(--text-main) !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.02em;
 }
-
-/* Inputs */
-.stNumberInput input,
-.stSelectbox div,
-.stRadio > label,
-.stSlider > div {
-    background-color: #0f172a !important;
-    color: #e5e7eb !important;
+h1 {
+    font-size: 2.4rem !important;
+    margin-bottom: 0.4rem !important;
 }
 
 /* Tarjetas */
 .card {
-    background: #0f172a;
-    border-radius: 16px;
-    padding: 18px 20px;
-    border: 1px solid #334155;
-    box-shadow: 0px 10px 25px rgba(0,0,0,0.65);
+    background: var(--bg-glass);
+    border-radius: var(--radius-xl);
+    padding: 20px 22px;
+    border: 1px solid var(--border-soft);
+    box-shadow: var(--shadow-soft);
     margin-bottom: 18px;
+    backdrop-filter: blur(18px);
 }
 
 /* Tarjetas de fórmulas */
 .formula-card {
-    background: #0f172a;
+    background: var(--bg-card);
     padding: 22px;
-    border-radius: 16px;
-    border: 1px solid #475569;
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--border-soft);
     text-align: center;
     margin-bottom: 18px;
-    box-shadow: 0px 8px 20px rgba(0,0,0,0.45);
-    font-size: 22px;
+    box-shadow: var(--shadow-soft);
 }
 
-/* Caja resultado */
+/* Caja resultado principal */
 .resultado-caja {
-    color: #f9fafb !important;
-    font-weight: 900 !important;
+    color: var(--text-main) !important;
+    font-weight: 800 !important;
     font-size: 26px;
-    background: radial-gradient(circle at top left, #22d3ee22, #020617);
+    background: radial-gradient(circle at top left, var(--accent-soft), #020617);
     padding: 22px;
-    border-radius: 16px;
-    border-left: 6px solid #22d3ee;
+    border-radius: var(--radius-xl);
+    border-left: 5px solid var(--accent);
     margin-bottom: 20px;
     text-align: right;
-    box-shadow: 0px 10px 30px rgba(0,0,0,0.7);
+    box-shadow: var(--shadow-soft);
 }
 
 /* Banner final */
 .total-final-banner {
-    color: #f9fafb !important;
-    font-weight: 900 !important;
-    font-size: 30px;
-    background: linear-gradient(135deg, #020617 0%, #111827 40%, #0f172a 100%);
-    padding: 28px;
-    border-radius: 20px;
+    color: var(--text-main) !important;
+    font-weight: 800 !important;
+    font-size: 28px;
+    background: linear-gradient(135deg, #020617 0%, #020617 40%, #020617 100%);
+    padding: 24px;
+    border-radius: var(--radius-xl);
     text-align: left;
-    border: 2px solid #22d3ee;
-    margin-top: 30px;
-    box-shadow: 0px 18px 40px rgba(0,0,0,0.85);
+    border: 1px solid var(--border-soft);
+    margin-top: 26px;
+    box-shadow: var(--shadow-soft);
+}
+
+/* Inputs tipo Apple */
+.stNumberInput input,
+.stTextInput input,
+.stSelectbox div[data-baseweb="select"],
+.stRadio > label,
+.stSlider > div {
+    background: rgba(15, 23, 42, 0.9) !important;
+    color: var(--text-main) !important;
+    border-radius: 12px !important;
+    border: 1px solid rgba(148, 163, 184, 0.45) !important;
+}
+
+/* Botones */
+button[kind="primary"] {
+    background: linear-gradient(135deg, #0ea5e9, #22c55e) !important;
+    color: white !important;
+    border-radius: 999px !important;
+    border: none !important;
+    padding: 0.45rem 1.4rem !important;
+    font-weight: 600 !important;
+    box-shadow: 0 12px 30px rgba(34, 197, 94, 0.35) !important;
+}
+button[kind="primary"]:hover {
+    filter: brightness(1.05);
+}
+
+/* Dataframe */
+[data-testid="stDataFrame"] {
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    box-shadow: var(--shadow-soft);
 }
 
 /* Footer */
@@ -111,9 +212,9 @@ h1, h2, h3, h4 {
 
 .watermark-text {
     font-size: 13px;
-    font-weight: 600;
-    color: rgba(148, 163, 184, 0.55);
-    letter-spacing: 0.6px;
+    font-weight: 500;
+    color: rgba(148, 163, 184, 0.7);
+    letter-spacing: 0.08em;
 }
 
 </style>
@@ -130,7 +231,7 @@ Ingeniería Pro — Younesse Tikent Tifaoui
 # =========================================================
 
 st.markdown("""
-# ⚡ INGENIERÍA PRO v10.2 — Cálculo Profesional de Secciones REBT + FV
+# ⚡ Ingeniería Pro — Cálculo de Secciones REBT + FV
 
 Aplicación profesional para **cálculo de secciones de conductores**:
 
@@ -157,17 +258,22 @@ def exportar_excel(df, hoja="Datos"):
         df.to_excel(writer, index=False, sheet_name=hoja)
         workbook = writer.book
         worksheet = writer.sheets[hoja]
+
         formato_header = workbook.add_format({
             'bold': True,
-            'bg_color': '#111827',
+            'bg_color': '#0f172a',
             'font_color': 'white',
             'border': 1,
             'align': 'center'
         })
+
         formato_texto = workbook.add_format({'border': 1})
+
         for col_num, value in enumerate(df.columns.values):
             worksheet.write(0, col_num, value, formato_header)
+
         worksheet.set_column('A:Z', 35, formato_texto)
+
     return output.getvalue()
 
 # =========================================================
@@ -212,7 +318,7 @@ def get_seccion_adm(metodo, aislamiento, ib):
     return 240.00
 
 # =========================================================
-# FORMULARIO
+# FORMULARIO PRINCIPAL (ESTILO APPLE)
 # =========================================================
 
 c1, c2 = st.columns(2)
@@ -220,9 +326,20 @@ c1, c2 = st.columns(2)
 with c1:
     st.markdown('<div class="card">', unsafe_allow_html=True)
 
-    tipo_instalacion = st.selectbox("🏷 Tipo de instalación", ["CA REBT (general)", "FV en corriente continua"])
-    sistema = st.selectbox("🔌 Sistema eléctrico", ["Monofásico 230V", "Trifásico 400V"] if tipo_instalacion=="CA REBT (general)" else ["Corriente continua FV"])
-    modo_intensidad = st.selectbox("Modo de cálculo de intensidad", ["A partir de potencia", "Introducir intensidad directamente"])
+    tipo_instalacion = st.selectbox(
+        "🏷 Tipo de instalación",
+        ["CA REBT (general)", "FV en corriente continua"]
+    )
+
+    sistema = st.selectbox(
+        "🔌 Sistema eléctrico",
+        ["Monofásico 230V", "Trifásico 400V"] if tipo_instalacion == "CA REBT (general)" else ["Corriente continua FV"]
+    )
+
+    modo_intensidad = st.selectbox(
+        "Modo de cálculo de intensidad",
+        ["A partir de potencia", "Introducir intensidad directamente"]
+    )
 
     if modo_intensidad == "A partir de potencia":
         potencia = st.number_input("⚡ Potencia (W)", value=5750.0)
@@ -230,8 +347,13 @@ with c1:
         ib_input = st.number_input("🔁 Intensidad Ib (A)", value=25.0)
 
     longitud = st.number_input("📏 Longitud (m)", value=30.0)
-    cos_phi = st.slider("cos φ", 0.70, 1.00, 0.90) if tipo_instalacion=="CA REBT (general)" else 1.00
-    uso = st.selectbox("🏷 Tipo de circuito", ["General", "Motores", "Vehículo eléctrico", "Fotovoltaica"])
+
+    cos_phi = st.slider("cos φ", 0.70, 1.00, 0.90) if tipo_instalacion == "CA REBT (general)" else 1.00
+
+    uso = st.selectbox(
+        "🏷 Tipo de circuito",
+        ["General", "Motores", "Vehículo eléctrico", "Fotovoltaica"]
+    )
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -242,7 +364,8 @@ with c2:
     aislamiento = st.radio("Aislamiento", ["PVC (70°C)", "XLPE/EPR (90°C)"])
     metodo = st.selectbox("Método REBT", list(tablas_adm.keys()))
     max_cdt_pct = st.number_input("Caída de tensión máx (%)", value=3.0)
-    v_cc = st.number_input("Tensión FV (Vcc)", value=600.0) if tipo_instalacion=="FV en corriente continua" else None
+
+    v_cc = st.number_input("Tensión FV (Vcc)", value=600.0) if tipo_instalacion == "FV en corriente continua" else None
 
     st.markdown('</div>', unsafe_allow_html=True)
 # =========================================================
@@ -334,7 +457,7 @@ s_min_rebt = {
 s_final = max(s_adm, s_cdt_norm, s_min_rebt)
 
 # =========================================================
-# RESULTADO PRINCIPAL
+# RESULTADO PRINCIPAL — ESTILO APPLE
 # =========================================================
 
 st.markdown(f"""
@@ -350,7 +473,7 @@ Mínimo REBT = {s_min_rebt:.2f} mm²
 </div>
 """, unsafe_allow_html=True)
 # =========================================================
-# TARJETAS DE FÓRMULAS (KaTeX PERFECTO)
+# TARJETAS DE FÓRMULAS (KaTeX PERFECTO — ESTILO APPLE)
 # =========================================================
 
 st.markdown("### 📘 Ecuaciones aplicadas")
@@ -370,7 +493,7 @@ st.latex(rf"S_{{cdt}} = {s_cdt:.2f}\ \text{{mm}}^2")
 st.markdown('</div>', unsafe_allow_html=True)
 
 # -----------------------------
-# Fórmula de potencia (siempre útil)
+# Fórmula de potencia (según sistema)
 # -----------------------------
 st.markdown('<div class="formula-card">', unsafe_allow_html=True)
 
@@ -409,27 +532,40 @@ fila = tabla.index[tabla["Sección (mm²)"] == f"{s_final:.2f}"][0] \
 # Determinar columna según aislamiento
 col = "PVC (A)" if "PVC" in aislamiento else "XLPE (A)"
 
-# Estilo dinámico
+# Estilo dinámico estilo Apple
 def estilo(row):
     estilos = []
     for c in tabla.columns:
+        # Intersección → resaltado Apple
         if row.name == fila and c == col:
-            estilos.append("background-color:#22d3ee;color:#020617;font-weight:900;")
+            estilos.append(
+                "background-color: rgba(14,165,233,0.35); "
+                "color: #f9fafb; font-weight: 900; "
+                "border: 1px solid rgba(14,165,233,0.55);"
+            )
+        # Fila seleccionada
         elif row.name == fila:
-            estilos.append("text-decoration:underline;font-weight:700;")
+            estilos.append(
+                "text-decoration: underline; font-weight: 700; "
+                "color: #e2e8f0;"
+            )
+        # Columna seleccionada
         elif c == col:
-            estilos.append("text-decoration:underline;font-weight:700;")
+            estilos.append(
+                "text-decoration: underline; font-weight: 700; "
+                "color: #e2e8f0;"
+            )
         else:
             estilos.append("")
     return estilos
 
-# Mostrar tabla
+# Mostrar tabla con estilo Apple
 st.dataframe(
     tabla.style.apply(estilo, axis=1),
     use_container_width=True
 )
 # =========================================================
-# EXPORTACIÓN Y MEMORIA FINAL
+# EXPORTACIÓN Y MEMORIA FINAL — ESTILO APPLE
 # =========================================================
 
 st.markdown("### 📘 Memoria del cálculo")
@@ -465,12 +601,13 @@ df = pd.DataFrame({
     ]
 })
 
+# Mostrar tabla memoria estilo Apple
 st.dataframe(df, use_container_width=True)
 
 # Generar Excel
 excel = exportar_excel(df, "Calculo_Secciones")
 
-# Botón de descarga
+# Botón de descarga estilo Apple
 st.download_button(
     "📥 Descargar memoria en Excel",
     excel,
