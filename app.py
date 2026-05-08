@@ -624,3 +624,132 @@ st.download_button(
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     use_container_width=True
 )
+# =========================================================
+# MÓDULO 2 — PRESUPUESTO DE INSTALACIÓN ELÉCTRICA VIVIENDA
+# =========================================================
+
+st.markdown("<hr>", unsafe_allow_html=True)
+st.markdown("<h1 style='margin-top:1rem;'>📐 Presupuesto de Instalación Eléctrica (Vivienda)</h1>", unsafe_allow_html=True)
+
+# -----------------------------
+# Catálogo base editable
+# -----------------------------
+catalogo_base = {
+    "Toma corriente simple": 12.50,
+    "Toma corriente doble": 18.00,
+    "Punto de luz": 14.00,
+    "Interruptor simple": 9.50,
+    "Interruptor conmutado": 12.00,
+    "Cuadro eléctrico empotrado": 85.00,
+    "ICP + IGA + ID + PIAs": 145.00,
+    "Canalización (€/m)": 4.20,
+    "Cableado (€/m)": 2.80,
+    "Mano de obra (€/h)": 22.00
+}
+
+st.markdown("### Catálogo de precios (editable)")
+catalogo = {}
+
+for item, precio in catalogo_base.items():
+    catalogo[item] = st.number_input(f"{item}", value=float(precio), step=0.10)
+
+# -----------------------------
+# Datos de la vivienda
+# -----------------------------
+st.markdown("### Datos de la vivienda")
+
+colA, colB, colC = st.columns(3)
+
+with colA:
+    n_habitaciones = st.number_input("Habitaciones", value=3, min_value=1, step=1)
+    n_banos = st.number_input("Baños", value=2, min_value=1, step=1)
+
+with colB:
+    n_puntos_luz = st.number_input("Puntos de luz totales", value=12, min_value=1, step=1)
+    n_tomas = st.number_input("Tomas de corriente totales", value=20, min_value=1, step=1)
+
+with colC:
+    metros_canalizacion = st.number_input("Metros de canalización", value=45.0, min_value=0.0, step=1.0)
+    metros_cableado = st.number_input("Metros de cableado", value=120.0, min_value=0.0, step=1.0)
+    horas_mano_obra = st.number_input("Horas de mano de obra", value=18.0, min_value=0.0, step=1.0)
+
+# -----------------------------
+# Cálculo del presupuesto
+# -----------------------------
+st.markdown("### Cálculo del presupuesto")
+
+presupuesto = {
+    "Tomas de corriente": n_tomas * catalogo["Toma corriente simple"],
+    "Puntos de luz": n_puntos_luz * catalogo["Punto de luz"],
+    "Cuadro eléctrico": catalogo["Cuadro eléctrico empotrado"] + catalogo["ICP + IGA + ID + PIAs"],
+    "Canalización": metros_canalizacion * catalogo["Canalización (€/m)"],
+    "Cableado": metros_cableado * catalogo["Cableado (€/m)"],
+    "Mano de obra": horas_mano_obra * catalogo["Mano de obra (€/h)"]
+}
+
+total_presupuesto = sum(presupuesto.values())
+
+# -----------------------------
+# Tarjetas premium de justificación
+# -----------------------------
+st.markdown("### Justificación compacta (tarjetas premium)")
+
+def tarjeta_formula(formula):
+    st.markdown(f'<div class="formula-card">{formula}</div>', unsafe_allow_html=True)
+
+tarjeta_formula(
+    rf"\text{{Tomas}} = {n_tomas}\cdot{catalogo['Toma corriente simple']:.2f} = {presupuesto['Tomas de corriente']:.2f}\ \mathrm{{€}}"
+)
+
+tarjeta_formula(
+    rf"\text{{Puntos de luz}} = {n_puntos_luz}\cdot{catalogo['Punto de luz']:.2f} = {presupuesto['Puntos de luz']:.2f}\ \mathrm{{€}}"
+)
+
+tarjeta_formula(
+    rf"\text{{Cuadro eléctrico}} = {catalogo['Cuadro eléctrico empotrado']:.2f} + {catalogo['ICP + IGA + ID + PIAs']:.2f} = {presupuesto['Cuadro eléctrico']:.2f}\ \mathrm{{€}}"
+)
+
+tarjeta_formula(
+    rf"\text{{Canalización}} = {metros_canalizacion}\cdot{catalogo['Canalización (€/m)']:.2f} = {presupuesto['Canalización']:.2f}\ \mathrm{{€}}"
+)
+
+tarjeta_formula(
+    rf"\text{{Cableado}} = {metros_cableado}\cdot{catalogo['Cableado (€/m)']:.2f} = {presupuesto['Cableado']:.2f}\ \mathrm{{€}}"
+)
+
+tarjeta_formula(
+    rf"\text{{Mano de obra}} = {horas_mano_obra}\cdot{catalogo['Mano de obra (€/h)']:.2f} = {presupuesto['Mano de obra']:.2f}\ \mathrm{{€}}"
+)
+
+# -----------------------------
+# Tabla resumen
+# -----------------------------
+st.markdown("### Resumen del presupuesto")
+
+df_presupuesto = pd.DataFrame({
+    "Concepto": list(presupuesto.keys()),
+    "Importe (€)": [f"{v:.2f}" for v in presupuesto.values()]
+})
+
+st.dataframe(df_presupuesto, use_container_width=True)
+
+# -----------------------------
+# Total final
+# -----------------------------
+st.markdown(
+    f"<h2 style='margin-top:1rem; font-weight:700;'>💰 Presupuesto total: {total_presupuesto:.2f} €</h2>",
+    unsafe_allow_html=True
+)
+
+# -----------------------------
+# Exportación
+# -----------------------------
+excel_presupuesto = exportar_excel(df_presupuesto, "Presupuesto_Vivienda")
+
+st.download_button(
+    "📥 Descargar presupuesto (Excel)",
+    excel_presupuesto,
+    "presupuesto_vivienda.xlsx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    use_container_width=True
+)
