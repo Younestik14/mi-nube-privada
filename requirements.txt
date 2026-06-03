@@ -1,6 +1,1 @@
 streamlit
-pandas
-supabase
-xlsxwriter
-reportlab
-python-docx
