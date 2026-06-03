@@ -1,226 +1,168 @@
 import streamlit as st
+import networkx as nx
+from graphviz import Digraph
 import time
 
 # ==========================================
-# CONFIGURACIÓN DE LA PÁGINA Y ESTILOS
+# CONFIGURACIÓN PRO E INTERFAZ
 # ==========================================
-st.set_page_config(
-    page_title="Simulador SEA - CIFP Politécnico de Cartagena",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="SEA Designer & Simulator", layout="wide")
 
-# Inyección de CSS para diseño industrial y animación del motor
 st.markdown("""
-<style>
-    .reportview-container { background: #f0f2f6; }
-    .stButton>button { border-radius: 4px; font-weight: bold; height: 3em; }
-    .motor-container { text-align: center; padding: 20px; border: 2px solid #333; border-radius: 8px; background-color: #fafafa; }
-    .motor-axis {
-        font-size: 50px;
-        display: inline-block;
-    }
-    @keyframes spin-cw { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    @keyframes spin-ccw { 0% { transform: rotate(360deg); } 100% { transform: rotate(0deg); } }
-    .spin-clockwise { animation: spin-cw 1s linear infinite; }
-    .spin-counterclockwise { animation: spin-ccw 1s linear infinite; }
-    .motor-stop { color: #d32f2f; }
-    .motor-run-cw { color: #2e7d32; }
-    .motor-run-ccw { color: #0288d1; }
-</style>
+    <style>
+    .main { background-color: #0e1117; color: white; }
+    .stMetric { background-color: #1e2129; padding: 15px; border-radius: 10px; border: 1px solid #3e4451; }
+    </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# ENCABEZADO INSTITUCIONAL
+# MOTOR DE LÓGICA (CLASES TÉCNICAS)
 # ==========================================
-st.title("⚡ Plataforma Web de Simulación de Automatismos Cableados")
-st.caption("Desarrollado para el Grado Superior en Sistemas Electrotécnicos y Automatizados (SEA) | CIFP Politécnico de Cartagena")
+class Componente:
+    def __init__(self, id, nombre, tipo, padre_id=None, estado_inicial=False):
+        self.id = id
+        self.nombre = nombre
+        self.tipo = tipo  # 'Proteccion', 'Mando', 'Bobina', 'Carga'
+        self.padre_id = padre_id # ID del componente aguas arriba
+        self.estado = estado_inicial
+        self.con_tension = False
+
+def resolver_tension(componentes):
+    """
+    Algoritmo de propagación de tensión: 
+    La tensión fluye si el padre tiene tensión Y el componente actual está 'cerrado'.
+    """
+    # Ordenar por jerarquía (simplificado: asumiendo que los IDs bajos son aguas arriba)
+    ids_ordenados = sorted(componentes.keys())
+    
+    for c_id in ids_ordenados:
+        comp = componentes[c_id]
+        if comp.padre_id is None:
+            # Es un elemento de entrada (p. ej. el Diferencial principal)
+            comp.con_tension = comp.estado
+        else:
+            padre = componentes.get(comp.padre_id)
+            if padre and padre.con_tension and comp.estado:
+                comp.con_tension = True
+            else:
+                comp.con_tension = False
+
+# ==========================================
+# GESTIÓN DE ESTADO (MEMORIA DE DISEÑO)
+# ==========================================
+if 'maquina' not in st.session_state:
+    # Maquina inicial por defecto
+    st.session_state.maquina = {
+        0: Componente(0, "IGM (Magnetotérmico)", "Proteccion", None, True),
+        1: Componente(1, "S0 (Paro Emergencia)", "Mando", 0, True),
+    }
+    st.session_state.next_id = 2
+
+# ==========================================
+# SIDEBAR: EDITOR DE DISEÑO
+# ==========================================
+with st.sidebar:
+    st.header("🛠️ Diseñador de Máquina")
+    st.subheader("Añadir nuevo elemento")
+    
+    nuevo_nombre = st.text_input("Nombre del elemento (ej. KM1, S1, H1)")
+    nuevo_tipo = st.selectbox("Tipo de contacto", ["NC (Normalmente Cerrado)", "NA (Normalmente Abierto)", "Bobina/Carga"])
+    
+    # Elegir a qué componente se conecta (Jerarquía eléctrica)
+    opciones_padre = {id: comp.nombre for id, comp in st.session_state.maquina.items()}
+    padre_seleccionado = st.selectbox("Conectar a (Aguas arriba):", options=list(opciones_padre.keys()), 
+                                      format_func=lambda x: opciones_padre[x])
+    
+    if st.button("➕ Insertar en el esquema"):
+        # Lógica de estado inicial: NC empieza en True, NA en False
+        estado_init = True if "NC" in nuevo_tipo else False
+        tipo_final = "Mando" if "N" in nuevo_tipo else "Carga"
+        
+        nuevo_comp = Componente(st.session_state.next_id, nuevo_nombre, tipo_final, padre_seleccionado, estado_init)
+        st.session_state.maquina[st.session_state.next_id] = nuevo_comp
+        st.session_state.next_id += 1
+        st.success(f"Elemento {nuevo_nombre} añadido.")
+
+    st.divider()
+    if st.button("🗑️ Resetear diseño"):
+        st.session_state.maquina = {0: Componente(0, "IGM", "Proteccion", None, True)}
+        st.session_state.next_id = 1
+        st.rerun()
+
+# ==========================================
+# CUERPO PRINCIPAL: SIMULACIÓN Y GRÁFICO
+# ==========================================
+st.title("🏭 Machine Design & Logic Simulator")
+
+col_control, col_graph = st.columns([1, 1])
+
+with col_control:
+    st.subheader("🎮 Panel de Operador")
+    st.write("Interactúa con los mandos de tu diseño:")
+    
+    # Resolver la lógica antes de mostrar
+    resolver_tension(st.session_state.maquina)
+    
+    # Crear interruptores para los elementos que son mandos o protecciones
+    for c_id, comp in st.session_state.maquina.items():
+        if comp.tipo != "Carga":
+            # Usamos un checkbox para simular la pulsación o el estado del contacto
+            # Si es NC, el valor por defecto es True
+            comp.estado = st.toggle(f"Activar {comp.nombre}", value=comp.estado, key=f"control_{c_id}")
+
+with col_graph:
+    st.subheader("📑 Esquema Unifilar Dinámico")
+    
+    # Generar gráfico con Graphviz
+    dot = Digraph(comment='Esquema Eléctrico')
+    dot.attr(rankdir='TB', size='8,5')
+    dot.attr('node', shape='rectangle', style='filled', fontname='Arial')
+
+    for c_id, comp in st.session_state.maquina.items():
+        color = "#2ecc71" if comp.con_tension else "#e74c3c"
+        font_color = "black" if comp.con_tension else "white"
+        
+        label = f"{comp.nombre}\n[{'ON' if comp.con_tension else 'OFF'}]"
+        dot.node(str(c_id), label, fillcolor=color, color="black", fontcolor=font_color)
+        
+        if comp.padre_id is not None:
+            dot.edge(str(comp.padre_id), str(c_id))
+
+    st.graphviz_chart(dot)
+
 st.divider()
 
 # ==========================================
-# CONTROL DE ESTADOS DE MEMORIA (SESSION STATE)
+# MONITORES DE SALIDA (PILOTOS Y MOTORES)
 # ==========================================
-# Inicialización de contactores, temporizadores y relés térmicos
-estados_iniciales = {
-    # Circuito 1
-    'K1_C1': False,
-    # Circuito 2
-    'KM1_CW': False, 'KM2_CCW': False, 'F2_TRIP': False,
-    # Circuito 3
-    'KM1_LINEA': False, 'KM2_ESTRELLA': False, 'KM3_TRIANGULO': False, 'KT1_TIMER': False, 'C3_RUNNING': False
-}
+st.subheader("🚀 Salidas de Máquina (Actuadores)")
+cols_salida = st.columns(max(len([c for c in st.session_state.maquina.values() if c.tipo == "Carga"]), 1))
 
-for clave, valor in estados_iniciales.items():
-    if clave not in st.session_state:
-        st.session_state[clave] = valor
-
-# ==========================================
-# MENÚ DE SELECCIÓN DE CIRCUITOS (TABS)
-# ==========================================
-tab1, tab2, tab3 = st.tabs([
-    "🎯 1. Marcha/Paro (Autoenclavamiento)", 
-    "🔄 2. Inversión de Giro (Seguridad Eléctrica)", 
-    "📐 3. Arranque Estrella-Triángulo (Temporizado)"
-])
-
-# ==========================================
-# TAB 1: MARCHA / PARO CON AUTOENCLAVAMIENTO
-# ==========================================
-with tab1:
-    st.header("Circuito de Marcha y Paro de un Contactor")
-    st.info("🎯 **Objetivo didáctico:** Comprender el concepto de realimentación o autoenclavamiento utilizando el contacto auxiliar NA (13-14) en paralelo con el pulsador de marcha.")
-    
-    col1, col2 = st.columns([1, 2])
-    
-    with col1:
-        st.subheader("🕹️ Interfaz del Cuadro")
-        q1 = st.toggle("🔌 Disyuntor Magnetotérmico (Q1)", value=True, key="q1_c1")
-        s1_nc = st.button("🔴 Pulsador de Paro (S1 - NC)", use_container_width=True, key="s1_c1")
-        s2_na = st.button("🟢 Pulsador de Marcha (S2 - NA)", use_container_width=True, key="s2_c1")
-        
-        # Procesamiento lógico inmediato
-        if s1_nc or not q1:
-            st.session_state.K1_C1 = False
-        elif s2_na and q1:
-            st.session_state.K1_C1 = True
-
-    with col2:
-        st.subheader("📊 Estado de las Salidas y Carga")
-        c_k1, c_m1 = st.columns(2)
-        
-        with c_k1:
-            if st.session_state.K1_C1:
-                st.success("### 🧲 Contactor K1\n**ESTADO:** ACTIVADO (A1-A2 con tensión)")
-                st.caption("Contacto auxiliar 13-14 cerrado.")
+idx_c = 0
+for comp in st.session_state.maquina.values():
+    if comp.tipo == "Carga":
+        with cols_salida[idx_c]:
+            if comp.con_tension:
+                st.metric(comp.nombre, "EN SERVICIO", delta="⚡ Tensión OK")
+                if "Motor" in comp.nombre or "KM" in comp.nombre:
+                    st.write("🔄 Girando...")
+                else:
+                    st.write("💡 Iluminando...")
             else:
-                st.error("### 🧲 Contactor K1\n**ESTADO:** DESACTIVADO")
-                
-        with c_m1:
-            if st.session_state.K1_C1:
-                st.markdown('<div class="motor-container"><div class="motor-axis spin-clockwise">⚙️</div><h3 class="motor-run-cw">MOTOR EN MARCHA</h3></div>', unsafe_allow_html=True)
-            else:
-                st.markdown('<div class="motor-container"><div class="motor-axis motor-stop">⚙️</div><h3 class="motor-stop">MOTOR PARADO</h3></div>', unsafe_allow_html=True)
-
-        st.markdown("#### 📐 Ecuación Booleana del Automatismo:")
-        st.code("K1 = Q1 * /S1 * (S2 + K1)", language="python")
+                st.metric(comp.nombre, "PARADO", delta="0V", delta_color="inverse")
+            idx_c += 1
 
 # ==========================================
-# TAB 2: INVERSIÓN DE GIRO CON ENCLAVAMIENTO
+# EXPLICACIÓN TÉCNICA PARA EL PROFESOR
 # ==========================================
-with tab2:
-    st.header("Inversión de Giro de un Motor Trifásico")
-    st.info("⚠️ **Objetivo didáctico:** Estudiar el **enclavamiento eléctrico por software/hardware**. Los contactos NC cruzados de KM1 y KM2 impiden que ambos se activen a la vez, lo que provocaría un cortocircuito entre fases.")
-    
-    col1, col2 = st.columns([1, 2])
-    
-    with col1:
-        st.subheader("🕹️ Interfaz del Cuadro")
-        q2 = st.toggle("🔌 Disyuntor General (Q2)", value=True)
+with st.expander("📝 Análisis técnico del sistema"):
+    st.write("""
+        **Lógica de Simulación:**
+        Este sistema utiliza un algoritmo de **Recorrido de Árbol**. Cada componente hereda el estado eléctrico de su 'padre' aguas arriba. 
+        Si un componente aguas arriba (ej. un Pulsador de Paro) se abre, la propiedad `con_tension` se vuelve `False` para toda la rama descendente de forma recursiva.
         
-        # Simulación de salto de Relé Térmico (Ferna/Avería)
-        f2_thermal = st.checkbox("🚨 Disparar Relé Térmico F2 (Avería por sobreintensidad)", value=st.session_state.F2_TRIP)
-        st.session_state.F2_TRIP = f2_thermal
-        
-        st.divider()
-        s0_paro = st.button("🔴 Pulsador de Paro General (S0 - NC)", use_container_width=True)
-        s1_cw = st.button("🔄 Marcha Derecha (S1 - NA)", use_container_width=True)
-        s2_ccw = st.button("🔄 Marcha Izquierda (S2 - NA)", use_container_width=True)
-        
-        # --- LÓGICA DE CONTROL (ÁLGEBRA DE CONTACTOS) ---
-        if s0_paro or not q2 or st.session_state.F2_TRIP:
-            st.session_state.KM1_CW = False
-            st.session_state.KM2_CCW = False
-        else:
-            if s1_cw and not st.session_state.KM2_CCW: # Enclavamiento: No entra KM1 si KM2 está activo
-                st.session_state.KM1_CW = True
-                st.session_state.KM2_CCW = False
-            elif s2_ccw and not st.session_state.KM1_CW: # Enclavamiento: No entra KM2 si KM1 está activo
-                st.session_state.KM2_CCW = True
-                st.session_state.KM1_CW = False
-
-    with col2:
-        st.subheader("📊 Diagnóstico de la Planta")
-        
-        if st.session_state.F2_TRIP:
-            st.error("🚨 ALARMA: El Relé Térmico F2 ha saltado. Contacto 95-96 abierto. Rearme el relé para operar.")
-        
-        c_km1, c_km2, c_motor2 = st.columns(3)
-        
-        with c_km1:
-            st.metric("Contactor KM1 (Derecha)", "ON" if st.session_state.KM1_CW else "OFF")
-        with c_km2:
-            st.metric("Contactor KM2 (Izquierda)", "ON" if st.session_state.KM2_CCW else "OFF")
-            
-        with c_motor2:
-            if st.session_state.KM1_CW:
-                st.markdown('<div class="motor-container"><div class="motor-axis spin-clockwise">⚙️</div><h3 class="motor-run-cw">GIRO DERECHA (CW)</h3></div>', unsafe_allow_html=True)
-            elif st.session_state.KM2_CCW:
-                st.markdown('<div class="motor-container"><div class="motor-axis spin-counterclockwise">⚙️</div><h3 class="motor-run-ccw">GIRO IZQUIERDA (CCW)</h3></div>', unsafe_allow_html=True)
-            else:
-                st.markdown('<div class="motor-container"><div class="motor-axis motor-stop">⚙️</div><h3 class="motor-stop">MOTOR DETENIDO</h3></div>', unsafe_allow_html=True)
-
-        st.markdown("#### 📐 Ecuaciones de Enclavamiento Cruzado:")
-        st.code("KM1 = Q2 * /F2 * /S0 * (S1 + KM1) * /KM2  (Bloqueo por KM2)\nKM2 = Q2 * /F2 * /S0 * (S2 + KM2) * /KM1  (Bloqueo por KM1)", language="python")
-
-# ==========================================
-# TAB 3: ARRANQUE ESTRELLA-TRIÁNGULO
-# ==========================================
-with tab3:
-    st.header("Arranque Temporizado Estrella - Triángulo")
-    st.info("📉 **Objetivo didáctico:** Reducir la corriente de arranque ($I_a$) del motor trifásico. Arranca en Estrella ($\lambda$) para reducir la tensión por fase a $230\text{ V}$, y pasados unos segundos conmuta a Triángulo ($\Delta$) para trabajar a la tensión nominal de $400\text{ V}$.")
-    
-    col1, col2 = st.columns([1, 2])
-    
-    with col1:
-        st.subheader("🕹️ Mandos del Sistema")
-        q3 = st.toggle("🔌 Disyuntor Potencia (Q3)", value=True)
-        s3_stop = st.button("🔴 Parar Proceso (S3)", use_container_width=True)
-        s4_start = st.button("🚀 Iniciar Secuencia Estrella-Triángulo (S4)", use_container_width=True)
-        
-        t_config = st.slider("⏱️ Ajuste del Temporizador KT1 (Segundos)", min_value=2, max_value=8, value=4)
-        
-        if s3_stop or not q3:
-            st.session_state.KM1_LINEA = False
-            st.session_state.KM2_ESTRELLA = False
-            st.session_state.KM3_TRIANGULO = False
-            st.session_state.C3_RUNNING = False
-
-    with col2:
-        st.subheader("📈 Ejecución de la Maniobra en Tiempo Real")
-        
-        # Hilo de ejecución de la temporización mediante simulación controlada
-        if s4_start and q3 and not st.session_state.C3_RUNNING:
-            st.session_state.C3_RUNNING = True
-            # Fase 1: Línea + Estrella
-            st.session_state.KM1_LINEA = True
-            st.session_state.KM2_ESTRELLA = True
-            st.session_state.KM3_TRIANGULO = False
-            
-            # Crear barra de progreso visual para el profesorado
-            progreso_bar = st.progress(0, text="Fase de Estrella (⚡ Reducción de Intensidad)")
-            for i in range(100):
-                time.sleep(t_config / 100)
-                progreso_bar.progress(i + 1)
-            
-            # Fase 2: Conmutación a Triángulo (Paso por cero/corte)
-            st.session_state.KM2_ESTRELLA = False
-            st.session_state.KM3_TRIANGULO = True
-            progreso_bar.empty()
-            st.success("✅ Conmutación completada con éxito: Motor trabajando a pleno régimen en Triángulo.")
-
-        # Visualización de los tres contactores concurrentes
-        col_c1, col_c2, col_c3 = st.columns(3)
-        with col_c1:
-            st.metric("LÍNEA (KM1)", "CONECTADO" if st.session_state.KM1_LINEA else "DESCONECTADO")
-        with col_c2:
-            st.metric("ESTRELLA (KM2)", "CONECTADO" if st.session_state.KM2_ESTRELLA else "DESCONECTADO")
-        with col_c3:
-            st.metric("TRIÁNGULO (KM3)", "CONECTADO" if st.session_state.KM3_TRIANGULO else "DESCONECTADO")
-
-        # Estado del motor final
-        if st.session_state.KM1_LINEA and st.session_state.KM2_ESTRELLA:
-            st.warning("⚙️ **Modo Actual:** Funcionando en CONEXIÓN ESTRELLA ($I$ reducida a $\\frac{1}{3}$)")
-        elif st.session_state.KM1_LINEA and st.session_state.KM3_TRIANGULO:
-            st.success("⚙️ **Modo Actual:** Funcionando en CONEXIÓN TRIÁNGULO (Par y Potencia Máxima nominal)")
-        else:
-            st.info("💤 Sistema en espera de rearme o arranque.")
+        **Capacidades:**
+        - Diseño jerárquico dinámico.
+        - Renderizado en tiempo real mediante Graphviz (DOT language).
+        - Cálculo de caída de tensión lógica (booleana).
+    """)
