@@ -13,13 +13,14 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
-# ESTILOS VISUALES
+# ESTILOS VISUALES (con colores de texto forzados para garantizar contraste
+# tanto en tema claro como en tema oscuro de Streamlit)
 # ---------------------------------------------------------------------------
 st.markdown(
     """
     <style>
     .main .block-container {padding-top: 1.5rem;}
-    h1, h2, h3 {color: #0B3D91;}
+    h1, h2, h3 {color: #0B3D91 !important;}
     .stTabs [data-baseweb="tab-list"] {gap: 6px;}
     .stTabs [data-baseweb="tab"] {
         background-color: #EEF3FB;
@@ -27,16 +28,18 @@ st.markdown(
         padding: 8px 14px;
         font-weight: 600;
     }
+    .stTabs [data-baseweb="tab"] p {color: #0B3D91 !important;}
     .stTabs [aria-selected="true"] {
         background-color: #0B3D91 !important;
-        color: white !important;
     }
+    .stTabs [aria-selected="true"] p {color: #FFFFFF !important;}
     div[data-testid="stMetric"] {
         background-color: #F5F8FF;
         border: 1px solid #DCE6F5;
         border-radius: 10px;
         padding: 10px;
     }
+    div[data-testid="stMetric"] * {color: #0B3D91 !important;}
     .aviso-normativa {
         background-color: #FFF6E5;
         border-left: 5px solid #E8A33D;
@@ -44,7 +47,9 @@ st.markdown(
         border-radius: 4px;
         font-size: 0.9rem;
         margin-bottom: 10px;
+        color: #6B4B00 !important;
     }
+    .aviso-normativa * {color: #6B4B00 !important;}
     .caja-log {
         background-color: #F7F7F9;
         border: 1px solid #E0E0E5;
@@ -52,7 +57,18 @@ st.markdown(
         padding: 6px 10px;
         font-size: 0.82rem;
         margin-bottom: 4px;
+        color: #2B2B2B !important;
     }
+    .caja-log * {color: #2B2B2B !important;}
+    .caja-ayuda {
+        background-color: #EAF4EC;
+        border-left: 5px solid #2E7D32;
+        padding: 10px 14px;
+        border-radius: 4px;
+        margin-bottom: 10px;
+        color: #14421A !important;
+    }
+    .caja-ayuda * {color: #14421A !important;}
     </style>
     """,
     unsafe_allow_html=True,
@@ -729,10 +745,10 @@ def generar_esquema_unifilar_dxf(estado, df_bt_calc):
             nombre_circ = str(fila.get("Circuito", f"C{i+1}"))
             seccion = fila.get("Seccion (mm2)", "-")
             proteccion = fila.get("Proteccion (A)", "-")
-            etiqueta = f"{nombre_circ}\\nCu {seccion} mm2 / {proteccion} A"
-            for j, linea_txt in enumerate(etiqueta.split("\\n")):
+            lineas_etiqueta = [str(nombre_circ), f"Cu {seccion} mm2 / {proteccion} A"]
+            for j, linea_txt in enumerate(lineas_etiqueta):
                 msp.add_text(linea_txt, dxfattribs={"layer": "TEXTOS", "height": 1.8}).set_placement(
-                    (cx - 8, barra_y - 30 - j * 3), align="LEFT"
+                    (cx - 8, barra_y - 30 - j * 3)
                 )
     else:
         msp.add_text("Sin circuitos interiores definidos todavia (ver pestaña Baja Tension)",
@@ -771,38 +787,75 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+
+def campo_texto_persistente(etiqueta, clave_estado, valor_por_defecto="", help_text=None, area=False):
+    """Crea un text_input/text_area cuyo contenido NUNCA se pierde al escribir,
+    ya que se inicializa una unica vez en session_state y el widget se maneja
+    exclusivamente a traves de su 'key' (sin volver a pasar 'value' en cada
+    ejecucion, que es lo que provocaba que el campo se vaciara)."""
+    if clave_estado not in st.session_state:
+        st.session_state[clave_estado] = valor_por_defecto
+    if area:
+        st.text_area(etiqueta, key=clave_estado, help=help_text)
+    else:
+        st.text_input(etiqueta, key=clave_estado, help=help_text)
+    return st.session_state[clave_estado]
+
+
 with st.sidebar:
     st.header("Datos del proyecto")
     dp = st.session_state["datos_proyecto"]
-    dp["titular"] = st.text_input("Titular", value=dp.get("titular", ""))
-    dp["emplazamiento"] = st.text_input("Emplazamiento", value=dp.get("emplazamiento", ""))
-    dp["referencia"] = st.text_input("Referencia catastral / CUPS", value=dp.get("referencia", ""))
-    dp["fecha"] = st.text_input("Fecha", value=dp.get("fecha", str(date.today())))
+    dp["titular"] = campo_texto_persistente(
+        "Titular", "campo_titular", dp.get("titular", ""),
+        help_text="Nombre y apellidos (o razon social) de la persona o empresa propietaria de la instalacion.",
+    )
+    dp["emplazamiento"] = campo_texto_persistente(
+        "Emplazamiento", "campo_emplazamiento", dp.get("emplazamiento", ""),
+        help_text="Direccion completa donde se ubica la instalacion electrica (calle, numero, localidad, provincia).",
+    )
+    dp["referencia"] = campo_texto_persistente(
+        "Referencia catastral / CUPS", "campo_referencia", dp.get("referencia", ""),
+        help_text="Referencia catastral del inmueble o codigo CUPS del punto de suministro, si ya se dispone de el.",
+    )
+    dp["fecha"] = campo_texto_persistente(
+        "Fecha", "campo_fecha", dp.get("fecha", str(date.today())),
+        help_text="Fecha que aparecera en la memoria y en los documentos exportados.",
+    )
 
     st.subheader("Tipo de suministro")
     opciones_suministro = list(TIPOS_SUMINISTRO.keys())
-    tipo_actual = st.session_state.get("tipo_suministro", opciones_suministro[0])
-    nuevo_tipo = st.selectbox(
+    if "campo_tipo_suministro" not in st.session_state:
+        st.session_state["campo_tipo_suministro"] = st.session_state.get("tipo_suministro", opciones_suministro[0])
+    tipo_actual = st.session_state["campo_tipo_suministro"]
+    st.selectbox(
         "¿Como se alimenta la instalacion?",
         opciones_suministro,
-        index=opciones_suministro.index(tipo_actual) if tipo_actual in opciones_suministro else 0,
-        help="Determina los elementos que se dibujan en el esquema unifilar (CGP, centralizacion de contadores, transformador de abonado, generacion propia, etc.)",
+        key="campo_tipo_suministro",
+        help="Indica el esquema de acometida y medida de tu instalacion: CGP para un unico usuario, "
+             "centralizacion de contadores en edificios con varios usuarios, transformador propio en "
+             "Media Tension, o generacion propia/autoconsumo. Esto cambia los elementos del esquema unifilar.",
     )
-    if nuevo_tipo != tipo_actual:
-        registrar_cambio("Cambio de tipo de suministro", f"{tipo_actual} -> {nuevo_tipo}")
+    nuevo_tipo = st.session_state["campo_tipo_suministro"]
+    if nuevo_tipo != st.session_state.get("tipo_suministro"):
+        registrar_cambio("Cambio de tipo de suministro", f"{st.session_state.get('tipo_suministro')} -> {nuevo_tipo}")
     st.session_state["tipo_suministro"] = nuevo_tipo
     st.caption(TIPOS_SUMINISTRO[nuevo_tipo]["descripcion"])
 
     st.subheader("Modulos activos")
     modulos = st.session_state["modulos"]
-    modulos["bt"] = st.checkbox("Baja Tension", value=modulos.get("bt", True))
-    modulos["fv"] = st.checkbox("Fotovoltaica", value=modulos.get("fv", False))
-    modulos["industrial"] = st.checkbox("Industrial / Motores", value=modulos.get("industrial", False))
+    modulos["bt"] = st.checkbox("Baja Tension", value=modulos.get("bt", True),
+                                 help="Activa el dimensionado de circuitos interiores de Baja Tension (enchufes, alumbrado, electrodomesticos, etc.).")
+    modulos["fv"] = st.checkbox("Fotovoltaica", value=modulos.get("fv", False),
+                                 help="Activa el dimensionado de una instalacion solar fotovoltaica (tramos de corriente continua y alterna).")
+    modulos["industrial"] = st.checkbox("Industrial / Motores", value=modulos.get("industrial", False),
+                                         help="Activa el dimensionado de motores y circuitos de uso industrial.")
 
     st.subheader("Proyecto (guardar / cargar)")
     proyecto_json = json.dumps(estado_a_dict(), indent=2, ensure_ascii=False)
-    st.download_button("Descargar proyecto (.json)", data=proyecto_json, file_name="proyecto_electrico.json", mime="application/json")
-    archivo_proyecto = st.file_uploader("Cargar proyecto (.json)", type=["json"], key="cargador_proyecto")
+    st.download_button("Descargar proyecto (.json)", data=proyecto_json, file_name="proyecto_electrico.json", mime="application/json",
+                        help="Guarda todos los datos introducidos en un archivo para poder continuar mas tarde o compartirlo.")
+    archivo_proyecto = st.file_uploader("Cargar proyecto (.json)", type=["json"], key="cargador_proyecto",
+                                         help="Sube un archivo .json descargado previamente con este mismo boton para recuperar un proyecto guardado.")
     if archivo_proyecto is not None:
         try:
             data = json.load(archivo_proyecto)
@@ -816,26 +869,37 @@ with st.sidebar:
     if historial:
         for h in historial:
             st.markdown(
-                f'<div class="caja-log"><b>{h["hora"]}</b> - {h["accion"]}<br><span style="color:#666">{h["detalle"]}</span></div>',
+                f'<div class="caja-log"><b>{h["hora"]}</b> - {h["accion"]}<br><span>{h["detalle"]}</span></div>',
                 unsafe_allow_html=True,
             )
     else:
         st.caption("Todavia no se han registrado cambios en esta sesion.")
 
 
-tab_bt, tab_fv, tab_ind, tab_med, tab_pres, tab_esq, tab_mem, tab_io = st.tabs([
+tab_bt, tab_fv, tab_ind, tab_med, tab_pres, tab_esq, tab_mem, tab_io, tab_ayuda, tab_ia = st.tabs([
     "\u26A1 Baja Tension", "\u2600\uFE0F Fotovoltaica", "\U0001F3ED Industrial",
     "\U0001F9FE Mediciones", "\U0001F4B0 Presupuesto", "\U0001F4D0 Esquema unifilar",
-    "\U0001F4C4 Memoria", "\U0001F4C2 Importar/Exportar",
+    "\U0001F4C4 Memoria", "\U0001F4C2 Importar/Exportar", "\u2753 Ayuda", "\U0001F916 Asistente IA",
 ])
 
 df_bt_calc = df_vacio(COLUMNAS_BT)
 df_fv_calc = None
 df_motores_calc = df_vacio(COLUMNAS_MOTORES)
 
+
+def numero_persistente(etiqueta, clave_estado, valor_por_defecto, help_text=None, **kwargs):
+    """Igual que campo_texto_persistente pero para numeros; evita que el
+    valor se reinicie de forma inesperada al interactuar con otros widgets."""
+    if clave_estado not in st.session_state:
+        st.session_state[clave_estado] = valor_por_defecto
+    st.number_input(etiqueta, key=clave_estado, help=help_text, **kwargs)
+    return st.session_state[clave_estado]
+
+
 # ---------------- BAJA TENSION ----------------
 with tab_bt:
     st.subheader("Circuitos de Baja Tension")
+    st.caption("Añade una fila por cada circuito interior (alumbrado, enchufes, electrodomesticos, etc.) y rellena sus datos.")
     if modulos.get("bt"):
         df_editado = st.data_editor(
             st.session_state["df_bt"],
@@ -843,10 +907,10 @@ with tab_bt:
             use_container_width=True,
             key="editor_bt",
             column_config={
-                "Fases": st.column_config.SelectboxColumn(options=["Monofasico", "Trifasico"]),
-                "Metodo instalacion": st.column_config.SelectboxColumn(options=list(METODOS_INSTALACION.keys())),
-                "Aislamiento": st.column_config.SelectboxColumn(options=["PVC", "XLPE"]),
-                "Uso": st.column_config.SelectboxColumn(options=list(CDT_MAXIMA.keys())),
+                "Fases": st.column_config.SelectboxColumn(options=["Monofasico", "Trifasico"], help="Numero de fases con las que se alimenta el circuito."),
+                "Metodo instalacion": st.column_config.SelectboxColumn(options=list(METODOS_INSTALACION.keys()), help="Forma en que el cableado esta instalado (ver tabla ITC-BT-19 en la pestaña Ayuda)."),
+                "Aislamiento": st.column_config.SelectboxColumn(options=["PVC", "XLPE"], help="Material aislante del cable."),
+                "Uso": st.column_config.SelectboxColumn(options=list(CDT_MAXIMA.keys()), help="Uso del circuito; determina la caida de tension maxima admisible."),
             },
         )
         detectar_cambios_df("df_bt", df_editado, "circuitos de Baja Tension")
@@ -883,22 +947,31 @@ with tab_bt:
 with tab_fv:
     st.subheader("Instalacion Fotovoltaica")
     if modulos.get("fv"):
-        fv = st.session_state["fv_datos"]
         col1, col2 = st.columns(2)
         with col1:
-            fv["potencia_pico_kwp"] = st.number_input("Potencia pico (kWp)", value=float(fv.get("potencia_pico_kwp", 5.0)), min_value=0.0, step=0.5)
-            fv["tension_mppt_v"] = st.number_input("Tension MPPT (V)", value=float(fv.get("tension_mppt_v", 600.0)), min_value=1.0, step=10.0)
-            fv["num_paneles"] = st.number_input("Numero de paneles", value=int(fv.get("num_paneles", 12)), min_value=1, step=1)
-            fv["longitud_dc_m"] = st.number_input("Longitud tramo CC (m)", value=float(fv.get("longitud_dc_m", 20.0)), min_value=0.0, step=1.0)
+            p_pico = numero_persistente("Potencia pico (kWp)", "fv_potencia_pico_kwp", 5.0, min_value=0.0, step=0.5,
+                                         help_text="Potencia pico total de los paneles solares instalados, en kilovatios pico.")
+            v_mppt = numero_persistente("Tension MPPT (V)", "fv_tension_mppt_v", 600.0, min_value=1.0, step=10.0,
+                                         help_text="Tension de trabajo en el punto de maxima potencia de las cadenas de paneles.")
+            n_paneles = numero_persistente("Numero de paneles", "fv_num_paneles", 12, min_value=1, step=1,
+                                            help_text="Cantidad total de paneles fotovoltaicos de la instalacion.")
+            long_dc = numero_persistente("Longitud tramo CC (m)", "fv_longitud_dc_m", 20.0, min_value=0.0, step=1.0,
+                                          help_text="Longitud del cableado en corriente continua, desde los paneles hasta el inversor.")
         with col2:
-            fv["potencia_inversor_kw"] = st.number_input("Potencia inversor (kW)", value=float(fv.get("potencia_inversor_kw", 5.0)), min_value=0.0, step=0.5)
-            fv["tension_ac_v"] = st.number_input("Tension CA (V)", value=float(fv.get("tension_ac_v", 400.0)), min_value=1.0, step=10.0)
-            fv["longitud_ac_m"] = st.number_input("Longitud tramo CA (m)", value=float(fv.get("longitud_ac_m", 15.0)), min_value=0.0, step=1.0)
+            p_inv = numero_persistente("Potencia inversor (kW)", "fv_potencia_inversor_kw", 5.0, min_value=0.0, step=0.5,
+                                        help_text="Potencia nominal del inversor fotovoltaico.")
+            v_ac = numero_persistente("Tension CA (V)", "fv_tension_ac_v", 400.0, min_value=1.0, step=10.0,
+                                       help_text="Tension de la red electrica en corriente alterna (habitualmente 230V monofasica o 400V trifasica).")
+            long_ac = numero_persistente("Longitud tramo CA (m)", "fv_longitud_ac_m", 15.0, min_value=0.0, step=1.0,
+                                          help_text="Longitud del cableado en corriente alterna, desde el inversor hasta el cuadro de conexion.")
 
-        resultado_fv = calcular_fv(
-            fv["potencia_pico_kwp"], fv["tension_mppt_v"], fv["num_paneles"],
-            fv["longitud_dc_m"], fv["longitud_ac_m"], fv["potencia_inversor_kw"], fv["tension_ac_v"],
-        )
+        st.session_state["fv_datos"] = {
+            "potencia_pico_kwp": p_pico, "tension_mppt_v": v_mppt, "num_paneles": n_paneles,
+            "longitud_dc_m": long_dc, "longitud_ac_m": long_ac, "potencia_inversor_kw": p_inv,
+            "tension_ac_v": v_ac,
+        }
+
+        resultado_fv = calcular_fv(p_pico, v_mppt, n_paneles, long_dc, long_ac, p_inv, v_ac)
         df_fv_calc = pd.DataFrame([resultado_fv])
         st.markdown("#### Resultados de calculo")
         cols = st.columns(4)
@@ -922,7 +995,7 @@ with tab_ind:
             key="editor_motores",
             column_config={
                 "Fases": st.column_config.SelectboxColumn(options=["Monofasico", "Trifasico"]),
-                "Metodo arranque": st.column_config.SelectboxColumn(options=list(FACTORES_ARRANQUE_MOTOR.keys())),
+                "Metodo arranque": st.column_config.SelectboxColumn(options=list(FACTORES_ARRANQUE_MOTOR.keys()), help="Sistema de arranque del motor; influye en la intensidad de calculo."),
                 "Metodo instalacion": st.column_config.SelectboxColumn(options=list(METODOS_INSTALACION.keys())),
             },
         )
@@ -940,6 +1013,7 @@ with tab_ind:
 # ---------------- MEDICIONES ----------------
 with tab_med:
     st.subheader("Mediciones")
+    st.caption("Cantidades de materiales calculadas automaticamente a partir de los circuitos y motores introducidos.")
     df_auto = generar_mediciones_auto(df_bt_calc if modulos.get("bt") else None, df_motores_calc if modulos.get("industrial") else None)
     st.markdown("#### Mediciones generadas automaticamente")
     st.dataframe(df_auto, use_container_width=True)
@@ -961,8 +1035,8 @@ with tab_pres:
 
     if resumen:
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("PEM", f"{resumen['PEM']:,.2f} EUR")
-        c2.metric("Base licitacion", f"{resumen['Base de licitacion']:,.2f} EUR")
+        c1.metric("PEM", f"{resumen['PEM']:,.2f} EUR", help="Presupuesto de Ejecucion Material: suma de todas las mediciones por su precio unitario.")
+        c2.metric("Base licitacion", f"{resumen['Base de licitacion']:,.2f} EUR", help="PEM + Gastos Generales + Beneficio Industrial.")
         c3.metric("IVA", f"{resumen['IVA']:,.2f} EUR")
         c4.metric("TOTAL", f"{resumen['TOTAL']:,.2f} EUR")
 
@@ -977,7 +1051,9 @@ with tab_pres:
 
     with st.expander("Editar precios por defecto"):
         for k in list(PRECIOS_DEFECTO.keys()):
-            PRECIOS_DEFECTO[k] = st.number_input(k, value=float(PRECIOS_DEFECTO[k]), key=f"precio_{k}")
+            clave_precio = f"precio_{k}"
+            valor_actual = numero_persistente(k, clave_precio, float(PRECIOS_DEFECTO[k]))
+            PRECIOS_DEFECTO[k] = valor_actual
 
 # ---------------- ESQUEMA UNIFILAR ----------------
 with tab_esq:
@@ -1001,15 +1077,24 @@ with tab_esq:
 # ---------------- MEMORIA ----------------
 with tab_mem:
     st.subheader("Memoria Tecnica de Diseño (MTD)")
-    dp["objeto"] = st.text_area("1. Objeto de la memoria", value=dp.get("objeto", ""), height=80)
-    dp["normativa"] = st.text_area("3. Reglamentacion y disposiciones aplicadas", value=dp.get("normativa", ""), height=80)
-    dp["descripcion"] = st.text_area("4. Descripcion general de la instalacion (potencia, uso, caracteristicas)", value=dp.get("descripcion", ""), height=100)
+    dp["objeto"] = campo_texto_persistente(
+        "1. Objeto de la memoria", "campo_objeto", dp.get("objeto", ""), area=True,
+        help_text="Explica brevemente para que sirve esta memoria (ej: legalizar una instalacion electrica en vivienda unifamiliar).",
+    )
+    dp["normativa"] = campo_texto_persistente(
+        "3. Reglamentacion y disposiciones aplicadas", "campo_normativa", dp.get("normativa", ""), area=True,
+        help_text="Lista la normativa aplicable (REBT, ITC-BT, normas UNE, ordenanzas municipales, etc.). Si lo dejas vacio se usara un texto por defecto.",
+    )
+    dp["descripcion"] = campo_texto_persistente(
+        "4. Descripcion general de la instalacion (potencia, uso, caracteristicas)", "campo_descripcion", dp.get("descripcion", ""), area=True,
+        help_text="Describe la potencia total prevista, el uso del inmueble y las caracteristicas generales de la instalacion.",
+    )
 
     texto_memoria = generar_memoria_texto({
         "datos_proyecto": dp, "tipo_suministro": st.session_state["tipo_suministro"],
     })
     st.markdown("#### Vista previa")
-    st.text_area("Contenido de la memoria", value=texto_memoria, height=350)
+    st.text_area("Contenido de la memoria", value=texto_memoria, height=350, disabled=True)
 
 
 # ---------------- IMPORTAR / EXPORTAR ----------------
@@ -1081,3 +1166,189 @@ with tab_io:
                                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
         except Exception as e:
             st.error(f"No se ha podido generar el Word: {e}")
+
+
+# ---------------- AYUDA ----------------
+with tab_ayuda:
+    st.subheader("\u2753 Guia rapida de uso")
+    st.markdown(
+        '<div class="caja-ayuda">Aqui tienes una explicacion sencilla, paso a paso, de cada parte de la '
+        'aplicacion. Si tienes dudas sobre un campo concreto, pasa el raton por encima de su etiqueta: '
+        'muchos campos tienen un pequeño icono de interrogacion con una explicacion.</div>',
+        unsafe_allow_html=True,
+    )
+
+    with st.expander("1. Datos del proyecto y tipo de suministro (barra lateral)", expanded=True):
+        st.markdown(
+            "Rellena el titular, el emplazamiento y la fecha del proyecto. Despues elige el **tipo de "
+            "suministro**: esto le dice a la aplicacion como se alimenta tu instalacion (con caja general "
+            "de proteccion para un unico usuario, con centralizacion de contadores en un edificio, con "
+            "transformador propio en Media Tension, o con generacion propia/autoconsumo). Esta eleccion "
+            "cambia automaticamente los elementos que se dibujan despues en el esquema unifilar."
+        )
+
+    with st.expander("2. Modulos activos"):
+        st.markdown(
+            "Marca las casillas de los bloques que necesites: Baja Tension (circuitos interiores), "
+            "Fotovoltaica (paneles solares) e Industrial/Motores. Solo apareceran los datos de los "
+            "modulos que actives, para que la pantalla no se sature de campos que no vas a usar."
+        )
+
+    with st.expander("3. Pestaña Baja Tension"):
+        st.markdown(
+            "Pulsa el boton '+' de la tabla para añadir un circuito nuevo (por ejemplo, alumbrado de "
+            "salon o enchufes de cocina). Rellena la potencia, la tension, el metodo de instalacion y "
+            "el uso. La aplicacion calculara automaticamente la intensidad, la seccion del cable, la "
+            "proteccion necesaria y la caida de tension, indicando si el circuito 'Cumple' o hay que "
+            "'Revisar' los datos introducidos."
+        )
+
+    with st.expander("4. Pestaña Fotovoltaica"):
+        st.markdown(
+            "Introduce la potencia pico de los paneles, la tension de trabajo, el numero de paneles y "
+            "las longitudes de cable en corriente continua (paneles-inversor) y corriente alterna "
+            "(inversor-cuadro). La aplicacion calcula las secciones y protecciones recomendadas para "
+            "ambos tramos."
+        )
+
+    with st.expander("5. Pestaña Industrial / Motores"):
+        st.markdown(
+            "Añade una fila por cada motor, indicando su potencia, rendimiento, factor de potencia y "
+            "metodo de arranque (directo, estrella-triangulo, arrancador suave o variador). El metodo "
+            "de arranque influye en la intensidad de calculo y, por tanto, en la seccion del cable."
+        )
+
+    with st.expander("6. Mediciones y Presupuesto"):
+        st.markdown(
+            "En 'Mediciones' se generan automaticamente las cantidades de cable, tubo y protecciones "
+            "necesarias segun los circuitos y motores introducidos; tambien puedes añadir lineas "
+            "manuales. En 'Presupuesto' se calcula el importe total (PEM, gastos generales, beneficio "
+            "industrial e IVA); puedes ajustar los precios por defecto en el desplegable correspondiente."
+        )
+
+    with st.expander("7. Esquema unifilar"):
+        st.markdown(
+            "Esta pestaña muestra que elementos se incluiran en el esquema segun el tipo de suministro "
+            "elegido. Para descargar el dibujo, ve a la pestaña 'Importar/Exportar' y pulsa el boton de "
+            "'Esquema unifilar (.dxf)'. El archivo DXF se puede abrir directamente con AutoCAD u otros "
+            "programas CAD, y guardarlo desde alli como .dwg si lo necesitas."
+        )
+
+    with st.expander("8. Memoria"):
+        st.markdown(
+            "Rellena el objeto, la normativa aplicada y una breve descripcion de la instalacion. La "
+            "aplicacion genera automaticamente el resto de apartados (titular, tipo de suministro, "
+            "calculos justificativos y anexos) siguiendo la estructura habitual de una Memoria Tecnica "
+            "de Diseño (MTD) profesional."
+        )
+
+    with st.expander("9. Importar / Exportar"):
+        st.markdown(
+            "Puedes descargar plantillas en Excel/CSV, rellenarlas fuera de la aplicacion y volver a "
+            "subirlas para cargar muchos circuitos, motores o mediciones de golpe. Tambien puedes "
+            "exportar los resultados en Excel, el esquema unifilar en DXF, y la memoria completa en "
+            "PDF o Word."
+        )
+
+    with st.expander("10. Preguntas frecuentes"):
+        st.markdown(
+            "**¿Por que un circuito aparece como 'Revisar'?** Porque la seccion calculada no cumple la "
+            "caida de tension maxima o no hay intensidad admisible definida para ese metodo de "
+            "instalacion; prueba a aumentar la seccion, reducir la longitud o cambiar el metodo.\\n\\n"
+            "**¿Los valores son oficiales?** Son valores de referencia tomados de las tablas habituales "
+            "del REBT/ITC-BT-19. Antes de presentar un proyecto o boletin oficial, verifica siempre los "
+            "datos con la edicion vigente del reglamento y con un tecnico competente."
+        )
+
+
+# ---------------- ASISTENTE IA ----------------
+with tab_ia:
+    st.subheader("\U0001F916 Asistente IA para dimensionado")
+    st.markdown(
+        '<div class="caja-ayuda">Este asistente puede darte orientacion adicional sobre como dimensionar '
+        'tu instalacion, pero <b>no sustituye el calculo normativo de la aplicacion ni la revision de un '
+        'tecnico competente</b>. Las respuestas son orientativas.</div>',
+        unsafe_allow_html=True,
+    )
+
+    clave_api = None
+    try:
+        clave_api = st.secrets.get("OPENAI_API_KEY", None)
+    except Exception:
+        clave_api = None
+
+    if not clave_api:
+        st.warning(
+            "No hay ninguna clave de API configurada todavia, asi que el asistente no puede conectarse. "
+            "Para activarlo, tienes que añadir tu propia clave (por ejemplo de OpenAI) en los 'Secrets' "
+            "de tu aplicacion de Streamlit:"
+        )
+        st.markdown(
+            "- En Streamlit Community Cloud: abre tu app, entra en 'Settings', luego 'Secrets' y añade "
+            "una linea con el texto OPENAI_API_KEY seguido de un signo igual y tu clave entre comillas; "
+            "guarda los cambios.\\n"
+            "- En local: crea un archivo secrets.toml dentro de una carpeta llamada .streamlit en tu "
+            "proyecto, con esa misma linea.\\n\\n"
+            "Por seguridad, esa clave la debes generar y pegar tu mismo: esta aplicacion nunca almacena "
+            "ni pide tu clave a traves del chat."
+        )
+    else:
+        if "campo_pregunta_ia" not in st.session_state:
+            st.session_state["campo_pregunta_ia"] = ""
+        st.text_area(
+            "Describe tu instalacion o tu duda",
+            key="campo_pregunta_ia",
+            height=120,
+            help="Ejemplo: Tengo una vivienda de 90 m2 con cocina de induccion de 7kW, ¿que seccion necesito para ese circuito?",
+        )
+        incluir_contexto = st.checkbox(
+            "Incluir automaticamente los datos ya introducidos en el proyecto (tipo de suministro, numero de circuitos, etc.)",
+            value=True,
+        )
+
+        if st.button("Preguntar al asistente"):
+            pregunta = st.session_state["campo_pregunta_ia"].strip()
+            if not pregunta:
+                st.error("Escribe primero tu pregunta o una breve descripcion de la instalacion.")
+            else:
+                contexto = ""
+                if incluir_contexto:
+                    contexto = (
+                        f"Tipo de suministro: {st.session_state.get('tipo_suministro')}. "
+                        f"Circuitos de Baja Tension definidos: {len(st.session_state.get('df_bt', []))}. "
+                        f"Motores definidos: {len(st.session_state.get('df_motores', []))}. "
+                        f"Modulos activos: {st.session_state.get('modulos')}."
+                    )
+                try:
+                    import requests
+                    respuesta = requests.post(
+                        "https://api.openai.com/v1/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {clave_api}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "model": "gpt-4o-mini",
+                            "messages": [
+                                {"role": "system", "content": (
+                                    "Eres un asistente de apoyo para el predimensionado de instalaciones "
+                                    "electricas de baja tension conforme al REBT/ITC-BT español. Da "
+                                    "respuestas claras, breves y orientativas, recordando siempre que deben "
+                                    "verificarse por un tecnico competente antes de ejecutar o legalizar la "
+                                    "instalacion."
+                                )},
+                                {"role": "user", "content": f"{contexto}\\n\\nPregunta: {pregunta}"},
+                            ],
+                            "temperature": 0.3,
+                        },
+                        timeout=30,
+                    )
+                    if respuesta.status_code == 200:
+                        texto_respuesta = respuesta.json()["choices"][0]["message"]["content"]
+                        st.markdown("#### Respuesta del asistente")
+                        st.write(texto_respuesta)
+                        registrar_cambio("Consulta al asistente IA", pregunta[:80])
+                    else:
+                        st.error(f"El servicio de IA ha devuelto un error ({respuesta.status_code}). Revisa tu clave de API.")
+                except Exception as e:
+                    st.error(f"No se ha podido contactar con el servicio de IA: {e}")
