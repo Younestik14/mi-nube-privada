@@ -1,1078 +1,731 @@
-import React, { useState, useEffect, useRef } from "react";
-import * as XLSX from "xlsx";
-import {
-  Zap, Sun, Cog, ClipboardList, Calculator, FileText, Download, Save,
-  FolderOpen, Plus, Trash2, AlertTriangle, CheckCircle2, Home, Wrench,
-  Receipt, Printer, ChevronRight, Info
-} from "lucide-react";
+"""
+PROYECTISTA ELECTRICO - REBT
+Aplicacion Streamlit para el predimensionado de instalaciones electricas de baja
+tension, fotovoltaica de autoconsumo e industrial/motores, conforme al Reglamento
+Electrotecnico para Baja Tension (RD 842/2002) y sus Instrucciones Tecnicas
+Complementarias (ITC-BT), y al RD 244/2019 de autoconsumo.
 
-/* =========================================================
-   DATOS TÉCNICOS DE REFERENCIA
-   (valores orientativos de uso didáctico habitual en FP;
-   verificar siempre contra el REBT/ITC-BT vigente antes de
-   emitir documentación oficial)
-   ========================================================= */
+AVISO IMPORTANTE
+Esta herramienta es de apoyo al predimensionado y uso profesional/didactico. Los
+valores de intensidades admisibles, factores de correccion y demas datos tecnicos
+son de referencia segun las tablas habituales del REBT (ITC-BT-19, ITC-BT-47,
+ITC-BT-40). Antes de emitir documentacion oficial (proyecto, memoria tecnica,
+boletin electrico, etc.) se debe verificar cada resultado contra las tablas
+oficiales vigentes del REBT/ITC-BT, la normativa de la companhia distribuidora y
+el criterio de un tecnico competente colegiado.
+"""
 
-const SECCIONES = [1.5, 2.5, 4, 6, 10, 16, 25, 35, 50, 70, 95, 120, 150, 185, 240, 300];
+import io
+import json
+from datetime import date
 
-// Intensidades admisibles orientativas (A) - Método B1, Cu, PVC, 2 conductores cargados
-const AMPACIDAD_B1 = {
-  1.5: 15, 2.5: 21, 4: 28, 6: 36, 10: 50, 16: 68, 25: 89, 35: 111,
-  50: 134, 70: 171, 95: 207, 120: 239, 150: 262, 185: 296, 240: 346, 300: 388
-};
+import numpy as np
+import pandas as pd
+import streamlit as st
 
-const PROTECCIONES_STD = [6, 10, 13, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250];
+st.set_page_config(page_title="Proyectista Electrico - REBT", page_icon="\u26a1", layout="wide")
 
-const FACTOR_TEMP = { "30": 1.15, "40": 1.0, "45": 0.91, "50": 0.82 };
-const FACTOR_AGRUPACION = { "1": 1, "2": 0.8, "3": 0.7, "4": 0.65, "6": 0.57, "9": 0.5 };
+# =====================================================================================
+# 1. DATOS TECNICOS DE REFERENCIA (REBT / ITC-BT)
+# =====================================================================================
 
-const RHO_INV = 56; // 1/ρ del cobre, mm²·m/Ω aprox, uso didáctico estándar en cálculo de cdt
+SECCIONES_MM2 = [1.5, 2.5, 4, 6, 10, 16, 25, 35, 50, 70, 95, 120, 150, 185, 240, 300]
 
-const PRECIOS_DEFAULT = {
-  cable_1_5: 0.55, cable_2_5: 0.78, cable_4: 1.15, cable_6: 1.65, cable_10: 2.6,
-  cable_16: 4.1, cable_25: 6.8, cable_35: 9.4, cable_50: 13.2, cable_70: 18.6,
-  cable_95: 24.5, cable_120: 31.0, cable_150: 38.5, cable_185: 47.0, cable_240: 62.0, cable_300: 78.0,
-  magneto: 9.5, diferencial: 42.0, guardamotor: 55.0, tubo_corrugado: 1.2,
-  panel_fv: 145.0, inversor: 650.0, estructura_fv: 60.0, mecanismo: 6.5, caja_derivacion: 3.2,
-  cuadro_general: 85.0, mano_obra_h: 24.0
-};
-
-const uid = () => Math.random().toString(36).slice(2, 10);
-
-/* =========================================================
-   FUNCIONES DE CÁLCULO
-   ========================================================= */
-
-function ibMono(P, V, cosphi) { return P / (V * cosphi); }
-function ibTri(P, V, cosphi) { return P / (Math.sqrt(3) * V * cosphi); }
-
-function cdtMonoPct(L, I, cosphi, S, V) {
-  return ((2 * L * I * cosphi) / (RHO_INV * S)) / V * 100;
-}
-function cdtTriPct(L, I, cosphi, S, V) {
-  return ((Math.sqrt(3) * L * I * cosphi) / (RHO_INV * S)) / V * 100;
+# ITC-BT-19, Tabla 1 (orientativa). Intensidades admisibles (A). Conductores de cobre,
+# aislamiento PVC, 2 conductores cargados. Metodos de instalacion de referencia
+# segun UNE-HD 60364-5-52 / ITC-BT-19.
+AMPACIDAD = {
+    "B1 - Bajo tubo empotrado en pared aislante o en superficie": {
+        1.5: 15, 2.5: 21, 4: 28, 6: 36, 10: 50, 16: 68, 25: 89, 35: 111,
+        50: 134, 70: 171, 95: 207, 120: 239, 150: 262, 185: 296, 240: 346, 300: 388,
+    },
+    "C - Cables multiconductores sobre pared o bandeja": {
+        1.5: 17.5, 2.5: 24, 4: 32, 6: 41, 10: 57, 16: 76, 25: 96, 35: 119,
+        50: 144, 70: 184, 95: 223, 120: 259, 150: 299, 185: 341, 240: 403, 300: 464,
+    },
+    "E - Al aire libre, bandeja perforada (unipolares separados)": {
+        1.5: 19.5, 2.5: 27, 4: 36, 6: 46, 10: 63, 16: 85, 25: 112, 35: 138,
+        50: 168, 70: 213, 95: 258, 120: 299, 150: 344, 185: 392, 240: 461, 300: 530,
+    },
 }
 
-function elegirSeccionPorIntensidad(Ib, factorCorreccion) {
-  for (const s of SECCIONES) {
-    if (AMPACIDAD_B1[s] * factorCorreccion >= Ib) return s;
-  }
-  return SECCIONES[SECCIONES.length - 1];
+# ITC-BT-19, Tabla de correccion por temperatura ambiente distinta de 40 C (aislamiento PVC)
+FACTOR_TEMPERATURA = {25: 1.12, 30: 1.08, 35: 1.04, 40: 1.00, 45: 0.91, 50: 0.82, 55: 0.71}
+
+# ITC-BT-19, factor de correccion por agrupamiento de circuitos (orientativo)
+FACTOR_AGRUPAMIENTO = {1: 1.00, 2: 0.80, 3: 0.70, 4: 0.65, 5: 0.60, 6: 0.57, 7: 0.54, 8: 0.52, 9: 0.50}
+
+# Calibres normalizados de protecciones magnetotermicas (UNE-EN 60898)
+PROTECCIONES_NORMALIZADAS = [6, 10, 13, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 400]
+
+# ITC-BT-19, apartado 2.2.2 - caida de tension maxima admisible orientativa
+CDT_MAXIMA = {
+    "Linea general de alimentacion (LGA)": 0.5,
+    "Derivacion individual (con centralizacion de contadores)": 1.0,
+    "Derivacion individual (contador unico)": 1.5,
+    "Instalacion interior - Alumbrado": 3.0,
+    "Instalacion interior - Otros usos (fuerza, tomas...)": 5.0,
 }
 
-function elegirSeccionPorCdt(L, Ib, cosphi, V, limitePct, fases) {
-  for (const s of SECCIONES) {
-    const cdt = fases === "tri" ? cdtTriPct(L, Ib, cosphi, s, V) : cdtMonoPct(L, Ib, cosphi, s, V);
-    if (cdt <= limitePct) return s;
-  }
-  return SECCIONES[SECCIONES.length - 1];
+RESISTIVIDAD_INV_CU = 56.0  # 1/rho del cobre (m / (ohm*mm2)), aprox. a 20 C, uso habitual en calculo de cdt
+
+FACTORES_ARRANQUE_MOTOR = {
+    "Directo": 7.0,
+    "Estrella-Triangulo": 2.5,
+    "Arrancador electronico (soft-starter)": 3.5,
+    "Variador de frecuencia (VFD)": 1.2,
 }
 
-function elegirProteccion(Ib, IzCorregida) {
-  for (const In of PROTECCIONES_STD) {
-    if (In >= Ib && In <= IzCorregida) return In;
-  }
-  return PROTECCIONES_STD.find((x) => x >= Ib) || PROTECCIONES_STD[PROTECCIONES_STD.length - 1];
+PRECIOS_DEFECTO = {
+    "cable_1_5": 0.55, "cable_2_5": 0.78, "cable_4": 1.15, "cable_6": 1.65, "cable_10": 2.60,
+    "cable_16": 4.10, "cable_25": 6.80, "cable_35": 9.40, "cable_50": 13.20, "cable_70": 18.60,
+    "cable_95": 24.50, "cable_120": 31.00, "cable_150": 38.50, "cable_185": 47.00,
+    "cable_240": 62.00, "cable_300": 78.00,
+    "magnetotermico": 9.50, "diferencial": 42.00, "guardamotor": 55.00,
+    "tubo_corrugado": 1.20, "panel_fv": 145.00, "inversor": 650.00, "estructura_fv": 60.00,
+    "mecanismo": 6.50, "caja_derivacion": 3.20, "cuadro_general": 85.00, "mano_obra_h": 24.00,
 }
 
-function calcularCircuitoBT(c) {
-  const fases = c.fases;
-  const Ib = fases === "tri" ? ibTri(c.potencia, c.tension, c.cosphi) : ibMono(c.potencia, c.tension, c.cosphi);
-  const factorTemp = FACTOR_TEMP[c.tempAmbiente] || 1;
-  const factorAgrup = FACTOR_AGRUPACION[c.agrupacion] || 1;
-  const factorCorreccion = factorTemp * factorAgrup;
+COLUMNAS_BT = ["Circuito", "Tipo de receptor", "Fases", "Tension (V)", "Potencia (W)",
+               "cos phi", "Longitud (m)", "Temp. ambiente (C)", "Circuitos agrupados",
+               "Tipo de linea (cdt)"]
 
-  const seccionInt = elegirSeccionPorIntensidad(Ib, factorCorreccion);
-  const seccionCdt = elegirSeccionPorCdt(c.longitud, Ib, c.cosphi, c.tension, c.limiteCdt, fases);
-  const seccion = Math.max(seccionInt, seccionCdt);
+COLUMNAS_MOTORES = ["Motor", "Potencia (kW)", "Tension (V)", "cos phi", "Rendimiento (%)",
+                     "Tipo de arranque", "Longitud (m)"]
 
-  const izFinal = AMPACIDAD_B1[seccion] * factorCorreccion;
-  const cdtFinal = fases === "tri"
-    ? cdtTriPct(c.longitud, Ib, c.cosphi, seccion, c.tension)
-    : cdtMonoPct(c.longitud, Ib, c.cosphi, seccion, c.tension);
-  const proteccion = elegirProteccion(Ib, izFinal);
-  const cumpleCdt = cdtFinal <= c.limiteCdt;
-  const cumpleIz = izFinal >= Ib;
+COLUMNAS_MEDICION_MANUAL = ["Capitulo", "Descripcion", "Unidad", "Cantidad", "Precio unitario (EUR)"]
 
-  return { Ib, seccion, izFinal, cdtFinal, proteccion, cumpleCdt, cumpleIz, factorCorreccion };
-}
 
-function calcularFV(fv) {
-  const impp = parseFloat(fv.impp) || 0;
-  const numStrings = parseInt(fv.numStrings) || 1;
-  const vmpp = parseFloat(fv.vmpp) || 1;
-  const idc = impp * numStrings;
-  const factorCorr = 1.25; // sobredimensionado típico ramal DC (IDAE)
-  const seccionDC = elegirSeccionPorIntensidad(idc * factorCorr, 1);
-  const cdtDC = cdtMonoPct(parseFloat(fv.distStringInversor) || 0, idc, 1, seccionDC, vmpp);
-  const requiereFusiblesDC = numStrings > 2;
+def df_vacio(columnas):
+    return pd.DataFrame(columns=columnas)
 
-  const potenciaInversor = parseFloat(fv.potenciaInversor) || 0;
-  const tensionAC = parseFloat(fv.tensionAC) || 400;
-  const fasesAC = fv.fasesAC || "tri";
-  const iac = fasesAC === "tri" ? ibTri(potenciaInversor, tensionAC, 1) : ibMono(potenciaInversor, tensionAC, 1);
-  const seccionAC = elegirSeccionPorIntensidad(iac * 1.25, 1);
-  const cdtAC = fasesAC === "tri"
-    ? cdtTriPct(parseFloat(fv.distInversorCuadro) || 0, iac, 1, seccionAC, tensionAC)
-    : cdtMonoPct(parseFloat(fv.distInversorCuadro) || 0, iac, 1, seccionAC, tensionAC);
-  const proteccionAC = elegirProteccion(iac, AMPACIDAD_B1[seccionAC]);
+# =====================================================================================
+# 2. FUNCIONES DE CALCULO ELECTRICO
+# =====================================================================================
 
-  return { idc, seccionDC, cdtDC, requiereFusiblesDC, iac, seccionAC, cdtAC, proteccionAC };
-}
+def intensidad_mono(p_w, v, cosphi):
+    if not v or not cosphi:
+        return 0.0
+    return p_w / (v * cosphi)
 
-function calcularMotor(m) {
-  const P = parseFloat(m.potencia) || 0;
-  const V = parseFloat(m.tension) || 400;
-  const cosphi = parseFloat(m.cosphi) || 0.85;
-  const rend = (parseFloat(m.rendimiento) || 90) / 100;
-  const In = (P * 1000) / (Math.sqrt(3) * V * cosphi * rend);
-  const factorArranque = m.tipoArranque === "estrella-triangulo" ? 2.5 : 7;
-  const Ia = In * factorArranque;
-  const seccion = elegirSeccionPorIntensidad(In * 1.25, 1);
-  const protTermica = { min: (In * 0.9).toFixed(1), max: (In * 1.15).toFixed(1) };
-  const guardamotor = elegirProteccion(In, AMPACIDAD_B1[seccion]);
-  return { In, Ia, seccion, protTermica, guardamotor };
-}
 
-const fmt = (n, d = 2) => (isFinite(n) ? n.toFixed(d) : "—");
+def intensidad_tri(p_w, v, cosphi):
+    if not v or not cosphi:
+        return 0.0
+    return p_w / (np.sqrt(3) * v * cosphi)
 
-/* =========================================================
-   ESTADO INICIAL
-   ========================================================= */
 
-const ESTADO_INICIAL = {
-  proyecto: {
-    nombre: "", cliente: "", ubicacion: "", tecnico: "", fecha: new Date().toISOString().slice(0, 10),
-    tipos: { bt: true, fv: false, industrial: false }
-  },
-  circuitosBT: [],
-  fv: {
-    potenciaPico: "", numPaneles: "", potenciaPanel: "", voc: "", isc: "", vmpp: "", impp: "",
-    numStrings: "1", distStringInversor: "15", potenciaInversor: "", tensionAC: "400", fasesAC: "tri",
-    distInversorCuadro: "5"
-  },
-  motores: [],
-  medicionesManual: [],
-  precios: PRECIOS_DEFAULT,
-  gastosGenerales: 13, beneficioIndustrial: 6, iva: 21,
-  memoria: {
-    objeto: "", titular: "", emplazamiento: "", descripcion: "", normativa: "",
-  }
-};
+def cdt_mono_pct(long_m, i, cosphi, s_mm2, v):
+    if not s_mm2 or not v:
+        return 0.0
+    return (2 * long_m * i * cosphi) / (RESISTIVIDAD_INV_CU * s_mm2) / v * 100
 
-/* =========================================================
-   COMPONENTES DE UI BASE
-   ========================================================= */
 
-function Campo({ label, children, hint }) {
-  return (
-    <label className="campo">
-      <span className="campo-label">{label}</span>
-      {children}
-      {hint && <span className="campo-hint">{hint}</span>}
-    </label>
-  );
-}
+def cdt_tri_pct(long_m, i, cosphi, s_mm2, v):
+    if not s_mm2 or not v:
+        return 0.0
+    return (np.sqrt(3) * long_m * i * cosphi) / (RESISTIVIDAD_INV_CU * s_mm2) / v * 100
 
-function Input(props) {
-  return <input {...props} className={"input-tech " + (props.className || "")} />;
-}
 
-function Select({ children, ...props }) {
-  return <select {...props} className={"input-tech " + (props.className || "")}>{children}</select>;
-}
+def elegir_seccion_por_intensidad(ib, metodo, factor_correccion):
+    tabla = AMPACIDAD[metodo]
+    factor_correccion = factor_correccion or 1.0
+    for s in SECCIONES_MM2:
+        if tabla[s] * factor_correccion >= ib:
+            return s
+    return SECCIONES_MM2[-1]
 
-function Panel({ title, eyebrow, icon, children, right }) {
-  return (
-    <div className="panel">
-      <div className="panel-head">
-        <div>
-          {eyebrow && <div className="panel-eyebrow">{eyebrow}</div>}
-          <h3 className="panel-title">{icon}{title}</h3>
-        </div>
-        {right}
-      </div>
-      <div className="panel-body">{children}</div>
-    </div>
-  );
-}
 
-function Badge({ ok, children }) {
-  return (
-    <span className={"badge " + (ok ? "badge-ok" : "badge-bad")}>
-      {ok ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
-      {children}
-    </span>
-  );
-}
+def elegir_seccion_por_cdt(long_m, ib, cosphi, v, limite_pct, fases):
+    for s in SECCIONES_MM2:
+        cdt = cdt_tri_pct(long_m, ib, cosphi, s, v) if fases == "Trifasico" else cdt_mono_pct(long_m, ib, cosphi, s, v)
+        if cdt <= limite_pct:
+            return s
+    return SECCIONES_MM2[-1]
 
-/* =========================================================
-   TAB: PROYECTO
-   ========================================================= */
 
-function TabProyecto({ proyecto, setProyecto }) {
-  const upd = (k, v) => setProyecto({ ...proyecto, [k]: v });
-  const updTipo = (k, v) => setProyecto({ ...proyecto, tipos: { ...proyecto.tipos, [k]: v } });
-  return (
-    <Panel title="Datos generales del proyecto" eyebrow="00 · Ficha" icon={<ClipboardList size={18} />}>
-      <div className="grid-2">
-        <Campo label="Nombre del proyecto">
-          <Input value={proyecto.nombre} onChange={(e) => upd("nombre", e.target.value)} placeholder="Instalación eléctrica vivienda unifamiliar" />
-        </Campo>
-        <Campo label="Cliente / Titular">
-          <Input value={proyecto.cliente} onChange={(e) => upd("cliente", e.target.value)} placeholder="Nombre y apellidos / razón social" />
-        </Campo>
-        <Campo label="Emplazamiento">
-          <Input value={proyecto.ubicacion} onChange={(e) => upd("ubicacion", e.target.value)} placeholder="Dirección, municipio, provincia" />
-        </Campo>
-        <Campo label="Técnico redactor">
-          <Input value={proyecto.tecnico} onChange={(e) => upd("tecnico", e.target.value)} placeholder="Tu nombre" />
-        </Campo>
-        <Campo label="Fecha">
-          <Input type="date" value={proyecto.fecha} onChange={(e) => upd("fecha", e.target.value)} />
-        </Campo>
-      </div>
+def elegir_proteccion(ib, iz_corregida):
+    # ITC-BT-22 / UNE 20-460: Ib <= In <= Iz
+    candidatos = [p for p in PROTECCIONES_NORMALIZADAS if p >= ib]
+    if not candidatos:
+        return PROTECCIONES_NORMALIZADAS[-1]
+    validas = [p for p in candidatos if p <= iz_corregida]
+    return validas[0] if validas else candidatos[0]
 
-      <div className="campo-label" style={{ marginTop: 18, marginBottom: 8 }}>Módulos de cálculo incluidos en este proyecto</div>
-      <div className="tipos-grid">
-        <label className="tipo-check">
-          <input type="checkbox" checked={proyecto.tipos.bt} onChange={(e) => updTipo("bt", e.target.checked)} />
-          <Home size={16} /> Baja tensión (REBT)
-        </label>
-        <label className="tipo-check">
-          <input type="checkbox" checked={proyecto.tipos.fv} onChange={(e) => updTipo("fv", e.target.checked)} />
-          <Sun size={16} /> Fotovoltaica autoconsumo
-        </label>
-        <label className="tipo-check">
-          <input type="checkbox" checked={proyecto.tipos.industrial} onChange={(e) => updTipo("industrial", e.target.checked)} />
-          <Cog size={16} /> Industrial / motores
-        </label>
-      </div>
 
-      <div className="nota-normativa" style={{ marginTop: 18 }}>
-        <Info size={14} />
-        Herramienta de apoyo al predimensionado según REBT (RD 842/2002 e ITC-BT) y RD 244/2019 (autoconsumo).
-        Los valores de intensidades admisibles y factores de corrección son orientativos (método de referencia B1).
-        Verifica siempre la sección, protecciones y caída de tensión definitivas contra las tablas oficiales vigentes
-        y el criterio de tu tutor/a en IDEA TSG antes de emitir documentación formal.
-      </div>
-    </Panel>
-  );
-}
+def calcular_circuito_bt(row, metodo_instalacion):
+    fases = row.get("Fases", "Monofasico")
+    p = float(row.get("Potencia (W)", 0) or 0)
+    v = float(row.get("Tension (V)", 230) or 230)
+    cosphi = float(row.get("cos phi", 0.95) or 0.95)
+    longitud = float(row.get("Longitud (m)", 0) or 0)
+    temp = int(float(row.get("Temp. ambiente (C)", 40) or 40))
+    agrup = int(float(row.get("Circuitos agrupados", 1) or 1))
+    tipo_linea = row.get("Tipo de linea (cdt)", "Instalacion interior - Otros usos (fuerza, tomas...)")
+    limite_cdt = CDT_MAXIMA.get(tipo_linea, 5.0)
 
-/* =========================================================
-   TAB: BAJA TENSIÓN
-   ========================================================= */
+    ib = intensidad_tri(p, v, cosphi) if fases == "Trifasico" else intensidad_mono(p, v, cosphi)
+    f_temp = FACTOR_TEMPERATURA.get(temp, 1.0)
+    f_agr = FACTOR_AGRUPAMIENTO.get(agrup, 1.0)
+    factor_corr = f_temp * f_agr
 
-function nuevoCircuitoBT() {
-  return {
-    id: uid(), nombre: "", tipoReceptor: "alumbrado", fases: "mono", tension: 230,
-    potencia: "", cosphi: 0.95, longitud: "", tempAmbiente: "40", agrupacion: "1", limiteCdt: 3
-  };
-}
+    s_int = elegir_seccion_por_intensidad(ib, metodo_instalacion, factor_corr)
+    s_cdt = elegir_seccion_por_cdt(longitud, ib, cosphi, v, limite_cdt, fases)
+    seccion = max(s_int, s_cdt)
 
-function TabBT({ circuitos, setCircuitos }) {
-  const add = () => setCircuitos([...circuitos, nuevoCircuitoBT()]);
-  const remove = (id) => setCircuitos(circuitos.filter((c) => c.id !== id));
-  const upd = (id, k, v) => setCircuitos(circuitos.map((c) => (c.id === id ? { ...c, [k]: v, limiteCdt: k === "tipoReceptor" ? (v === "alumbrado" ? 3 : 5) : c.limiteCdt } : c)));
+    iz = AMPACIDAD[metodo_instalacion][seccion] * factor_corr
+    cdt = cdt_tri_pct(longitud, ib, cosphi, seccion, v) if fases == "Trifasico" else cdt_mono_pct(longitud, ib, cosphi, seccion, v)
+    proteccion = elegir_proteccion(ib, iz)
+    cumple = (cdt <= limite_cdt) and (iz >= ib) and (ib <= proteccion <= iz)
 
-  return (
-    <Panel
-      title="Circuitos de baja tensión"
-      eyebrow="01 · REBT ITC-BT-19 / ITC-BT-25"
-      icon={<Home size={18} />}
-      right={<button className="btn-primary" onClick={add}><Plus size={15} /> Añadir circuito</button>}
-    >
-      {circuitos.length === 0 && <p className="vacio">Todavía no hay circuitos. Añade el primero (por ejemplo, "Alumbrado salón").</p>}
-      <div className="lista-circuitos">
-        {circuitos.map((c) => {
-          const r = calcularCircuitoBT({
-            ...c,
-            potencia: parseFloat(c.potencia) || 0,
-            longitud: parseFloat(c.longitud) || 0,
-            cosphi: parseFloat(c.cosphi) || 0.95,
-            tension: parseFloat(c.tension) || 230,
-            limiteCdt: parseFloat(c.limiteCdt) || 3
-          });
-          return (
-            <div className="tarjeta-circuito" key={c.id}>
-              <div className="tarjeta-head">
-                <Input className="input-nombre" value={c.nombre} onChange={(e) => upd(c.id, "nombre", e.target.value)} placeholder="Nombre del circuito (C1 Alumbrado, C5 Cocina...)" />
-                <button className="btn-icon" onClick={() => remove(c.id)}><Trash2 size={15} /></button>
-              </div>
-              <div className="grid-4">
-                <Campo label="Tipo de receptor">
-                  <Select value={c.tipoReceptor} onChange={(e) => upd(c.id, "tipoReceptor", e.target.value)}>
-                    <option value="alumbrado">Alumbrado</option>
-                    <option value="fuerza">Fuerza / tomas</option>
-                    <option value="climatizacion">Climatización</option>
-                    <option value="mixto">Mixto</option>
-                  </Select>
-                </Campo>
-                <Campo label="Fases">
-                  <Select value={c.fases} onChange={(e) => upd(c.id, "fases", e.target.value)}>
-                    <option value="mono">Monofásico</option>
-                    <option value="tri">Trifásico</option>
-                  </Select>
-                </Campo>
-                <Campo label="Tensión (V)">
-                  <Input type="number" value={c.tension} onChange={(e) => upd(c.id, "tension", e.target.value)} />
-                </Campo>
-                <Campo label="Potencia (W)">
-                  <Input type="number" value={c.potencia} onChange={(e) => upd(c.id, "potencia", e.target.value)} />
-                </Campo>
-                <Campo label="cos φ">
-                  <Input type="number" step="0.01" value={c.cosphi} onChange={(e) => upd(c.id, "cosphi", e.target.value)} />
-                </Campo>
-                <Campo label="Longitud (m)">
-                  <Input type="number" value={c.longitud} onChange={(e) => upd(c.id, "longitud", e.target.value)} />
-                </Campo>
-                <Campo label="Temp. ambiente (°C)">
-                  <Select value={c.tempAmbiente} onChange={(e) => upd(c.id, "tempAmbiente", e.target.value)}>
-                    <option value="30">30°C</option><option value="40">40°C</option>
-                    <option value="45">45°C</option><option value="50">50°C</option>
-                  </Select>
-                </Campo>
-                <Campo label="Circuitos agrupados">
-                  <Select value={c.agrupacion} onChange={(e) => upd(c.id, "agrupacion", e.target.value)}>
-                    <option value="1">1</option><option value="2">2</option><option value="3">3</option>
-                    <option value="4">4-5</option><option value="6">6-8</option><option value="9">9+</option>
-                  </Select>
-                </Campo>
-              </div>
+    return pd.Series({
+        "Ib (A)": round(ib, 2),
+        "Seccion (mm2)": seccion,
+        "Iz corregida (A)": round(iz, 2),
+        "c.d.t. (%)": round(cdt, 2),
+        "cdt max (%)": limite_cdt,
+        "Proteccion (A)": proteccion,
+        "Cumple": "Cumple" if cumple else "Revisar",
+    })
 
-              <div className="resultado-bar">
-                <div className="resultado-item"><span>Ib</span><b>{fmt(r.Ib)} A</b></div>
-                <div className="resultado-item"><span>Sección</span><b>{r.seccion} mm²</b></div>
-                <div className="resultado-item"><span>Iz corregida</span><b>{fmt(r.izFinal)} A</b></div>
-                <div className="resultado-item"><span>c.d.t.</span><b>{fmt(r.cdtFinal)}%</b></div>
-                <div className="resultado-item"><span>Protección</span><b>{r.proteccion} A</b></div>
-                <Badge ok={r.cumpleCdt && r.cumpleIz}>{r.cumpleCdt && r.cumpleIz ? "Cumple" : "Revisar"}</Badge>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </Panel>
-  );
-}
 
-/* =========================================================
-   TAB: FOTOVOLTAICA
-   ========================================================= */
+def calcular_fv(datos, metodo_instalacion):
+    isc = float(datos.get("isc", 0) or 0)
+    impp = float(datos.get("impp", 0) or 0)
+    num_strings = int(float(datos.get("num_strings", 1) or 1))
+    vmpp = float(datos.get("vmpp", 1) or 1)
+    dist_dc = float(datos.get("dist_string_inversor", 0) or 0)
+    potencia_inversor = float(datos.get("potencia_inversor", 0) or 0)
+    tension_ac = float(datos.get("tension_ac", 400) or 400)
+    fases_ac = datos.get("fases_ac", "Trifasico")
+    dist_ac = float(datos.get("dist_inversor_cuadro", 0) or 0)
 
-function TabFV({ fv, setFv }) {
-  const upd = (k, v) => setFv({ ...fv, [k]: v });
-  const r = calcularFV(fv);
-  return (
-    <Panel title="Instalación fotovoltaica de autoconsumo" eyebrow="02 · RD 244/2019" icon={<Sun size={18} />}>
-      <div className="grid-4">
-        <Campo label="Potencia pico (kWp)"><Input type="number" value={fv.potenciaPico} onChange={(e) => upd("potenciaPico", e.target.value)} /></Campo>
-        <Campo label="Nº paneles"><Input type="number" value={fv.numPaneles} onChange={(e) => upd("numPaneles", e.target.value)} /></Campo>
-        <Campo label="Potencia por panel (Wp)"><Input type="number" value={fv.potenciaPanel} onChange={(e) => upd("potenciaPanel", e.target.value)} /></Campo>
-        <Campo label="Nº strings en paralelo"><Input type="number" value={fv.numStrings} onChange={(e) => upd("numStrings", e.target.value)} /></Campo>
-        <Campo label="Voc (V)"><Input type="number" value={fv.voc} onChange={(e) => upd("voc", e.target.value)} /></Campo>
-        <Campo label="Isc (A)"><Input type="number" value={fv.isc} onChange={(e) => upd("isc", e.target.value)} /></Campo>
-        <Campo label="Vmpp (V)"><Input type="number" value={fv.vmpp} onChange={(e) => upd("vmpp", e.target.value)} /></Campo>
-        <Campo label="Impp (A)"><Input type="number" value={fv.impp} onChange={(e) => upd("impp", e.target.value)} /></Campo>
-        <Campo label="Distancia strings → inversor (m)"><Input type="number" value={fv.distStringInversor} onChange={(e) => upd("distStringInversor", e.target.value)} /></Campo>
-        <Campo label="Potencia inversor (W)"><Input type="number" value={fv.potenciaInversor} onChange={(e) => upd("potenciaInversor", e.target.value)} /></Campo>
-        <Campo label="Tensión AC (V)"><Input type="number" value={fv.tensionAC} onChange={(e) => upd("tensionAC", e.target.value)} /></Campo>
-        <Campo label="Fases AC">
-          <Select value={fv.fasesAC} onChange={(e) => upd("fasesAC", e.target.value)}>
-            <option value="mono">Monofásico</option><option value="tri">Trifásico</option>
-          </Select>
-        </Campo>
-        <Campo label="Distancia inversor → cuadro AC (m)"><Input type="number" value={fv.distInversorCuadro} onChange={(e) => upd("distInversorCuadro", e.target.value)} /></Campo>
-      </div>
+    # Tramo CC: IDAE / UNE-EN 62548 recomiendan dimensionar con 1.25 x Isc por rama
+    idc_diseno = isc * num_strings * 1.25
+    idc_servicio = impp * num_strings
+    seccion_dc = elegir_seccion_por_intensidad(idc_diseno, metodo_instalacion, 1.0)
+    cdt_dc = cdt_mono_pct(dist_dc, idc_servicio, 1.0, seccion_dc, vmpp)
+    requiere_fusibles_dc = num_strings > 2
 
-      <div className="subtitulo-tabla">Tramo CC (paneles → inversor)</div>
-      <div className="resultado-bar">
-        <div className="resultado-item"><span>I string acumulada</span><b>{fmt(r.idc)} A</b></div>
-        <div className="resultado-item"><span>Sección CC</span><b>{r.seccionDC} mm²</b></div>
-        <div className="resultado-item"><span>c.d.t. CC</span><b>{fmt(r.cdtDC)}%</b></div>
-        <Badge ok={r.cdtDC <= 1.5}>{r.cdtDC <= 1.5 ? "≤1.5% recomendado" : "Revisar sección"}</Badge>
-        {r.requiereFusiblesDC && <Badge ok={false}>Requiere fusibles por string ({">"}2 en paralelo)</Badge>}
-      </div>
+    fases_norm = "Trifasico" if fases_ac == "Trifasico" else "Monofasico"
+    iac = intensidad_tri(potencia_inversor, tension_ac, 1.0) if fases_norm == "Trifasico" else intensidad_mono(potencia_inversor, tension_ac, 1.0)
+    seccion_ac = elegir_seccion_por_intensidad(iac * 1.25, metodo_instalacion, 1.0)
+    cdt_ac = cdt_tri_pct(dist_ac, iac, 1.0, seccion_ac, tension_ac) if fases_norm == "Trifasico" else cdt_mono_pct(dist_ac, iac, 1.0, seccion_ac, tension_ac)
+    proteccion_ac = elegir_proteccion(iac, AMPACIDAD[metodo_instalacion][seccion_ac])
 
-      <div className="subtitulo-tabla">Tramo CA (inversor → cuadro AC)</div>
-      <div className="resultado-bar">
-        <div className="resultado-item"><span>I AC</span><b>{fmt(r.iac)} A</b></div>
-        <div className="resultado-item"><span>Sección AC</span><b>{r.seccionAC} mm²</b></div>
-        <div className="resultado-item"><span>c.d.t. AC</span><b>{fmt(r.cdtAC)}%</b></div>
-        <div className="resultado-item"><span>Protección AC</span><b>{r.proteccionAC} A</b></div>
-        <Badge ok={r.cdtAC <= 1.5}>{r.cdtAC <= 1.5 ? "≤1.5% recomendado" : "Revisar sección"}</Badge>
-      </div>
-
-      <div className="nota-normativa">
-        <Info size={14} />
-        Recuerda: interruptor-seccionador DC junto al inversor, protección contra sobretensiones, diferencial
-        superinmunizado (tipo B si el inversor lo requiere) y equipo de medida bidireccional. Cálculo orientativo;
-        contrasta con la ficha técnica del inversor y el pliego IDAE.
-      </div>
-    </Panel>
-  );
-}
-
-/* =========================================================
-   TAB: INDUSTRIAL / MOTORES
-   ========================================================= */
-
-function nuevoMotor() {
-  return { id: uid(), nombre: "", potencia: "", tension: 400, cosphi: 0.85, rendimiento: 90, tipoArranque: "directo" };
-}
-
-function TabIndustrial({ motores, setMotores }) {
-  const add = () => setMotores([...motores, nuevoMotor()]);
-  const remove = (id) => setMotores(motores.filter((m) => m.id !== id));
-  const upd = (id, k, v) => setMotores(motores.map((m) => (m.id === id ? { ...m, [k]: v } : m)));
-
-  return (
-    <Panel
-      title="Motores y circuitos industriales"
-      eyebrow="03 · ITC-BT-47"
-      icon={<Cog size={18} />}
-      right={<button className="btn-primary" onClick={add}><Plus size={15} /> Añadir motor</button>}
-    >
-      {motores.length === 0 && <p className="vacio">Añade un motor para calcular In, Ia, sección y protecciones.</p>}
-      <div className="lista-circuitos">
-        {motores.map((m) => {
-          const r = calcularMotor(m);
-          return (
-            <div className="tarjeta-circuito" key={m.id}>
-              <div className="tarjeta-head">
-                <Input className="input-nombre" value={m.nombre} onChange={(e) => upd(m.id, "nombre", e.target.value)} placeholder="Motor bomba, cinta transportadora..." />
-                <button className="btn-icon" onClick={() => remove(m.id)}><Trash2 size={15} /></button>
-              </div>
-              <div className="grid-4">
-                <Campo label="Potencia (kW)"><Input type="number" value={m.potencia} onChange={(e) => upd(m.id, "potencia", e.target.value)} /></Campo>
-                <Campo label="Tensión (V)"><Input type="number" value={m.tension} onChange={(e) => upd(m.id, "tension", e.target.value)} /></Campo>
-                <Campo label="cos φ"><Input type="number" step="0.01" value={m.cosphi} onChange={(e) => upd(m.id, "cosphi", e.target.value)} /></Campo>
-                <Campo label="Rendimiento (%)"><Input type="number" value={m.rendimiento} onChange={(e) => upd(m.id, "rendimiento", e.target.value)} /></Campo>
-                <Campo label="Tipo de arranque">
-                  <Select value={m.tipoArranque} onChange={(e) => upd(m.id, "tipoArranque", e.target.value)}>
-                    <option value="directo">Directo</option>
-                    <option value="estrella-triangulo">Estrella-triángulo</option>
-                  </Select>
-                </Campo>
-              </div>
-              <div className="resultado-bar">
-                <div className="resultado-item"><span>In</span><b>{fmt(r.In)} A</b></div>
-                <div className="resultado-item"><span>Ia arranque</span><b>{fmt(r.Ia)} A</b></div>
-                <div className="resultado-item"><span>Sección (1.25×In)</span><b>{r.seccion} mm²</b></div>
-                <div className="resultado-item"><span>Térmico</span><b>{r.protTermica.min}–{r.protTermica.max} A</b></div>
-                <div className="resultado-item"><span>Guardamotor</span><b>{r.guardamotor} A</b></div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </Panel>
-  );
-}
-
-/* =========================================================
-   MEDICIONES (derivadas + manuales)
-   ========================================================= */
-
-function generarMedicionesAuto(circuitosBT, fv, motores, proyecto) {
-  const items = [];
-  if (proyecto.tipos.bt) {
-    circuitosBT.forEach((c) => {
-      const r = calcularCircuitoBT({ ...c, potencia: parseFloat(c.potencia) || 0, longitud: parseFloat(c.longitud) || 0, cosphi: parseFloat(c.cosphi) || 0.95, tension: parseFloat(c.tension) || 230, limiteCdt: parseFloat(c.limiteCdt) || 3 });
-      items.push({ id: uid(), auto: true, capitulo: "Baja tensión", descripcion: `Cable ${r.seccion} mm² · ${c.nombre || "circuito"}`, unidad: "m", cantidad: parseFloat(c.longitud) || 0, precioKey: `cable_${String(r.seccion).replace(".", "_")}` });
-      items.push({ id: uid(), auto: true, capitulo: "Baja tensión", descripcion: `Interruptor magnetotérmico ${r.proteccion} A · ${c.nombre || "circuito"}`, unidad: "ud", cantidad: 1, precioKey: "magneto" });
-    });
-    if (circuitosBT.length > 0) {
-      items.push({ id: uid(), auto: true, capitulo: "Baja tensión", descripcion: "Interruptor diferencial 30 mA", unidad: "ud", cantidad: Math.max(1, Math.ceil(circuitosBT.length / 5)), precioKey: "diferencial" });
-      items.push({ id: uid(), auto: true, capitulo: "Baja tensión", descripcion: "Cuadro general de mando y protección", unidad: "ud", cantidad: 1, precioKey: "cuadro_general" });
-    }
-  }
-  if (proyecto.tipos.fv && (parseFloat(fv.numPaneles) || 0) > 0) {
-    const r = calcularFV(fv);
-    items.push({ id: uid(), auto: true, capitulo: "Fotovoltaica", descripcion: "Módulo fotovoltaico", unidad: "ud", cantidad: parseFloat(fv.numPaneles) || 0, precioKey: "panel_fv" });
-    items.push({ id: uid(), auto: true, capitulo: "Fotovoltaica", descripcion: "Inversor", unidad: "ud", cantidad: 1, precioKey: "inversor" });
-    items.push({ id: uid(), auto: true, capitulo: "Fotovoltaica", descripcion: "Estructura soporte", unidad: "ud", cantidad: parseFloat(fv.numPaneles) || 0, precioKey: "estructura_fv" });
-    items.push({ id: uid(), auto: true, capitulo: "Fotovoltaica", descripcion: `Cable CC ${r.seccionDC} mm²`, unidad: "m", cantidad: (parseFloat(fv.distStringInversor) || 0) * 2, precioKey: `cable_${String(r.seccionDC).replace(".", "_")}` });
-    items.push({ id: uid(), auto: true, capitulo: "Fotovoltaica", descripcion: `Cable CA ${r.seccionAC} mm²`, unidad: "m", cantidad: (parseFloat(fv.distInversorCuadro) || 0) * 2, precioKey: `cable_${String(r.seccionAC).replace(".", "_")}` });
-  }
-  if (proyecto.tipos.industrial) {
-    motores.forEach((m) => {
-      const r = calcularMotor(m);
-      items.push({ id: uid(), auto: true, capitulo: "Industrial", descripcion: `Cable ${r.seccion} mm² · motor ${m.nombre || ""}`, unidad: "m", cantidad: 10, precioKey: `cable_${String(r.seccion).replace(".", "_")}` });
-      items.push({ id: uid(), auto: true, capitulo: "Industrial", descripcion: `Guardamotor ${r.guardamotor} A · ${m.nombre || ""}`, unidad: "ud", cantidad: 1, precioKey: "guardamotor" });
-    });
-  }
-  return items;
-}
-
-function TabMediciones({ circuitosBT, fv, motores, proyecto, medicionesManual, setMedicionesManual, precios }) {
-  const auto = generarMedicionesAuto(circuitosBT, fv, motores, proyecto);
-  const todas = [...auto, ...medicionesManual];
-
-  const addManual = () => setMedicionesManual([...medicionesManual, { id: uid(), auto: false, capitulo: "Otros", descripcion: "", unidad: "ud", cantidad: 1, precioKey: null, precioManual: 0 }]);
-  const removeManual = (id) => setMedicionesManual(medicionesManual.filter((i) => i.id !== id));
-  const updManual = (id, k, v) => setMedicionesManual(medicionesManual.map((i) => (i.id === id ? { ...i, [k]: v } : i)));
-
-  const porCapitulo = {};
-  todas.forEach((it) => { (porCapitulo[it.capitulo] = porCapitulo[it.capitulo] || []).push(it); });
-
-  return (
-    <Panel
-      title="Mediciones"
-      eyebrow="04 · Generadas desde los cálculos"
-      icon={<ClipboardList size={18} />}
-      right={<button className="btn-primary" onClick={addManual}><Plus size={15} /> Partida manual</button>}
-    >
-      {Object.keys(porCapitulo).length === 0 && <p className="vacio">Añade circuitos en las pestañas de cálculo para generar mediciones automáticamente.</p>}
-      {Object.entries(porCapitulo).map(([cap, items]) => (
-        <div key={cap} className="capitulo-bloque">
-          <div className="capitulo-titulo">{cap}</div>
-          <table className="tabla-tech">
-            <thead><tr><th>Descripción</th><th>Ud.</th><th>Cantidad</th><th></th></tr></thead>
-            <tbody>
-              {items.map((it) => (
-                <tr key={it.id}>
-                  <td>
-                    {it.auto ? it.descripcion : (
-                      <Input value={it.descripcion} onChange={(e) => updManual(it.id, "descripcion", e.target.value)} placeholder="Descripción de la partida" />
-                    )}
-                  </td>
-                  <td>{it.auto ? it.unidad : <Input value={it.unidad} onChange={(e) => updManual(it.id, "unidad", e.target.value)} style={{ width: 60 }} />}</td>
-                  <td>{it.auto ? fmt(it.cantidad, 1) : <Input type="number" value={it.cantidad} onChange={(e) => updManual(it.id, "cantidad", e.target.value)} style={{ width: 80 }} />}</td>
-                  <td>{!it.auto && <button className="btn-icon" onClick={() => removeManual(it.id)}><Trash2 size={14} /></button>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ))}
-    </Panel>
-  );
-}
-
-/* =========================================================
-   PRESUPUESTO
-   ========================================================= */
-
-function calcularPresupuesto(circuitosBT, fv, motores, proyecto, medicionesManual, precios, gastosGenerales, beneficioIndustrial, iva) {
-  const auto = generarMedicionesAuto(circuitosBT, fv, motores, proyecto);
-  const todas = [...auto, ...medicionesManual];
-  const filas = todas.map((it) => {
-    const precioUnit = it.auto ? (precios[it.precioKey] ?? 0) : (parseFloat(it.precioManual) || 0);
-    const cantidad = parseFloat(it.cantidad) || 0;
-    return { ...it, precioUnit, importe: precioUnit * cantidad };
-  });
-  const porCapitulo = {};
-  filas.forEach((f) => { porCapitulo[f.capitulo] = (porCapitulo[f.capitulo] || 0) + f.importe; });
-  const pem = filas.reduce((a, f) => a + f.importe, 0);
-  const gg = pem * (gastosGenerales / 100);
-  const bi = pem * (beneficioIndustrial / 100);
-  const pca = pem + gg + bi;
-  const ivaImporte = pca * (iva / 100);
-  const total = pca + ivaImporte;
-  return { filas, porCapitulo, pem, gg, bi, pca, ivaImporte, total };
-}
-
-function TabPresupuesto({ circuitosBT, fv, motores, proyecto, medicionesManual, precios, setPrecios, gastosGenerales, setGastosGenerales, beneficioIndustrial, setBeneficioIndustrial, iva, setIva }) {
-  const p = calcularPresupuesto(circuitosBT, fv, motores, proyecto, medicionesManual, precios, gastosGenerales, beneficioIndustrial, iva);
-  const claves = Object.keys(precios);
-
-  return (
-    <Panel title="Presupuesto" eyebrow="05 · PEM + GG + BI + IVA" icon={<Receipt size={18} />}>
-      {Object.entries(p.porCapitulo).map(([cap, importe]) => (
-        <div key={cap} className="linea-presupuesto">
-          <span>{cap}</span><b>{fmt(importe)} €</b>
-        </div>
-      ))}
-      <div className="separador" />
-      <div className="linea-presupuesto"><span>Presupuesto de Ejecución Material (PEM)</span><b>{fmt(p.pem)} €</b></div>
-      <div className="linea-presupuesto sub">
-        <span>Gastos generales</span>
-        <span className="pct-input"><Input type="number" value={gastosGenerales} onChange={(e) => setGastosGenerales(parseFloat(e.target.value) || 0)} style={{ width: 56 }} />%</span>
-        <b>{fmt(p.gg)} €</b>
-      </div>
-      <div className="linea-presupuesto sub">
-        <span>Beneficio industrial</span>
-        <span className="pct-input"><Input type="number" value={beneficioIndustrial} onChange={(e) => setBeneficioIndustrial(parseFloat(e.target.value) || 0)} style={{ width: 56 }} />%</span>
-        <b>{fmt(p.bi)} €</b>
-      </div>
-      <div className="linea-presupuesto"><span>Presupuesto de Contrata (sin IVA)</span><b>{fmt(p.pca)} €</b></div>
-      <div className="linea-presupuesto sub">
-        <span>IVA</span>
-        <span className="pct-input"><Input type="number" value={iva} onChange={(e) => setIva(parseFloat(e.target.value) || 0)} style={{ width: 56 }} />%</span>
-        <b>{fmt(p.ivaImporte)} €</b>
-      </div>
-      <div className="linea-presupuesto total"><span>TOTAL PRESUPUESTO</span><b>{fmt(p.total)} €</b></div>
-
-      <details className="detalle-precios">
-        <summary>Editar precios unitarios ({claves.length})</summary>
-        <div className="grid-precios">
-          {claves.map((k) => (
-            <label key={k} className="precio-item">
-              <span>{k.replace(/_/g, " ")}</span>
-              <Input type="number" step="0.01" value={precios[k]} onChange={(e) => setPrecios({ ...precios, [k]: parseFloat(e.target.value) || 0 })} />
-            </label>
-          ))}
-        </div>
-      </details>
-      <div className="nota-normativa">
-        <Info size={14} />
-        Precios orientativos de mercado — ajústalos según tu proveedor habitual o el cuadro de precios de IDEA TSG.
-      </div>
-    </Panel>
-  );
-}
-
-/* =========================================================
-   MEMORIA
-   ========================================================= */
-
-function generarMemoriaTexto(proyecto, circuitosBT, fv, motores, memoria) {
-  const partes = [];
-  partes.push(`MEMORIA TÉCNICA DESCRIPTIVA\n\n1. OBJETO\n${memoria.objeto || `El objeto de la presente memoria es describir y justificar la instalación eléctrica de "${proyecto.nombre || "[nombre del proyecto]"}", conforme al Reglamento Electrotécnico para Baja Tensión (RD 842/2002) y sus Instrucciones Técnicas Complementarias.`}`);
-  partes.push(`2. TITULAR\n${memoria.titular || proyecto.cliente || "[titular]"}`);
-  partes.push(`3. EMPLAZAMIENTO\n${memoria.emplazamiento || proyecto.ubicacion || "[emplazamiento]"}`);
-  partes.push(`4. DESCRIPCIÓN DE LA INSTALACIÓN\n${memoria.descripcion || "Se describe a continuación cada uno de los subsistemas incluidos en el proyecto."}`);
-
-  if (proyecto.tipos.bt && circuitosBT.length > 0) {
-    let seccionBT = "4.1. Instalación de baja tensión\nCuadro de circuitos calculados:\n";
-    circuitosBT.forEach((c, i) => {
-      const r = calcularCircuitoBT({ ...c, potencia: parseFloat(c.potencia) || 0, longitud: parseFloat(c.longitud) || 0, cosphi: parseFloat(c.cosphi) || 0.95, tension: parseFloat(c.tension) || 230, limiteCdt: parseFloat(c.limiteCdt) || 3 });
-      seccionBT += `  C${i + 1} ${c.nombre || "circuito"}: ${c.potencia} W, ${r.seccion} mm², Ib=${fmt(r.Ib)} A, c.d.t.=${fmt(r.cdtFinal)}%, protección ${r.proteccion} A.\n`;
-    });
-    partes.push(seccionBT);
-  }
-  if (proyecto.tipos.fv && parseFloat(fv.numPaneles) > 0) {
-    const r = calcularFV(fv);
-    partes.push(`4.2. Instalación fotovoltaica de autoconsumo\nPotencia pico: ${fv.potenciaPico} kWp (${fv.numPaneles} módulos de ${fv.potenciaPanel} Wp). Tramo CC: sección ${r.seccionDC} mm², c.d.t. ${fmt(r.cdtDC)}%. Tramo CA: sección ${r.seccionAC} mm², protección ${r.proteccionAC} A, c.d.t. ${fmt(r.cdtAC)}%.`);
-  }
-  if (proyecto.tipos.industrial && motores.length > 0) {
-    let seccionInd = "4.3. Instalación industrial / motores\n";
-    motores.forEach((m) => {
-      const r = calcularMotor(m);
-      seccionInd += `  ${m.nombre || "Motor"}: ${m.potencia} kW, In=${fmt(r.In)} A, Ia=${fmt(r.Ia)} A, sección ${r.seccion} mm², guardamotor ${r.guardamotor} A.\n`;
-    });
-    partes.push(seccionInd);
-  }
-
-  partes.push(`5. NORMATIVA APLICABLE\n${memoria.normativa || "Reglamento Electrotécnico para Baja Tensión (RD 842/2002) e ITC-BT correspondientes. RD 244/2019 (autoconsumo), en su caso. Normativa municipal y de la compañía distribuidora."}`);
-  return partes.join("\n\n");
-}
-
-function TabMemoria({ proyecto, circuitosBT, fv, motores, memoria, setMemoria }) {
-  const upd = (k, v) => setMemoria({ ...memoria, [k]: v });
-  const texto = generarMemoriaTexto(proyecto, circuitosBT, fv, motores, memoria);
-  return (
-    <Panel title="Memoria técnica y anexos" eyebrow="06 · Generada a partir de los cálculos" icon={<FileText size={18} />}>
-      <div className="grid-2">
-        <Campo label="Objeto (déjalo vacío para usar el texto por defecto)">
-          <textarea className="textarea-tech" rows={2} value={memoria.objeto} onChange={(e) => upd("objeto", e.target.value)} />
-        </Campo>
-        <Campo label="Normativa (opcional, sobreescribe el texto por defecto)">
-          <textarea className="textarea-tech" rows={2} value={memoria.normativa} onChange={(e) => upd("normativa", e.target.value)} />
-        </Campo>
-        <Campo label="Descripción general (opcional)">
-          <textarea className="textarea-tech" rows={2} value={memoria.descripcion} onChange={(e) => upd("descripcion", e.target.value)} />
-        </Campo>
-      </div>
-      <div className="campo-label" style={{ marginTop: 16, marginBottom: 6 }}>Vista previa (se actualiza sola con tus cálculos)</div>
-      <pre className="preview-memoria">{texto}</pre>
-    </Panel>
-  );
-}
-
-/* =========================================================
-   EXPORTAR
-   ========================================================= */
-
-function TabExportar({ estado, onGuardar, onCargar, guardando, cargando, ultimoGuardado }) {
-  const exportarExcel = () => {
-    const p = calcularPresupuesto(estado.circuitosBT, estado.fv, estado.motores, estado.proyecto, estado.medicionesManual, estado.precios, estado.gastosGenerales, estado.beneficioIndustrial, estado.iva);
-    const wb = XLSX.utils.book_new();
-
-    const medRows = p.filas.map((f) => ({ Capítulo: f.capitulo, Descripción: f.descripcion, Ud: f.unidad, Cantidad: f.cantidad }));
-    const wsMed = XLSX.utils.json_to_sheet(medRows);
-    XLSX.utils.book_append_sheet(wb, wsMed, "Mediciones");
-
-    const presRows = p.filas.map((f) => ({ Capítulo: f.capitulo, Descripción: f.descripcion, Ud: f.unidad, Cantidad: f.cantidad, "Precio unit. (€)": f.precioUnit, "Importe (€)": Number(f.importe.toFixed(2)) }));
-    presRows.push({});
-    presRows.push({ Descripción: "PEM", "Importe (€)": Number(p.pem.toFixed(2)) });
-    presRows.push({ Descripción: `Gastos generales (${estado.gastosGenerales}%)`, "Importe (€)": Number(p.gg.toFixed(2)) });
-    presRows.push({ Descripción: `Beneficio industrial (${estado.beneficioIndustrial}%)`, "Importe (€)": Number(p.bi.toFixed(2)) });
-    presRows.push({ Descripción: "Presupuesto de contrata", "Importe (€)": Number(p.pca.toFixed(2)) });
-    presRows.push({ Descripción: `IVA (${estado.iva}%)`, "Importe (€)": Number(p.ivaImporte.toFixed(2)) });
-    presRows.push({ Descripción: "TOTAL", "Importe (€)": Number(p.total.toFixed(2)) });
-    const wsPres = XLSX.utils.json_to_sheet(presRows);
-    XLSX.utils.book_append_sheet(wb, wsPres, "Presupuesto");
-
-    if (estado.circuitosBT.length > 0) {
-      const btRows = estado.circuitosBT.map((c, i) => {
-        const r = calcularCircuitoBT({ ...c, potencia: parseFloat(c.potencia) || 0, longitud: parseFloat(c.longitud) || 0, cosphi: parseFloat(c.cosphi) || 0.95, tension: parseFloat(c.tension) || 230, limiteCdt: parseFloat(c.limiteCdt) || 3 });
-        return { Circuito: `C${i + 1}`, Nombre: c.nombre, "P (W)": c.potencia, Fases: c.fases, "Ib (A)": Number(r.Ib.toFixed(2)), "Sección (mm²)": r.seccion, "c.d.t. (%)": Number(r.cdtFinal.toFixed(2)), "Protección (A)": r.proteccion };
-      });
-      const wsBT = XLSX.utils.json_to_sheet(btRows);
-      XLSX.utils.book_append_sheet(wb, wsBT, "Cálculo BT");
+    return {
+        "idc_diseno": idc_diseno, "idc_servicio": idc_servicio, "seccion_dc": seccion_dc,
+        "cdt_dc": cdt_dc, "requiere_fusibles_dc": requiere_fusibles_dc,
+        "iac": iac, "seccion_ac": seccion_ac, "cdt_ac": cdt_ac, "proteccion_ac": proteccion_ac,
     }
 
-    XLSX.writeFile(wb, `${(estado.proyecto.nombre || "proyecto").replace(/\s+/g, "_")}.xlsx`);
-  };
 
-  const exportarPDF = () => {
-    window.print();
-  };
+def calcular_motor(row, metodo_instalacion):
+    p_kw = float(row.get("Potencia (kW)", 0) or 0)
+    v = float(row.get("Tension (V)", 400) or 400)
+    cosphi = float(row.get("cos phi", 0.85) or 0.85)
+    rendimiento = float(row.get("Rendimiento (%)", 90) or 90) / 100
+    tipo_arranque = row.get("Tipo de arranque", "Directo")
+    longitud = float(row.get("Longitud (m)", 0) or 0)
 
-  return (
-    <Panel title="Guardar y exportar" eyebrow="07 · Salidas del proyecto" icon={<Download size={18} />}>
-      <div className="export-grid">
-        <div className="export-card">
-          <ClipboardList size={20} />
-          <h4>Excel — mediciones y presupuesto</h4>
-          <p>Genera un libro con hojas de mediciones, presupuesto desglosado y el cálculo de circuitos BT.</p>
-          <button className="btn-primary" onClick={exportarExcel}><Download size={15} /> Descargar .xlsx</button>
-        </div>
-        <div className="export-card">
-          <FileText size={20} />
-          <h4>PDF — memoria técnica</h4>
-          <p>Abre el diálogo de impresión del navegador con una vista limpia de la memoria. Elige "Guardar como PDF".</p>
-          <button className="btn-primary" onClick={exportarPDF}><Printer size={15} /> Imprimir / PDF</button>
-        </div>
-        <div className="export-card">
-          <Save size={20} />
-          <h4>Guardar proyecto</h4>
-          <p>Guarda todos los datos introducidos en este navegador para poder continuar más tarde.</p>
-          <button className="btn-primary" onClick={onGuardar} disabled={guardando}>{guardando ? "Guardando..." : "Guardar"}</button>
-          {ultimoGuardado && <span className="guardado-hint">Guardado {ultimoGuardado}</span>}
-        </div>
-        <div className="export-card">
-          <FolderOpen size={20} />
-          <h4>Cargar proyecto</h4>
-          <p>Recupera el último proyecto guardado en este navegador.</p>
-          <button className="btn-secondary" onClick={onCargar} disabled={cargando}>{cargando ? "Cargando..." : "Cargar"}</button>
-        </div>
-      </div>
-      <div className="nota-normativa">
-        <Info size={14} />
-        El guardado es local a tu cuenta en este artefacto (no se comparte con nadie más). La exportación a Word
-        no está disponible directamente aquí — si quieres, pídeme aparte que te genere la memoria como documento
-        Word y te la preparo con el mismo contenido.
-      </div>
-    </Panel>
-  );
-}
+    in_ = (p_kw * 1000) / (np.sqrt(3) * v * cosphi * rendimiento) if v and cosphi and rendimiento else 0.0
+    factor_arranque = FACTORES_ARRANQUE_MOTOR.get(tipo_arranque, 7.0)
+    ia = in_ * factor_arranque
 
-/* =========================================================
-   VISTA DE IMPRESIÓN (memoria)
-   ========================================================= */
+    # ITC-BT-47 apartado 3: seccion del cable no inferior a 1.25 x In a plena carga
+    seccion = elegir_seccion_por_intensidad(in_ * 1.25, metodo_instalacion, 1.0)
+    iz = AMPACIDAD[metodo_instalacion][seccion]
+    cdt = cdt_tri_pct(longitud, in_, cosphi, seccion, v)
 
-function VistaImpresion({ estado }) {
-  const texto = generarMemoriaTexto(estado.proyecto, estado.circuitosBT, estado.fv, estado.motores, estado.memoria);
-  return (
-    <div className="hoja-impresion">
-      <h1>{estado.proyecto.nombre || "Memoria técnica"}</h1>
-      <div className="cajetin-impresion">
-        <span>Cliente: {estado.proyecto.cliente}</span>
-        <span>Emplazamiento: {estado.proyecto.ubicacion}</span>
-        <span>Técnico: {estado.proyecto.tecnico}</span>
-        <span>Fecha: {estado.proyecto.fecha}</span>
-      </div>
-      <pre>{texto}</pre>
-    </div>
-  );
-}
+    # Rango de regulacion orientativo del rele termico (ajustar segun placa de caracteristicas)
+    termico_min = in_ * 1.00
+    termico_max = in_ * 1.15
+    guardamotor = elegir_proteccion(in_, iz)
 
-/* =========================================================
-   APP PRINCIPAL
-   ========================================================= */
+    return pd.Series({
+        "In (A)": round(in_, 2),
+        "Ia arranque (A)": round(ia, 2),
+        "Seccion (mm2)": seccion,
+        "c.d.t. (%)": round(cdt, 2),
+        "Termico min (A)": round(termico_min, 2),
+        "Termico max (A)": round(termico_max, 2),
+        "Guardamotor (A)": guardamotor,
+    })
 
-const TABS = [
-  { id: "proyecto", label: "Proyecto", icon: ClipboardList },
-  { id: "bt", label: "Baja tensión", icon: Home },
-  { id: "fv", label: "Fotovoltaica", icon: Sun },
-  { id: "industrial", label: "Industrial", icon: Cog },
-  { id: "mediciones", label: "Mediciones", icon: Wrench },
-  { id: "presupuesto", label: "Presupuesto", icon: Receipt },
-  { id: "memoria", label: "Memoria", icon: FileText },
-  { id: "exportar", label: "Exportar", icon: Download },
-];
+# =====================================================================================
+# 3. MEDICIONES, PRESUPUESTO Y MEMORIA
+# =====================================================================================
 
-export default function App() {
-  const [tab, setTab] = useState("proyecto");
-  const [proyecto, setProyecto] = useState(ESTADO_INICIAL.proyecto);
-  const [circuitosBT, setCircuitosBT] = useState(ESTADO_INICIAL.circuitosBT);
-  const [fv, setFv] = useState(ESTADO_INICIAL.fv);
-  const [motores, setMotores] = useState(ESTADO_INICIAL.motores);
-  const [medicionesManual, setMedicionesManual] = useState(ESTADO_INICIAL.medicionesManual);
-  const [precios, setPrecios] = useState(ESTADO_INICIAL.precios);
-  const [gastosGenerales, setGastosGenerales] = useState(ESTADO_INICIAL.gastosGenerales);
-  const [beneficioIndustrial, setBeneficioIndustrial] = useState(ESTADO_INICIAL.beneficioIndustrial);
-  const [iva, setIva] = useState(ESTADO_INICIAL.iva);
-  const [memoria, setMemoria] = useState(ESTADO_INICIAL.memoria);
+def clave_cable(seccion):
+    return "cable_" + str(seccion).replace(".", "_")
 
-  const [guardando, setGuardando] = useState(false);
-  const [cargando, setCargando] = useState(false);
-  const [ultimoGuardado, setUltimoGuardado] = useState(null);
-  const cargadoInicial = useRef(false);
 
-  const estadoCompleto = { proyecto, circuitosBT, fv, motores, medicionesManual, precios, gastosGenerales, beneficioIndustrial, iva, memoria };
+def generar_mediciones_auto(circuitos_bt, fv_datos, motores, tipos_activos, metodo_instalacion):
+    items = []
+    if tipos_activos.get("bt") and not circuitos_bt.empty:
+        for _, c in circuitos_bt.iterrows():
+            r = calcular_circuito_bt(c, metodo_instalacion)
+            nombre = c.get("Circuito", "circuito")
+            items.append({"Capitulo": "Baja tension", "Descripcion": f"Cable {r['Seccion (mm2)']} mm2 - {nombre}",
+                          "Unidad": "m", "Cantidad": float(c.get("Longitud (m)", 0) or 0), "precio_key": clave_cable(r["Seccion (mm2)"])})
+            items.append({"Capitulo": "Baja tension", "Descripcion": f"Interruptor magnetotermico {r['Proteccion (A)']} A - {nombre}",
+                          "Unidad": "ud", "Cantidad": 1, "precio_key": "magnetotermico"})
+        items.append({"Capitulo": "Baja tension", "Descripcion": "Interruptor diferencial 30 mA",
+                      "Unidad": "ud", "Cantidad": max(1, int(np.ceil(len(circuitos_bt) / 5))), "precio_key": "diferencial"})
+        items.append({"Capitulo": "Baja tension", "Descripcion": "Cuadro general de mando y proteccion",
+                      "Unidad": "ud", "Cantidad": 1, "precio_key": "cuadro_general"})
 
-  const aplicarEstado = (s) => {
-    if (!s) return;
-    if (s.proyecto) setProyecto(s.proyecto);
-    if (s.circuitosBT) setCircuitosBT(s.circuitosBT);
-    if (s.fv) setFv(s.fv);
-    if (s.motores) setMotores(s.motores);
-    if (s.medicionesManual) setMedicionesManual(s.medicionesManual);
-    if (s.precios) setPrecios(s.precios);
-    if (typeof s.gastosGenerales === "number") setGastosGenerales(s.gastosGenerales);
-    if (typeof s.beneficioIndustrial === "number") setBeneficioIndustrial(s.beneficioIndustrial);
-    if (typeof s.iva === "number") setIva(s.iva);
-    if (s.memoria) setMemoria(s.memoria);
-  };
+    if tipos_activos.get("fv") and float(fv_datos.get("num_paneles", 0) or 0) > 0:
+        r = calcular_fv(fv_datos, metodo_instalacion)
+        num_paneles = float(fv_datos.get("num_paneles", 0) or 0)
+        items.append({"Capitulo": "Fotovoltaica", "Descripcion": "Modulo fotovoltaico", "Unidad": "ud",
+                      "Cantidad": num_paneles, "precio_key": "panel_fv"})
+        items.append({"Capitulo": "Fotovoltaica", "Descripcion": "Inversor", "Unidad": "ud",
+                      "Cantidad": 1, "precio_key": "inversor"})
+        items.append({"Capitulo": "Fotovoltaica", "Descripcion": "Estructura soporte", "Unidad": "ud",
+                      "Cantidad": num_paneles, "precio_key": "estructura_fv"})
+        items.append({"Capitulo": "Fotovoltaica", "Descripcion": f"Cable CC {r['seccion_dc']} mm2", "Unidad": "m",
+                      "Cantidad": float(fv_datos.get("dist_string_inversor", 0) or 0) * 2, "precio_key": clave_cable(r["seccion_dc"])})
+        items.append({"Capitulo": "Fotovoltaica", "Descripcion": f"Cable CA {r['seccion_ac']} mm2", "Unidad": "m",
+                      "Cantidad": float(fv_datos.get("dist_inversor_cuadro", 0) or 0) * 2, "precio_key": clave_cable(r["seccion_ac"])})
 
-  const handleGuardar = async () => {
-    setGuardando(true);
-    try {
-      await window.storage.set("proyecto-actual", JSON.stringify(estadoCompleto), false);
-      setUltimoGuardado(new Date().toLocaleTimeString());
-    } catch (e) {
-      console.error("Error guardando", e);
+    if tipos_activos.get("industrial") and not motores.empty:
+        for _, m in motores.iterrows():
+            r = calcular_motor(m, metodo_instalacion)
+            nombre = m.get("Motor", "motor")
+            items.append({"Capitulo": "Industrial", "Descripcion": f"Cable {r['Seccion (mm2)']} mm2 - motor {nombre}",
+                          "Unidad": "m", "Cantidad": float(m.get("Longitud (m)", 0) or 0), "precio_key": clave_cable(r["Seccion (mm2)"])})
+            items.append({"Capitulo": "Industrial", "Descripcion": f"Guardamotor {r['Guardamotor (A)']} A - {nombre}",
+                          "Unidad": "ud", "Cantidad": 1, "precio_key": "guardamotor"})
+
+    df = pd.DataFrame(items)
+    if df.empty:
+        df = pd.DataFrame(columns=["Capitulo", "Descripcion", "Unidad", "Cantidad", "precio_key"])
+    df["auto"] = True
+    return df
+
+
+def calcular_presupuesto(mediciones_auto, mediciones_manual, precios, gastos_generales, beneficio_industrial, iva):
+    filas = mediciones_auto.copy()
+    filas["Precio unitario (EUR)"] = filas["precio_key"].map(lambda k: precios.get(k, 0.0))
+    filas = filas[["Capitulo", "Descripcion", "Unidad", "Cantidad", "Precio unitario (EUR)"]]
+
+    manual = mediciones_manual.copy()
+    if not manual.empty:
+        manual = manual[["Capitulo", "Descripcion", "Unidad", "Cantidad", "Precio unitario (EUR)"]]
+        todas = pd.concat([filas, manual], ignore_index=True)
+    else:
+        todas = filas
+
+    if todas.empty:
+        todas = pd.DataFrame(columns=["Capitulo", "Descripcion", "Unidad", "Cantidad", "Precio unitario (EUR)"])
+
+    todas["Cantidad"] = pd.to_numeric(todas["Cantidad"], errors="coerce").fillna(0)
+    todas["Precio unitario (EUR)"] = pd.to_numeric(todas["Precio unitario (EUR)"], errors="coerce").fillna(0)
+    todas["Importe (EUR)"] = (todas["Cantidad"] * todas["Precio unitario (EUR)"]).round(2)
+
+    por_capitulo = todas.groupby("Capitulo")["Importe (EUR)"].sum() if not todas.empty else pd.Series(dtype=float)
+    pem = todas["Importe (EUR)"].sum()
+    gg = pem * (gastos_generales / 100)
+    bi = pem * (beneficio_industrial / 100)
+    pca = pem + gg + bi
+    iva_importe = pca * (iva / 100)
+    total = pca + iva_importe
+
+    return {"filas": todas, "por_capitulo": por_capitulo, "pem": pem, "gg": gg, "bi": bi,
+            "pca": pca, "iva_importe": iva_importe, "total": total}
+
+
+def generar_memoria_texto(proyecto, circuitos_bt, fv_datos, motores, memoria, tipos_activos, metodo_instalacion):
+    partes = []
+    partes.append("MEMORIA TECNICA DESCRIPTIVA")
+    partes.append("1. OBJETO\n" + (memoria.get("objeto") or
+        f"El objeto de la presente memoria es describir y justificar la instalacion electrica de "
+        f"\"{proyecto.get('nombre') or '[nombre del proyecto]'}\", conforme al Reglamento Electrotecnico "
+        f"para Baja Tension (RD 842/2002) y sus Instrucciones Tecnicas Complementarias."))
+    partes.append("2. TITULAR\n" + (memoria.get("titular") or proyecto.get("cliente") or "[titular]"))
+    partes.append("3. EMPLAZAMIENTO\n" + (memoria.get("emplazamiento") or proyecto.get("ubicacion") or "[emplazamiento]"))
+    partes.append("4. DESCRIPCION DE LA INSTALACION\n" + (memoria.get("descripcion") or
+        "Se describe a continuacion cada uno de los subsistemas incluidos en el proyecto. Metodo de "
+        f"instalacion de referencia adoptado: {metodo_instalacion}."))
+
+    if tipos_activos.get("bt") and not circuitos_bt.empty:
+        texto = "4.1. Instalacion de baja tension (ITC-BT-19, ITC-BT-25)\nCuadro de circuitos calculados:\n"
+        for i, (_, c) in enumerate(circuitos_bt.iterrows(), start=1):
+            r = calcular_circuito_bt(c, metodo_instalacion)
+            texto += (f" C{i} {c.get('Circuito', 'circuito')}: {c.get('Potencia (W)', 0)} W, "
+                      f"{r['Seccion (mm2)']} mm2, Ib={r['Ib (A)']} A, c.d.t.={r['c.d.t. (%)']}%, "
+                      f"proteccion {r['Proteccion (A)']} A ({r['Cumple']}).\n")
+        partes.append(texto)
+
+    if tipos_activos.get("fv") and float(fv_datos.get("num_paneles", 0) or 0) > 0:
+        r = calcular_fv(fv_datos, metodo_instalacion)
+        partes.append("4.2. Instalacion fotovoltaica de autoconsumo (RD 244/2019, ITC-BT-40)\n"
+            f"Potencia pico: {fv_datos.get('potencia_pico', '-')} kWp ({fv_datos.get('num_paneles', '-')} modulos). "
+            f"Tramo CC: seccion {r['seccion_dc']} mm2, c.d.t. {round(r['cdt_dc'], 2)}%. "
+            f"Tramo CA: seccion {r['seccion_ac']} mm2, proteccion {r['proteccion_ac']} A, c.d.t. {round(r['cdt_ac'], 2)}%.")
+
+    if tipos_activos.get("industrial") and not motores.empty:
+        texto = "4.3. Instalacion industrial / motores (ITC-BT-47)\n"
+        for _, m in motores.iterrows():
+            r = calcular_motor(m, metodo_instalacion)
+            texto += (f" {m.get('Motor', 'Motor')}: {m.get('Potencia (kW)', 0)} kW, In={r['In (A)']} A, "
+                      f"Ia={r['Ia arranque (A)']} A, seccion {r['Seccion (mm2)']} mm2, "
+                      f"guardamotor {r['Guardamotor (A)']} A.\n")
+        partes.append(texto)
+
+    partes.append("5. NORMATIVA APLICABLE\n" + (memoria.get("normativa") or
+        "Reglamento Electrotecnico para Baja Tension (RD 842/2002) e Instrucciones Tecnicas "
+        "Complementarias ITC-BT correspondientes. RD 244/2019 de autoconsumo, en su caso. "
+        "Normativa municipal y de la companhia distribuidora aplicable."))
+
+    return "\n\n".join(partes)
+
+# =====================================================================================
+# 4. ESTADO DE LA SESION
+# =====================================================================================
+
+def inicializar_estado():
+    defaults = {
+        "proyecto": {"nombre": "", "cliente": "", "ubicacion": "", "tecnico": "", "fecha": str(date.today())},
+        "tipos_activos": {"bt": True, "fv": False, "industrial": False},
+        "metodo_instalacion": list(AMPACIDAD.keys())[0],
+        "circuitos_bt": df_vacio(COLUMNAS_BT),
+        "fv_datos": {"potencia_pico": "", "num_paneles": "", "potencia_panel": "", "voc": "", "isc": "",
+                     "vmpp": "", "impp": "", "num_strings": 1, "dist_string_inversor": 15.0,
+                     "potencia_inversor": "", "tension_ac": 400.0, "fases_ac": "Trifasico",
+                     "dist_inversor_cuadro": 5.0},
+        "motores": df_vacio(COLUMNAS_MOTORES),
+        "mediciones_manual": df_vacio(COLUMNAS_MEDICION_MANUAL),
+        "precios": dict(PRECIOS_DEFECTO),
+        "gastos_generales": 13.0, "beneficio_industrial": 6.0, "iva": 21.0,
+        "memoria": {"objeto": "", "titular": "", "emplazamiento": "", "descripcion": "", "normativa": ""},
     }
-    setGuardando(false);
-  };
+    for k, v in defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
 
-  const handleCargar = async () => {
-    setCargando(true);
-    try {
-      const r = await window.storage.get("proyecto-actual");
-      if (r && r.value) aplicarEstado(JSON.parse(r.value));
-    } catch (e) {
-      console.error("No hay proyecto guardado todavía", e);
+
+def estado_a_dict():
+    s = st.session_state
+    return {
+        "proyecto": s.proyecto, "tipos_activos": s.tipos_activos, "metodo_instalacion": s.metodo_instalacion,
+        "circuitos_bt": s.circuitos_bt.to_dict(orient="records"),
+        "fv_datos": s.fv_datos, "motores": s.motores.to_dict(orient="records"),
+        "mediciones_manual": s.mediciones_manual.to_dict(orient="records"),
+        "precios": s.precios, "gastos_generales": s.gastos_generales,
+        "beneficio_industrial": s.beneficio_industrial, "iva": s.iva, "memoria": s.memoria,
     }
-    setCargando(false);
-  };
 
-  useEffect(() => {
-    if (cargadoInicial.current) return;
-    cargadoInicial.current = true;
-    handleCargar();
-  }, []);
 
-  return (
-    <div className="app-root">
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+def cargar_estado_desde_dict(d):
+    if "proyecto" in d:
+        st.session_state.proyecto = d["proyecto"]
+    if "tipos_activos" in d:
+        st.session_state.tipos_activos = d["tipos_activos"]
+    if "metodo_instalacion" in d:
+        st.session_state.metodo_instalacion = d["metodo_instalacion"]
+    if "circuitos_bt" in d:
+        st.session_state.circuitos_bt = pd.DataFrame(d["circuitos_bt"], columns=COLUMNAS_BT) if d["circuitos_bt"] else df_vacio(COLUMNAS_BT)
+    if "fv_datos" in d:
+        st.session_state.fv_datos = d["fv_datos"]
+    if "motores" in d:
+        st.session_state.motores = pd.DataFrame(d["motores"], columns=COLUMNAS_MOTORES) if d["motores"] else df_vacio(COLUMNAS_MOTORES)
+    if "mediciones_manual" in d:
+        st.session_state.mediciones_manual = pd.DataFrame(d["mediciones_manual"], columns=COLUMNAS_MEDICION_MANUAL) if d["mediciones_manual"] else df_vacio(COLUMNAS_MEDICION_MANUAL)
+    if "precios" in d:
+        st.session_state.precios = d["precios"]
+    if "gastos_generales" in d:
+        st.session_state.gastos_generales = d["gastos_generales"]
+    if "beneficio_industrial" in d:
+        st.session_state.beneficio_industrial = d["beneficio_industrial"]
+    if "iva" in d:
+        st.session_state.iva = d["iva"]
+    if "memoria" in d:
+        st.session_state.memoria = d["memoria"]
 
-        .app-root {
-          --ink-900: #10263f;
-          --ink-700: #1c3f61;
-          --ink-500: #45688a;
-          --paper: #f6f4ee;
-          --paper-line: rgba(16,38,63,0.09);
-          --amber: #c8790f;
-          --amber-soft: #f4e2c3;
-          --green: #2f6f4f;
-          --green-soft: #dcece2;
-          --red: #a8402f;
-          --red-soft: #f4dcd7;
-          --white: #ffffff;
-          font-family: 'IBM Plex Sans', sans-serif;
-          color: var(--ink-900);
-          background:
-            linear-gradient(var(--paper-line) 1px, transparent 1px) 0 0/100% 28px,
-            linear-gradient(90deg, var(--paper-line) 1px, transparent 1px) 0 0/28px 100%,
-            var(--paper);
-          min-height: 100%;
-          padding: 0;
-        }
-        .app-root * { box-sizing: border-box; }
-        .app-root h1, .app-root h2, .app-root h3, .app-root h4 { font-family: 'Space Grotesk', sans-serif; margin: 0; }
 
-        .cajetin {
-          display: flex; flex-wrap: wrap; gap: 0;
-          border: 2px solid var(--ink-900);
-          background: var(--white);
-          margin: 14px;
-          font-family: 'IBM Plex Mono', monospace;
-          font-size: 11px;
-        }
-        .cajetin-brand {
-          display: flex; align-items: center; gap: 8px;
-          padding: 10px 16px; border-right: 2px solid var(--ink-900);
-          font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 14px;
-          color: var(--white); background: var(--ink-900);
-        }
-        .cajetin-fields { display: flex; flex: 1; flex-wrap: wrap; }
-        .cajetin-field { padding: 8px 14px; border-right: 1px solid var(--paper-line); min-width: 140px; flex: 1; }
-        .cajetin-field:last-child { border-right: none; }
-        .cajetin-field label { display: block; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-500); font-size: 9px; margin-bottom: 3px; }
-        .cajetin-field input { border: none; background: transparent; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--ink-900); width: 100%; outline: none; }
+def exportar_excel(mediciones_auto, mediciones_manual, presupuesto, circuitos_bt, metodo_instalacion):
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        presupuesto["filas"].to_excel(writer, sheet_name="Mediciones y precios", index=False)
 
-        .layout { display: flex; gap: 0; padding: 0 14px 40px; align-items: flex-start; }
-        .nav-tabs { display: flex; flex-direction: column; gap: 2px; width: 200px; flex-shrink: 0; position: sticky; top: 14px; }
-        .nav-tab {
-          display: flex; align-items: center; gap: 9px; text-align: left;
-          padding: 10px 12px; border: 1px solid transparent; background: transparent;
-          font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; font-weight: 500;
-          color: var(--ink-700); cursor: pointer; border-radius: 2px;
-        }
-        .nav-tab:hover { background: var(--white); }
-        .nav-tab.active { background: var(--ink-900); color: var(--white); }
-        .nav-tab .num { font-family: 'IBM Plex Mono', monospace; font-size: 10px; opacity: 0.6; }
+        resumen = pd.DataFrame([
+            {"Concepto": "PEM (Presupuesto Ejecucion Material)", "Importe (EUR)": round(presupuesto["pem"], 2)},
+            {"Concepto": "Gastos generales", "Importe (EUR)": round(presupuesto["gg"], 2)},
+            {"Concepto": "Beneficio industrial", "Importe (EUR)": round(presupuesto["bi"], 2)},
+            {"Concepto": "Presupuesto de contrata (sin IVA)", "Importe (EUR)": round(presupuesto["pca"], 2)},
+            {"Concepto": "IVA", "Importe (EUR)": round(presupuesto["iva_importe"], 2)},
+            {"Concepto": "TOTAL PRESUPUESTO", "Importe (EUR)": round(presupuesto["total"], 2)},
+        ])
+        resumen.to_excel(writer, sheet_name="Resumen presupuesto", index=False)
 
-        .contenido { flex: 1; padding: 4px 0 0 20px; min-width: 0; }
+        if not circuitos_bt.empty:
+            filas_bt = []
+            for i, (_, c) in enumerate(circuitos_bt.iterrows(), start=1):
+                r = calcular_circuito_bt(c, metodo_instalacion)
+                filas_bt.append({"Circuito": f"C{i}", **c.to_dict(), **r.to_dict()})
+            pd.DataFrame(filas_bt).to_excel(writer, sheet_name="Calculo BT", index=False)
+    buffer.seek(0)
+    return buffer
 
-        .panel { background: var(--white); border: 1px solid var(--paper-line); border-radius: 3px; }
-        .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 2px solid var(--ink-900); }
-        .panel-eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--amber); margin-bottom: 2px; }
-        .panel-title { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 600; }
-        .panel-body { padding: 20px; }
 
-        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; }
-        .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px 14px; margin-top: 14px; }
-        @media (max-width: 900px) { .grid-2, .grid-4 { grid-template-columns: 1fr 1fr; } }
+def exportar_memoria_word(texto, proyecto):
+    try:
+        from docx import Document
+    except ImportError:
+        return None
+    doc = Document()
+    doc.add_heading(proyecto.get("nombre") or "Memoria tecnica", level=1)
+    tabla = doc.add_table(rows=0, cols=2)
+    for campo, valor in [("Cliente", proyecto.get("cliente", "")), ("Emplazamiento", proyecto.get("ubicacion", "")),
+                         ("Tecnico", proyecto.get("tecnico", "")), ("Fecha", proyecto.get("fecha", ""))]:
+        fila = tabla.add_row().cells
+        fila[0].text, fila[1].text = campo, str(valor)
+    doc.add_paragraph("")
+    for bloque in texto.split("\n\n"):
+        doc.add_paragraph(bloque)
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    return buffer
 
-        .campo { display: flex; flex-direction: column; gap: 4px; }
-        .campo-label { font-size: 11px; font-weight: 600; color: var(--ink-500); text-transform: uppercase; letter-spacing: 0.04em; }
-        .campo-hint { font-size: 10px; color: var(--ink-500); }
+# =====================================================================================
+# 5. INTERFAZ DE USUARIO
+# =====================================================================================
 
-        .input-tech {
-          font-family: 'IBM Plex Mono', monospace; font-size: 13px;
-          border: 1px solid var(--paper-line); border-bottom: 2px solid var(--ink-500);
-          border-radius: 2px; padding: 7px 9px; background: var(--paper); color: var(--ink-900);
-          outline: none; width: 100%;
-        }
-        .input-tech:focus { border-bottom-color: var(--amber); background: var(--white); }
-        .input-nombre { font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 600; }
+inicializar_estado()
 
-        .textarea-tech { font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; border: 1px solid var(--paper-line); border-radius: 2px; padding: 8px 10px; background: var(--paper); resize: vertical; width: 100%; }
+st.title("\u26a1 Proyectista Electrico - REBT")
+st.caption("Predimensionado de instalaciones de baja tension, fotovoltaica de autoconsumo e industrial, "
+           "conforme al REBT (RD 842/2002, ITC-BT) y RD 244/2019.")
 
-        .tipos-grid { display: flex; gap: 10px; flex-wrap: wrap; }
-        .tipo-check { display: flex; align-items: center; gap: 7px; border: 1px solid var(--paper-line); border-radius: 2px; padding: 9px 14px; font-size: 13px; font-weight: 500; cursor: pointer; background: var(--paper); }
-        .tipo-check input { accent-color: var(--ink-900); }
+# ---------------------------- BARRA LATERAL: PROYECTO -------------------------------
+with st.sidebar:
+    st.header("Datos del proyecto")
+    st.session_state.proyecto["nombre"] = st.text_input("Nombre del proyecto", st.session_state.proyecto.get("nombre", ""))
+    st.session_state.proyecto["cliente"] = st.text_input("Cliente / Titular", st.session_state.proyecto.get("cliente", ""))
+    st.session_state.proyecto["ubicacion"] = st.text_input("Emplazamiento", st.session_state.proyecto.get("ubicacion", ""))
+    st.session_state.proyecto["tecnico"] = st.text_input("Tecnico redactor", st.session_state.proyecto.get("tecnico", ""))
+    st.session_state.proyecto["fecha"] = st.text_input("Fecha", st.session_state.proyecto.get("fecha", str(date.today())))
 
-        .nota-normativa { display: flex; gap: 8px; align-items: flex-start; background: var(--amber-soft); border-left: 3px solid var(--amber); padding: 10px 12px; font-size: 12px; color: var(--ink-700); border-radius: 2px; line-height: 1.5; }
-        .nota-normativa svg { flex-shrink: 0; margin-top: 2px; color: var(--amber); }
+    st.divider()
+    st.subheader("Modulos incluidos")
+    st.session_state.tipos_activos["bt"] = st.checkbox("Baja tension (REBT)", st.session_state.tipos_activos.get("bt", True))
+    st.session_state.tipos_activos["fv"] = st.checkbox("Fotovoltaica de autoconsumo", st.session_state.tipos_activos.get("fv", False))
+    st.session_state.tipos_activos["industrial"] = st.checkbox("Industrial / motores", st.session_state.tipos_activos.get("industrial", False))
 
-        .btn-primary, .btn-secondary {
-          display: inline-flex; align-items: center; gap: 6px; font-family: 'IBM Plex Sans', sans-serif;
-          font-weight: 600; font-size: 12.5px; padding: 8px 14px; border-radius: 2px; cursor: pointer; border: none;
-        }
-        .btn-primary { background: var(--ink-900); color: var(--white); }
-        .btn-primary:hover { background: var(--ink-700); }
-        .btn-primary:disabled { opacity: 0.5; cursor: default; }
-        .btn-secondary { background: var(--white); color: var(--ink-900); border: 1px solid var(--ink-900); }
-        .btn-icon { border: none; background: transparent; color: var(--red); cursor: pointer; padding: 6px; border-radius: 2px; }
-        .btn-icon:hover { background: var(--red-soft); }
+    st.divider()
+    st.subheader("Metodo de instalacion (ITC-BT-19)")
+    st.session_state.metodo_instalacion = st.selectbox(
+        "Metodo de referencia para el cableado", list(AMPACIDAD.keys()),
+        index=list(AMPACIDAD.keys()).index(st.session_state.metodo_instalacion))
 
-        .vacio { color: var(--ink-500); font-size: 13px; font-style: italic; }
+    st.divider()
+    st.subheader("Guardar / cargar proyecto")
+    proyecto_json = json.dumps(estado_a_dict(), ensure_ascii=False, indent=2, default=str)
+    st.download_button("Descargar proyecto (.json)", data=proyecto_json,
+                       file_name=(st.session_state.proyecto.get("nombre") or "proyecto").replace(" ", "_") + ".json",
+                       mime="application/json")
+    archivo_proyecto = st.file_uploader("Cargar proyecto (.json)", type=["json"], key="uploader_json")
+    if archivo_proyecto is not None:
+        try:
+            cargar_estado_desde_dict(json.load(archivo_proyecto))
+            st.success("Proyecto cargado correctamente.")
+        except Exception as e:
+            st.error(f"No se pudo leer el archivo: {e}")
 
-        .lista-circuitos { display: flex; flex-direction: column; gap: 14px; }
-        .tarjeta-circuito { border: 1px solid var(--paper-line); border-radius: 3px; padding: 14px; background: var(--paper); }
-        .tarjeta-head { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
-        .tarjeta-head .input-nombre { flex: 1; }
+    st.info("Los valores de intensidades admisibles y factores de correccion son orientativos. "
+            "Verifica siempre contra las tablas oficiales del REBT/ITC-BT vigentes antes de emitir "
+            "documentacion oficial.", icon="\u26a0\ufe0f")
 
-        .resultado-bar { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--paper-line); }
-        .resultado-item { display: flex; flex-direction: column; font-family: 'IBM Plex Mono', monospace; }
-        .resultado-item span { font-size: 9px; text-transform: uppercase; color: var(--ink-500); letter-spacing: 0.05em; }
-        .resultado-item b { font-size: 14px; color: var(--ink-900); }
+tabs = st.tabs(["Baja tension", "Fotovoltaica", "Industrial", "Mediciones", "Presupuesto",
+                "Memoria", "Importar / Exportar"])
 
-        .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; padding: 5px 9px; border-radius: 20px; }
-        .badge-ok { background: var(--green-soft); color: var(--green); }
-        .badge-bad { background: var(--red-soft); color: var(--red); }
+# ---------------------------------- TAB: BAJA TENSION --------------------------------
+with tabs[0]:
+    st.subheader("Circuitos de baja tension (ITC-BT-19 / ITC-BT-25)")
+    st.caption("Anhade, edita o elimina filas directamente en la tabla. Los resultados se calculan automaticamente.")
 
-        .subtitulo-tabla { font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 13px; margin: 20px 0 4px; color: var(--ink-700); }
+    circuitos_editados = st.data_editor(
+        st.session_state.circuitos_bt, num_rows="dynamic", use_container_width=True, key="editor_bt",
+        column_config={
+            "Fases": st.column_config.SelectboxColumn(options=["Monofasico", "Trifasico"], default="Monofasico"),
+            "Tipo de receptor": st.column_config.SelectboxColumn(options=["Alumbrado", "Fuerza / tomas", "Climatizacion", "Mixto"], default="Alumbrado"),
+            "Temp. ambiente (C)": st.column_config.SelectboxColumn(options=list(FACTOR_TEMPERATURA.keys()), default=40),
+            "Circuitos agrupados": st.column_config.SelectboxColumn(options=list(FACTOR_AGRUPAMIENTO.keys()), default=1),
+            "Tipo de linea (cdt)": st.column_config.SelectboxColumn(options=list(CDT_MAXIMA.keys()), default="Instalacion interior - Otros usos (fuerza, tomas...)"),
+        },
+    )
+    st.session_state.circuitos_bt = circuitos_editados
 
-        .capitulo-bloque { margin-bottom: 18px; }
-        .capitulo-titulo { font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--amber); margin-bottom: 6px; }
-        .tabla-tech { width: 100%; border-collapse: collapse; font-size: 13px; }
-        .tabla-tech th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-500); border-bottom: 2px solid var(--ink-900); padding: 6px 8px; }
-        .tabla-tech td { padding: 6px 8px; border-bottom: 1px solid var(--paper-line); vertical-align: middle; }
+    if not circuitos_editados.empty:
+        resultados = circuitos_editados.apply(lambda r: calcular_circuito_bt(r, st.session_state.metodo_instalacion), axis=1)
+        tabla_resultado = pd.concat([circuitos_editados[["Circuito"]], resultados], axis=1)
+        st.dataframe(tabla_resultado, use_container_width=True)
+    else:
+        st.info("Todavia no hay circuitos. Anhade el primero desde la tabla superior.")
 
-        .linea-presupuesto { display: flex; justify-content: space-between; align-items: center; padding: 8px 4px; font-size: 13.5px; gap: 10px; }
-        .linea-presupuesto.sub { color: var(--ink-500); font-size: 12.5px; padding-left: 14px; }
-        .linea-presupuesto.total { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 17px; border-top: 2px solid var(--ink-900); margin-top: 6px; padding-top: 12px; color: var(--ink-900); }
-        .pct-input { display: flex; align-items: center; gap: 4px; font-family: 'IBM Plex Mono', monospace; }
-        .separador { height: 1px; background: var(--paper-line); margin: 8px 0; }
+# ---------------------------------- TAB: FOTOVOLTAICA ---------------------------------
+with tabs[1]:
+    st.subheader("Instalacion fotovoltaica de autoconsumo (RD 244/2019, ITC-BT-40)")
+    fv = st.session_state.fv_datos
+    c1, c2, c3, c4 = st.columns(4)
+    fv["potencia_pico"] = c1.text_input("Potencia pico (kWp)", str(fv.get("potencia_pico", "")))
+    fv["num_paneles"] = c2.text_input("Numero de paneles", str(fv.get("num_paneles", "")))
+    fv["potencia_panel"] = c3.text_input("Potencia por panel (Wp)", str(fv.get("potencia_panel", "")))
+    fv["num_strings"] = c4.number_input("Numero de strings en paralelo", min_value=1, value=int(fv.get("num_strings", 1) or 1))
 
-        .detalle-precios { margin-top: 18px; font-size: 12.5px; }
-        .detalle-precios summary { cursor: pointer; font-weight: 600; color: var(--ink-700); padding: 6px 0; }
-        .grid-precios { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
-        .precio-item { display: flex; flex-direction: column; gap: 3px; font-size: 11px; text-transform: capitalize; color: var(--ink-500); }
+    c1, c2, c3, c4 = st.columns(4)
+    fv["voc"] = c1.text_input("Voc (V)", str(fv.get("voc", "")))
+    fv["isc"] = c2.text_input("Isc (A)", str(fv.get("isc", "")))
+    fv["vmpp"] = c3.text_input("Vmpp (V)", str(fv.get("vmpp", "")))
+    fv["impp"] = c4.text_input("Impp (A)", str(fv.get("impp", "")))
 
-        .preview-memoria { font-family: 'IBM Plex Mono', monospace; font-size: 12px; line-height: 1.6; white-space: pre-wrap; background: var(--paper); border: 1px solid var(--paper-line); border-radius: 3px; padding: 16px; max-height: 480px; overflow-y: auto; }
+    c1, c2, c3, c4 = st.columns(4)
+    fv["dist_string_inversor"] = c1.number_input("Distancia strings -> inversor (m)", value=float(fv.get("dist_string_inversor", 15.0) or 0))
+    fv["potencia_inversor"] = c2.text_input("Potencia inversor (W)", str(fv.get("potencia_inversor", "")))
+    fv["tension_ac"] = c3.number_input("Tension AC (V)", value=float(fv.get("tension_ac", 400.0) or 0))
+    fv["fases_ac"] = c4.selectbox("Fases AC", ["Monofasico", "Trifasico"], index=["Monofasico", "Trifasico"].index(fv.get("fases_ac", "Trifasico")))
+    fv["dist_inversor_cuadro"] = st.number_input("Distancia inversor -> cuadro AC (m)", value=float(fv.get("dist_inversor_cuadro", 5.0) or 0))
+    st.session_state.fv_datos = fv
 
-        .export-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
-        @media (max-width: 900px) { .export-grid { grid-template-columns: 1fr; } }
-        .export-card { border: 1px solid var(--paper-line); border-radius: 3px; padding: 16px; display: flex; flex-direction: column; gap: 8px; background: var(--paper); }
-        .export-card svg { color: var(--amber); }
-        .export-card h4 { font-size: 14px; }
-        .export-card p { font-size: 12px; color: var(--ink-500); margin: 0; line-height: 1.5; flex: 1; }
-        .guardado-hint { font-size: 11px; color: var(--green); }
+    if float(fv.get("num_paneles", 0) or 0) > 0 or float(fv.get("impp", 0) or 0) > 0:
+        r = calcular_fv(fv, st.session_state.metodo_instalacion)
+        st.markdown("**Tramo CC (paneles -> inversor)**")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("I diseno CC (1.25 x Isc)", f"{r['idc_diseno']:.2f} A")
+        c2.metric("Seccion CC", f"{r['seccion_dc']} mm2")
+        c3.metric("c.d.t. CC", f"{r['cdt_dc']:.2f} %")
+        c4.metric("Requiere fusibles", "Si" if r["requiere_fusibles_dc"] else "No")
 
-        .hoja-impresion { display: none; }
-        @media print {
-          .app-root > .cajetin, .app-root > .layout { display: none !important; }
-          .hoja-impresion { display: block; font-family: 'IBM Plex Sans', sans-serif; padding: 20px; }
-          .hoja-impresion h1 { font-family: 'Space Grotesk', sans-serif; margin-bottom: 10px; }
-          .cajetin-impresion { display: flex; gap: 16px; flex-wrap: wrap; font-size: 11px; border: 1px solid #000; padding: 8px 10px; margin-bottom: 18px; font-family: 'IBM Plex Mono', monospace; }
-          .hoja-impresion pre { white-space: pre-wrap; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; line-height: 1.6; }
-        }
-      `}</style>
+        st.markdown("**Tramo CA (inversor -> cuadro AC)**")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("I AC", f"{r['iac']:.2f} A")
+        c2.metric("Seccion AC", f"{r['seccion_ac']} mm2")
+        c3.metric("c.d.t. AC", f"{r['cdt_ac']:.2f} %")
+        c4.metric("Proteccion AC", f"{r['proteccion_ac']} A")
 
-      <div className="cajetin">
-        <div className="cajetin-brand"><Zap size={18} /> PROYECTISTA</div>
-        <div className="cajetin-fields">
-          <div className="cajetin-field"><label>Proyecto</label><input value={proyecto.nombre} onChange={(e) => setProyecto({ ...proyecto, nombre: e.target.value })} placeholder="—" /></div>
-          <div className="cajetin-field"><label>Cliente</label><input value={proyecto.cliente} onChange={(e) => setProyecto({ ...proyecto, cliente: e.target.value })} placeholder="—" /></div>
-          <div className="cajetin-field"><label>Técnico</label><input value={proyecto.tecnico} onChange={(e) => setProyecto({ ...proyecto, tecnico: e.target.value })} placeholder="—" /></div>
-          <div className="cajetin-field"><label>Fecha</label><input value={proyecto.fecha} onChange={(e) => setProyecto({ ...proyecto, fecha: e.target.value })} placeholder="—" /></div>
-        </div>
-      </div>
+    st.info("Recuerda: interruptor-seccionador CC junto al inversor, proteccion contra sobretensiones, "
+            "diferencial adecuado al tipo de inversor (tipo A o superinmunizado tipo B si el fabricante lo exige) "
+            "y equipo de medida bidireccional segun RD 244/2019.", icon="\u2139\ufe0f")
 
-      <div className="layout">
-        <nav className="nav-tabs">
-          {TABS.map((t, i) => {
-            const Icon = t.icon;
-            return (
-              <button key={t.id} className={"nav-tab " + (tab === t.id ? "active" : "")} onClick={() => setTab(t.id)}>
-                <span className="num">{String(i).padStart(2, "0")}</span>
-                <Icon size={15} />
-                {t.label}
-                {tab === t.id && <ChevronRight size={13} style={{ marginLeft: "auto" }} />}
-              </button>
-            );
-          })}
-        </nav>
+# ---------------------------------- TAB: INDUSTRIAL -----------------------------------
+with tabs[2]:
+    st.subheader("Motores y circuitos industriales (ITC-BT-47)")
+    motores_editados = st.data_editor(
+        st.session_state.motores, num_rows="dynamic", use_container_width=True, key="editor_motores",
+        column_config={"Tipo de arranque": st.column_config.SelectboxColumn(options=list(FACTORES_ARRANQUE_MOTOR.keys()), default="Directo")},
+    )
+    st.session_state.motores = motores_editados
 
-        <div className="contenido">
-          {tab === "proyecto" && <TabProyecto proyecto={proyecto} setProyecto={setProyecto} />}
-          {tab === "bt" && <TabBT circuitos={circuitosBT} setCircuitos={setCircuitosBT} />}
-          {tab === "fv" && <TabFV fv={fv} setFv={setFv} />}
-          {tab === "industrial" && <TabIndustrial motores={motores} setMotores={setMotores} />}
-          {tab === "mediciones" && (
-            <TabMediciones
-              circuitosBT={circuitosBT} fv={fv} motores={motores} proyecto={proyecto}
-              medicionesManual={medicionesManual} setMedicionesManual={setMedicionesManual} precios={precios}
-            />
-          )}
-          {tab === "presupuesto" && (
-            <TabPresupuesto
-              circuitosBT={circuitosBT} fv={fv} motores={motores} proyecto={proyecto}
-              medicionesManual={medicionesManual} precios={precios} setPrecios={setPrecios}
-              gastosGenerales={gastosGenerales} setGastosGenerales={setGastosGenerales}
-              beneficioIndustrial={beneficioIndustrial} setBeneficioIndustrial={setBeneficioIndustrial}
-              iva={iva} setIva={setIva}
-            />
-          )}
-          {tab === "memoria" && <TabMemoria proyecto={proyecto} circuitosBT={circuitosBT} fv={fv} motores={motores} memoria={memoria} setMemoria={setMemoria} />}
-          {tab === "exportar" && (
-            <TabExportar estado={estadoCompleto} onGuardar={handleGuardar} onCargar={handleCargar} guardando={guardando} cargando={cargando} ultimoGuardado={ultimoGuardado} />
-          )}
-        </div>
-      </div>
+    if not motores_editados.empty:
+        resultados_m = motores_editados.apply(lambda r: calcular_motor(r, st.session_state.metodo_instalacion), axis=1)
+        tabla_m = pd.concat([motores_editados[["Motor"]], resultados_m], axis=1)
+        st.dataframe(tabla_m, use_container_width=True)
+    else:
+        st.info("Anhade un motor para calcular In, Ia de arranque, seccion y protecciones.")
 
-      <VistaImpresion estado={estadoCompleto} />
-    </div>
-  );
-}
+# ---------------------------------- TAB: MEDICIONES -----------------------------------
+with tabs[3]:
+    st.subheader("Mediciones")
+    mediciones_auto = generar_mediciones_auto(st.session_state.circuitos_bt, st.session_state.fv_datos,
+                                              st.session_state.motores, st.session_state.tipos_activos,
+                                              st.session_state.metodo_instalacion)
+    if not mediciones_auto.empty:
+        st.markdown("**Generadas automaticamente a partir de los calculos**")
+        st.dataframe(mediciones_auto[["Capitulo", "Descripcion", "Unidad", "Cantidad"]], use_container_width=True)
+    else:
+        st.info("Anhade circuitos en las pestanhas de calculo para generar mediciones automaticamente.")
+
+    st.markdown("**Partidas manuales**")
+    st.session_state.mediciones_manual = st.data_editor(
+        st.session_state.mediciones_manual, num_rows="dynamic", use_container_width=True, key="editor_mediciones_manual")
+
+# ---------------------------------- TAB: PRESUPUESTO ----------------------------------
+with tabs[4]:
+    st.subheader("Presupuesto (PEM + Gastos generales + Beneficio industrial + IVA)")
+    presupuesto = calcular_presupuesto(mediciones_auto, st.session_state.mediciones_manual, st.session_state.precios,
+                                        st.session_state.gastos_generales, st.session_state.beneficio_industrial,
+                                        st.session_state.iva)
+    for capitulo, importe in presupuesto["por_capitulo"].items():
+        st.write(f"**{capitulo}**: {importe:.2f} EUR")
+    st.divider()
+    c1, c2 = st.columns(2)
+    c1.metric("PEM (Presupuesto de Ejecucion Material)", f"{presupuesto['pem']:.2f} EUR")
+    st.session_state.gastos_generales = c1.number_input("Gastos generales (%)", value=float(st.session_state.gastos_generales))
+    st.session_state.beneficio_industrial = c1.number_input("Beneficio industrial (%)", value=float(st.session_state.beneficio_industrial))
+    st.session_state.iva = c2.number_input("IVA (%)", value=float(st.session_state.iva))
+    c2.metric("Presupuesto de contrata (sin IVA)", f"{presupuesto['pca']:.2f} EUR")
+    st.metric("TOTAL PRESUPUESTO", f"{presupuesto['total']:.2f} EUR")
+
+    with st.expander(f"Editar precios unitarios ({len(st.session_state.precios)})"):
+        cols = st.columns(3)
+        claves = list(st.session_state.precios.keys())
+        for i, k in enumerate(claves):
+            st.session_state.precios[k] = cols[i % 3].number_input(k.replace("_", " "), value=float(st.session_state.precios[k]), key=f"precio_{k}")
+
+# ---------------------------------- TAB: MEMORIA --------------------------------------
+with tabs[5]:
+    st.subheader("Memoria tecnica")
+    memoria = st.session_state.memoria
+    memoria["objeto"] = st.text_area("Objeto (vacio para usar el texto por defecto)", memoria.get("objeto", ""))
+    memoria["normativa"] = st.text_area("Normativa (opcional)", memoria.get("normativa", ""))
+    memoria["descripcion"] = st.text_area("Descripcion general (opcional)", memoria.get("descripcion", ""))
+    st.session_state.memoria = memoria
+
+    texto_memoria = generar_memoria_texto(st.session_state.proyecto, st.session_state.circuitos_bt,
+                                          st.session_state.fv_datos, st.session_state.motores, memoria,
+                                          st.session_state.tipos_activos, st.session_state.metodo_instalacion)
+    st.text_area("Vista previa", texto_memoria, height=350)
+
+# ---------------------------------- TAB: IMPORTAR / EXPORTAR --------------------------
+with tabs[6]:
+    st.subheader("Importar circuitos, motores o partidas desde CSV/Excel")
+    st.caption("Descarga la plantilla, rellenala y vuelve a subirla para cargar datos en bloque.")
+
+    colp1, colp2, colp3 = st.columns(3)
+    colp1.download_button("Plantilla circuitos BT (.csv)", df_vacio(COLUMNAS_BT).to_csv(index=False), "plantilla_circuitos_bt.csv", "text/csv")
+    colp2.download_button("Plantilla motores (.csv)", df_vacio(COLUMNAS_MOTORES).to_csv(index=False), "plantilla_motores.csv", "text/csv")
+    colp3.download_button("Plantilla mediciones (.csv)", df_vacio(COLUMNAS_MEDICION_MANUAL).to_csv(index=False), "plantilla_mediciones.csv", "text/csv")
+
+    tipo_importacion = st.selectbox("Que quieres importar", ["Circuitos de baja tension", "Motores", "Partidas de mediciones manuales"])
+    archivo = st.file_uploader("Selecciona un archivo .csv o .xlsx", type=["csv", "xlsx"], key="uploader_datos")
+    modo = st.radio("Modo de carga", ["Anhadir a los datos actuales", "Reemplazar los datos actuales"], horizontal=True)
+
+    if archivo is not None:
+        try:
+            nuevo_df = pd.read_csv(archivo) if archivo.name.endswith(".csv") else pd.read_excel(archivo)
+            if tipo_importacion == "Circuitos de baja tension":
+                destino, columnas = "circuitos_bt", COLUMNAS_BT
+            elif tipo_importacion == "Motores":
+                destino, columnas = "motores", COLUMNAS_MOTORES
+            else:
+                destino, columnas = "mediciones_manual", COLUMNAS_MEDICION_MANUAL
+
+            nuevo_df = nuevo_df.reindex(columns=columnas)
+            if modo == "Reemplazar los datos actuales":
+                st.session_state[destino] = nuevo_df
+            else:
+                st.session_state[destino] = pd.concat([st.session_state[destino], nuevo_df], ignore_index=True)
+            st.success(f"Se han importado {len(nuevo_df)} filas en '{tipo_importacion}'.")
+        except Exception as e:
+            st.error(f"No se pudo importar el archivo: {e}")
+
+    st.divider()
+    st.subheader("Exportar resultados")
+    excel_buffer = exportar_excel(mediciones_auto, st.session_state.mediciones_manual, presupuesto,
+                                  st.session_state.circuitos_bt, st.session_state.metodo_instalacion)
+    st.download_button("Descargar Excel (mediciones + presupuesto + calculo BT)", data=excel_buffer,
+                       file_name=(st.session_state.proyecto.get("nombre") or "proyecto").replace(" ", "_") + ".xlsx",
+                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+    word_buffer = exportar_memoria_word(texto_memoria, st.session_state.proyecto)
+    if word_buffer is not None:
+        st.download_button("Descargar memoria (Word .docx)", data=word_buffer,
+                           file_name=(st.session_state.proyecto.get("nombre") or "memoria").replace(" ", "_") + ".docx",
+                           mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    else:
+        st.download_button("Descargar memoria (texto .txt)", data=texto_memoria,
+                           file_name=(st.session_state.proyecto.get("nombre") or "memoria").replace(" ", "_") + ".txt",
+                           mime="text/plain")
