@@ -1,989 +1,1083 @@
-"""
-PROYECTISTA ELECTRICO - REBT
-Aplicacion Streamlit para el predimensionado de instalaciones electricas de baja
-tension, fotovoltaica de autoconsumo e industrial/motores, conforme al Reglamento
-Electrotecnico para Baja Tension (RD 842/2002) y sus Instrucciones Tecnicas
-Complementarias (ITC-BT), y al RD 244/2019 de autoconsumo.
-
-AVISO IMPORTANTE
-Esta herramienta es de apoyo al predimensionado y uso profesional/didactico. Los
-valores de intensidades admisibles, factores de correccion y demas datos tecnicos
-son de referencia segun las tablas habituales del REBT (ITC-BT-19, ITC-BT-47,
-ITC-BT-40). Antes de emitir documentacion oficial (proyecto, memoria tecnica,
-boletin electrico, etc.) se debe verificar cada resultado contra las tablas
-oficiales vigentes del REBT/ITC-BT, la normativa de la companhia distribuidora y
-el criterio de un tecnico competente colegiado.
-"""
-
 import io
 import json
-from datetime import date
+from datetime import date, datetime
 
 import numpy as np
 import pandas as pd
 import streamlit as st
 
-st.set_page_config(page_title="Proyectista Electrico - REBT", page_icon="\u26a1", layout="wide")
+st.set_page_config(
+    page_title="Proyectista Electrico - REBT",
+    page_icon="\u26A1",
+    layout="wide",
+)
 
-# =====================================================================================
-# 0. ESTILO VISUAL
-# =====================================================================================
+# ---------------------------------------------------------------------------
+# ESTILOS VISUALES
+# ---------------------------------------------------------------------------
+st.markdown(
+    """
+    <style>
+    .main .block-container {padding-top: 1.5rem;}
+    h1, h2, h3 {color: #0B3D91;}
+    .stTabs [data-baseweb="tab-list"] {gap: 6px;}
+    .stTabs [data-baseweb="tab"] {
+        background-color: #EEF3FB;
+        border-radius: 8px 8px 0 0;
+        padding: 8px 14px;
+        font-weight: 600;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #0B3D91 !important;
+        color: white !important;
+    }
+    div[data-testid="stMetric"] {
+        background-color: #F5F8FF;
+        border: 1px solid #DCE6F5;
+        border-radius: 10px;
+        padding: 10px;
+    }
+    .aviso-normativa {
+        background-color: #FFF6E5;
+        border-left: 5px solid #E8A33D;
+        padding: 10px 14px;
+        border-radius: 4px;
+        font-size: 0.9rem;
+        margin-bottom: 10px;
+    }
+    .caja-log {
+        background-color: #F7F7F9;
+        border: 1px solid #E0E0E5;
+        border-radius: 8px;
+        padding: 6px 10px;
+        font-size: 0.82rem;
+        margin-bottom: 4px;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
-html, body, [class*="css"] { font-family: 'IBM Plex Sans', sans-serif; }
-h1, h2, h3 { font-family: 'Space Grotesk', sans-serif; color: #10263f; }
-[data-testid="stMetric"] { background: #f6f4ee; border: 1px solid #e2ddcf; border-radius: 10px; padding: 12px 16px; }
-[data-testid="stMetricLabel"] { color: #45688a; font-weight: 600; }
-[data-testid="stMetricValue"] { color: #10263f; font-family: 'IBM Plex Mono', monospace; }
-.stTabs [data-baseweb="tab"] { font-weight: 600; font-size: 15px; }
-.stTabs [aria-selected="true"] { color: #c8790f !important; }
-div[data-testid="stExpander"] { border: 1px solid #e2ddcf; border-radius: 8px; }
-.bloque-nota { background: #f4e2c3; border-left: 4px solid #c8790f; padding: 10px 14px; border-radius: 4px; font-size: 13px; }
-</style>
-""", unsafe_allow_html=True)
-
-# =====================================================================================
-# 1. DATOS TECNICOS DE REFERENCIA (REBT / ITC-BT)
-# =====================================================================================
-
+# ---------------------------------------------------------------------------
+# TABLAS Y CONSTANTES NORMATIVAS (REBT / ITC-BT) - VALORES DE REFERENCIA
+# ---------------------------------------------------------------------------
 SECCIONES_MM2 = [1.5, 2.5, 4, 6, 10, 16, 25, 35, 50, 70, 95, 120, 150, 185, 240, 300]
 
-# ITC-BT-19, Tabla 1 (orientativa). Intensidades admisibles (A). Conductores de cobre,
-# aislamiento PVC, 2 conductores cargados. Metodos de instalacion de referencia
-# segun UNE-HD 60364-5-52 / guia tecnica de aplicacion de la ITC-BT-19.
+# Intensidades admisibles (A) - Cu, aislamiento PVC/XLPE 70-90C, 2 conductores
+# cargados, temperatura ambiente de referencia 40C aire / 25C terreno segun
+# UNE 20460-5-523 y Tabla 1 de la ITC-BT-19. Metodos de instalacion A1,A2,B1,B2,
+# C,D,E,F,G. VALORES ORIENTATIVOS: deben verificarse con la edicion vigente del
+# REBT antes de emitir un proyecto o memoria oficial.
 AMPACIDAD = {
-    "A1 - Conductores aislados en conducto empotrado en pared aislante": {
-        1.5: 13, 2.5: 17.5, 4: 23, 6: 29, 10: 39, 16: 52, 25: 68, 35: 83,
-        50: 99, 70: 125, 95: 150, 120: 172, 150: 196, 185: 223, 240: 261, 300: 298,
-    },
-    "A2 - Cable multiconductor en conducto empotrado en pared aislante": {
-        1.5: 13.5, 2.5: 18, 4: 24, 6: 31, 10: 42, 16: 56, 25: 73, 35: 89,
-        50: 108, 70: 136, 95: 164, 120: 188, 150: 216, 185: 245, 240: 286, 300: 328,
-    },
-    "B1 - Conductores aislados en tubo empotrado en obra o en superficie": {
-        1.5: 15, 2.5: 21, 4: 28, 6: 36, 10: 50, 16: 68, 25: 89, 35: 111,
-        50: 134, 70: 171, 95: 207, 120: 239, 150: 262, 185: 296, 240: 346, 300: 388,
-    },
-    "B2 - Cable multiconductor en tubo en superficie": {
-        1.5: 14, 2.5: 19, 4: 25, 6: 32, 10: 45, 16: 61, 25: 80, 35: 96,
-        50: 118, 70: 150, 95: 180, 120: 208, 150: 228, 185: 255, 240: 297, 300: 339,
-    },
-    "C - Cable multiconductor tendido directo sobre pared o techo": {
-        1.5: 17.5, 2.5: 24, 4: 32, 6: 41, 10: 57, 16: 76, 25: 96, 35: 119,
-        50: 144, 70: 184, 95: 223, 120: 259, 150: 299, 185: 341, 240: 403, 300: 464,
-    },
-    "D - Cable multiconductor enterrado (bajo tubo o directo)": {
-        1.5: 18, 2.5: 24, 4: 31, 6: 39, 10: 52, 16: 67, 25: 86, 35: 103,
-        50: 122, 70: 151, 95: 179, 120: 203, 150: 230, 185: 258, 240: 297, 300: 336,
-    },
-    "E - Cable multiconductor al aire libre / bandeja perforada": {
-        1.5: 19, 2.5: 26, 4: 35, 6: 45, 10: 61, 16: 82, 25: 108, 35: 133,
-        50: 161, 70: 205, 95: 249, 120: 289, 150: 332, 185: 378, 240: 445, 300: 512,
-    },
-    "F - Cables unipolares en contacto mutuo, al aire libre": {
-        1.5: 19.5, 2.5: 27, 4: 36, 6: 46, 10: 63, 16: 85, 25: 112, 35: 138,
-        50: 168, 70: 213, 95: 258, 120: 299, 150: 344, 185: 392, 240: 461, 300: 530,
-    },
-    "G - Cables unipolares separados entre si, al aire libre": {
-        1.5: 22, 2.5: 30, 4: 40, 6: 51, 10: 70, 16: 94, 25: 119, 35: 148,
-        50: 180, 70: 232, 95: 282, 120: 328, 150: 379, 185: 434, 240: 514, 300: 593,
-    },
+    1.5:  {"A1":14.5, "A2":14,  "B1":17.5, "B2":16.5, "C":19.5, "D":22, "E":22,  "F":23,  "G":26},
+    2.5:  {"A1":19.5, "A2":18.5,"B1":24,   "B2":23,   "C":27,   "D":29, "E":30,  "F":31,  "G":36},
+    4:    {"A1":26,   "A2":25,  "B1":32,   "B2":30,   "C":36,   "D":38, "E":40,  "F":42,  "G":49},
+    6:    {"A1":34,   "A2":32,  "B1":41,   "B2":38,   "C":46,   "D":47, "E":51,  "F":54,  "G":63},
+    10:   {"A1":46,   "A2":43,  "B1":57,   "B2":52,   "C":63,   "D":63, "E":70,  "F":75,  "G":86},
+    16:   {"A1":61,   "A2":57,  "B1":76,   "B2":69,   "C":85,   "D":81, "E":94,  "F":100, "G":115},
+    25:   {"A1":80,   "A2":75,  "B1":96,   "B2":90,   "C":112,  "D":104,"E":119, "F":127, "G":149},
+    35:   {"A1":99,   "A2":92,  "B1":119,  "B2":111,  "C":138,  "D":125,"E":147, "F":158, "G":185},
+    50:   {"A1":119,  "A2":110, "B1":144,  "B2":133,  "C":168,  "D":148,"E":178, "F":192, "G":225},
+    70:   {"A1":151,  "A2":139, "B1":184,  "B2":171,  "C":213,  "D":183,"E":229, "F":246, "G":289},
+    95:   {"A1":182,  "A2":167, "B1":223,  "B2":207,  "C":258,  "D":216,"E":278, "F":298, "G":352},
+    120:  {"A1":210,  "A2":192, "B1":259,  "B2":239,  "C":299,  "D":246,"E":322, "F":346, "G":410},
+    150:  {"A1":240,  "A2":219, "B1":None, "B2":262,  "C":344,  "D":None,"E":371,"F":399, "G":473},
+    185:  {"A1":273,  "A2":248, "B1":None, "B2":296,  "C":392,  "D":None,"E":424,"F":456, "G":542},
+    240:  {"A1":321,  "A2":291, "B1":None, "B2":344,  "C":461,  "D":None,"E":500,"F":538, "G":641},
+    300:  {"A1":367,  "A2":334, "B1":None, "B2":392,  "C":530,  "D":None,"E":576,"F":621, "G":741},
 }
 
-FACTOR_TEMPERATURA = {25: 1.12, 30: 1.08, 35: 1.04, 40: 1.00, 45: 0.91, 50: 0.82, 55: 0.71}
-FACTOR_AGRUPAMIENTO = {1: 1.00, 2: 0.80, 3: 0.70, 4: 0.65, 5: 0.60, 6: 0.57, 7: 0.54, 8: 0.52, 9: 0.50}
-PROTECCIONES_NORMALIZADAS = [6, 10, 13, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 400]
+METODOS_INSTALACION = {
+    "A1": "Conductores aislados en tubo empotrado en pared aislante (interior)",
+    "A2": "Cable multiconductor en tubo empotrado en pared aislante",
+    "B1": "Conductores aislados en tubo sobre pared o empotrado en obra",
+    "B2": "Cable multiconductor en tubo sobre pared o empotrado en obra",
+    "C":  "Cable multiconductor directamente sobre la pared o techo",
+    "D":  "Cable multiconductor en conducto enterrado o directamente enterrado",
+    "E":  "Cable multiconductor al aire libre, bandeja perforada / escalera",
+    "F":  "Cables unipolares en contacto mutuo, al aire libre (bandeja)",
+    "G":  "Cables unipolares separados, al aire libre (bandeja / soportes)",
+}
+
+FACTOR_TEMPERATURA = {
+    "PVC": {20:1.22, 25:1.17, 30:1.12, 35:1.06, 40:1.00, 45:0.94, 50:0.87, 55:0.79, 60:0.71},
+    "XLPE": {20:1.15, 25:1.12, 30:1.08, 35:1.04, 40:1.00, 45:0.96, 50:0.91, 55:0.87, 60:0.82},
+}
+
+FACTOR_AGRUPAMIENTO = {1:1.00, 2:0.80, 3:0.70, 4:0.65, 5:0.60, 6:0.57, 7:0.54, 8:0.52, 9:0.50}
+
+PROTECCIONES_NORMALIZADAS = [6,10,13,16,20,25,32,40,50,63,80,100,125,160,200,250]
 
 CDT_MAXIMA = {
-    "Linea general de alimentacion (LGA)": 0.5,
-    "Derivacion individual (con centralizacion de contadores)": 1.0,
-    "Derivacion individual (contador unico)": 1.5,
-    "Instalacion interior - Alumbrado": 3.0,
-    "Instalacion interior - Otros usos (fuerza, tomas...)": 5.0,
+    "Alumbrado": 3.0,
+    "Fuerza / Otros usos": 5.0,
+    "Derivacion individual": 1.5,
+    "Linea general de alimentacion": 0.5,
+    "Instalacion fotovoltaica (CC+CA)": 1.5,
 }
 
-RESISTIVIDAD_INV_CU = 56.0
+RESISTIVIDAD_INV_CU = 56.0  # 1/rho (m/ohm*mm2) a 20C, referencia Cu
 
-FACTORES_ARRANQUE_MOTOR = {
-    "Directo": 7.0,
-    "Estrella-Triangulo": 2.5,
-    "Arrancador electronico (soft-starter)": 3.5,
-    "Variador de frecuencia (VFD)": 1.2,
-}
+FACTORES_ARRANQUE_MOTOR = {"directo":1.25, "estrella_triangulo":1.25, "arrancador_suave":1.10, "variador":1.00}
 
 PRECIOS_DEFECTO = {
-    "cable_1_5": 0.55, "cable_2_5": 0.78, "cable_4": 1.15, "cable_6": 1.65, "cable_10": 2.60,
-    "cable_16": 4.10, "cable_25": 6.80, "cable_35": 9.40, "cable_50": 13.20, "cable_70": 18.60,
-    "cable_95": 24.50, "cable_120": 31.00, "cable_150": 38.50, "cable_185": 47.00,
-    "cable_240": 62.00, "cable_300": 78.00,
-    "magnetotermico": 9.50, "diferencial": 42.00, "guardamotor": 55.00,
-    "tubo_corrugado": 1.20, "panel_fv": 145.00, "inversor": 650.00, "estructura_fv": 60.00,
-    "mecanismo": 6.50, "caja_derivacion": 3.20, "cuadro_general": 85.00, "mano_obra_h": 24.00,
+    "cable_eur_m_mm2": 0.19,
+    "tubo_eur_m": 1.35,
+    "proteccion_eur_ud": 14.0,
+    "mano_obra_eur_h": 24.0,
+    "gastos_generales_pct": 13.0,
+    "beneficio_industrial_pct": 6.0,
+    "iva_pct": 21.0,
 }
 
-COLUMNAS_BT = ["Circuito", "Tipo de receptor", "Fases", "Tension (V)", "Potencia (W)",
-               "cos phi", "Longitud (m)", "Temp. ambiente (C)", "Circuitos agrupados",
-               "Tipo de linea (cdt)"]
-COLUMNAS_MOTORES = ["Motor", "Potencia (kW)", "Tension (V)", "cos phi", "Rendimiento (%)",
-                     "Tipo de arranque", "Longitud (m)"]
-COLUMNAS_MEDICION_MANUAL = ["Capitulo", "Descripcion", "Unidad", "Cantidad", "Precio unitario (EUR)"]
+TIPOS_SUMINISTRO = {
+    "CGP individual (usuario unico)": {
+        "descripcion": "Suministro para un unico usuario. La CGP incluye los fusibles de seguridad y da paso directamente a la derivacion individual.",
+        "elementos": ["Acometida", "CGP", "Equipo de medida (contador)", "Derivacion individual", "ICP + IGA", "Cuadro general de mando y proteccion", "Circuitos interiores"],
+    },
+    "CGP + Centralizacion de contadores": {
+        "descripcion": "Edificio con varios usuarios. La CGP alimenta la Linea General de Alimentacion (LGA) hasta la centralizacion de contadores; de ahi parte una derivacion individual por usuario.",
+        "elementos": ["Acometida", "CGP", "Linea General de Alimentacion (LGA)", "Centralizacion de contadores", "Derivacion individual (por usuario)", "ICP + IGA", "Cuadro general de mando y proteccion", "Circuitos interiores"],
+    },
+    "Suministro en Media Tension con transformador de abonado": {
+        "descripcion": "Acometida en Media Tension propiedad del abonado, con centro de transformacion (CT) particular hasta el cuadro general de Baja Tension.",
+        "elementos": ["Red de Media Tension", "Celda de proteccion / seccionamiento", "Transformador MT/BT", "Cuadro general de Baja Tension (embarrado)", "Derivacion individual", "Cuadro general de mando y proteccion", "Circuitos interiores"],
+    },
+    "Generacion propia / Autoconsumo": {
+        "descripcion": "Instalacion con generacion fotovoltaica u otra fuente propia, con o sin conexion a la red de distribucion (autoconsumo con o sin excedentes).",
+        "elementos": ["Generador (paneles FV / otros)", "Inversor", "Cuadro de protecciones de generacion", "Punto de conexion / Cuadro general de mando y proteccion", "Circuitos interiores"],
+    },
+}
+
+COLUMNAS_BT = ["Circuito","Descripcion","Tipo","Potencia (W)","Tension (V)","Fases","Longitud (m)",
+               "Metodo instalacion","Factor agrupamiento","Temp. ambiente (C)","Aislamiento","Uso"]
+
+COLUMNAS_MOTORES = ["Motor","Descripcion","Potencia (kW)","Tension (V)","Fases","Rendimiento (%)",
+                    "cos phi","Longitud (m)","Metodo arranque","Metodo instalacion"]
+
+COLUMNAS_MEDICION_MANUAL = ["Capitulo","Descripcion","Unidad","Cantidad","Precio unitario (EUR)"]
 
 
 def df_vacio(columnas):
-    return pd.DataFrame(columns=columnas)
+    return pd.DataFrame({c: [] for c in columnas})
 
-# =====================================================================================
-# 2. FUNCIONES DE CALCULO ELECTRICO
-# =====================================================================================
 
-def intensidad_mono(p_w, v, cosphi):
-    if not v or not cosphi:
+# ---------------------------------------------------------------------------
+# FUNCIONES DE CALCULO ELECTRICO
+# ---------------------------------------------------------------------------
+
+def intensidad_mono(potencia_w, tension_v, cos_phi=0.95):
+    if tension_v <= 0:
         return 0.0
-    return p_w / (v * cosphi)
+    return potencia_w / (tension_v * cos_phi)
 
 
-def intensidad_tri(p_w, v, cosphi):
-    if not v or not cosphi:
+def intensidad_tri(potencia_w, tension_v, cos_phi=0.95):
+    if tension_v <= 0:
         return 0.0
-    return p_w / (np.sqrt(3) * v * cosphi)
+    return potencia_w / (1.732 * tension_v * cos_phi)
 
 
-def cdt_mono_pct(long_m, i, cosphi, s_mm2, v):
-    if not s_mm2 or not v:
+def cdt_mono_pct(intensidad_a, longitud_m, seccion_mm2, tension_v, cos_phi=0.95):
+    if seccion_mm2 <= 0 or tension_v <= 0:
         return 0.0
-    return (2 * long_m * i * cosphi) / (RESISTIVIDAD_INV_CU * s_mm2) / v * 100
+    caida_v = (2 * longitud_m * intensidad_a) / (RESISTIVIDAD_INV_CU * seccion_mm2)
+    return (caida_v / tension_v) * 100
 
 
-def cdt_tri_pct(long_m, i, cosphi, s_mm2, v):
-    if not s_mm2 or not v:
+def cdt_tri_pct(intensidad_a, longitud_m, seccion_mm2, tension_v, cos_phi=0.95):
+    if seccion_mm2 <= 0 or tension_v <= 0:
         return 0.0
-    return (np.sqrt(3) * long_m * i * cosphi) / (RESISTIVIDAD_INV_CU * s_mm2) / v * 100
+    caida_v = (1.732 * longitud_m * intensidad_a) / (RESISTIVIDAD_INV_CU * seccion_mm2)
+    return (caida_v / tension_v) * 100
 
 
-def elegir_seccion_por_intensidad(ib, metodo, factor_correccion):
-    tabla = AMPACIDAD[metodo]
-    factor_correccion = factor_correccion or 1.0
+def elegir_seccion_por_intensidad(intensidad_a, metodo, factor_temp=1.0, factor_agrup=1.0):
     for s in SECCIONES_MM2:
-        if tabla[s] * factor_correccion >= ib:
-            return s
-    return SECCIONES_MM2[-1]
+        fila = AMPACIDAD.get(s, {})
+        iz = fila.get(metodo)
+        if iz is None:
+            continue
+        iz_corregida = iz * factor_temp * factor_agrup
+        if iz_corregida >= intensidad_a:
+            return s, iz_corregida
+    return SECCIONES_MM2[-1], None
 
 
-def elegir_seccion_por_cdt(long_m, ib, cosphi, v, limite_pct, fases):
+def elegir_seccion_por_cdt(intensidad_a, longitud_m, tension_v, cdt_max_pct, trifasico=False, cos_phi=0.95):
     for s in SECCIONES_MM2:
-        cdt = cdt_tri_pct(long_m, ib, cosphi, s, v) if fases == "Trifasico" else cdt_mono_pct(long_m, ib, cosphi, s, v)
-        if cdt <= limite_pct:
-            return s
-    return SECCIONES_MM2[-1]
+        if trifasico:
+            cdt = cdt_tri_pct(intensidad_a, longitud_m, s, tension_v, cos_phi)
+        else:
+            cdt = cdt_mono_pct(intensidad_a, longitud_m, s, tension_v, cos_phi)
+        if cdt <= cdt_max_pct:
+            return s, cdt
+    s = SECCIONES_MM2[-1]
+    if trifasico:
+        cdt = cdt_tri_pct(intensidad_a, longitud_m, s, tension_v, cos_phi)
+    else:
+        cdt = cdt_mono_pct(intensidad_a, longitud_m, s, tension_v, cos_phi)
+    return s, cdt
 
 
-def elegir_proteccion(ib, iz_corregida):
-    candidatos = [p for p in PROTECCIONES_NORMALIZADAS if p >= ib]
-    if not candidatos:
-        return PROTECCIONES_NORMALIZADAS[-1]
-    validas = [p for p in candidatos if p <= iz_corregida]
-    return validas[0] if validas else candidatos[0]
+def elegir_proteccion(intensidad_a, iz_a=None):
+    for p in PROTECCIONES_NORMALIZADAS:
+        if p >= intensidad_a:
+            if iz_a is not None and p > iz_a:
+                continue
+            return p
+    return PROTECCIONES_NORMALIZADAS[-1]
 
 
-def calcular_circuito_bt(row, metodo_instalacion):
-    fases = row.get("Fases", "Monofasico")
-    p = float(row.get("Potencia (W)", 0) or 0)
-    v = float(row.get("Tension (V)", 230) or 230)
-    cosphi = float(row.get("cos phi", 0.95) or 0.95)
-    longitud = float(row.get("Longitud (m)", 0) or 0)
-    temp = int(float(row.get("Temp. ambiente (C)", 40) or 40))
-    agrup = int(float(row.get("Circuitos agrupados", 1) or 1))
-    tipo_linea = row.get("Tipo de linea (cdt)", "Instalacion interior - Otros usos (fuerza, tomas...)")
-    limite_cdt = CDT_MAXIMA.get(tipo_linea, 5.0)
+def calcular_circuito_bt(fila):
+    potencia = float(fila.get("Potencia (W)", 0) or 0)
+    tension = float(fila.get("Tension (V)", 230) or 230)
+    fases = fila.get("Fases", "Monofasico")
+    longitud = float(fila.get("Longitud (m)", 0) or 0)
+    metodo = fila.get("Metodo instalacion", "B1")
+    agrup_n = int(fila.get("Factor agrupamiento", 1) or 1)
+    temp_amb = float(fila.get("Temp. ambiente (C)", 40) or 40)
+    aislamiento = fila.get("Aislamiento", "PVC")
+    uso = fila.get("Uso", "Fuerza / Otros usos")
 
-    ib = intensidad_tri(p, v, cosphi) if fases == "Trifasico" else intensidad_mono(p, v, cosphi)
-    f_temp = FACTOR_TEMPERATURA.get(temp, 1.0)
-    f_agr = FACTOR_AGRUPAMIENTO.get(agrup, 1.0)
-    factor_corr = f_temp * f_agr
+    trifasico = str(fases).lower().startswith("tri")
+    if trifasico:
+        intensidad = intensidad_tri(potencia, tension)
+    else:
+        intensidad = intensidad_mono(potencia, tension)
 
-    s_int = elegir_seccion_por_intensidad(ib, metodo_instalacion, factor_corr)
-    s_cdt = elegir_seccion_por_cdt(longitud, ib, cosphi, v, limite_cdt, fases)
-    seccion = max(s_int, s_cdt)
+    tabla_temp = FACTOR_TEMPERATURA.get(aislamiento, FACTOR_TEMPERATURA["PVC"])
+    temps = sorted(tabla_temp.keys())
+    temp_cercana = min(temps, key=lambda t: abs(t - temp_amb))
+    f_temp = tabla_temp[temp_cercana]
+    f_agrup = FACTOR_AGRUPAMIENTO.get(agrup_n, 0.5)
 
-    iz = AMPACIDAD[metodo_instalacion][seccion] * factor_corr
-    cdt = cdt_tri_pct(longitud, ib, cosphi, seccion, v) if fases == "Trifasico" else cdt_mono_pct(longitud, ib, cosphi, seccion, v)
-    proteccion = elegir_proteccion(ib, iz)
-    cumple = (cdt <= limite_cdt) and (iz >= ib) and (ib <= proteccion <= iz)
+    seccion_intensidad, iz = elegir_seccion_por_intensidad(intensidad, metodo, f_temp, f_agrup)
+    cdt_max = CDT_MAXIMA.get(uso, 3.0)
+    seccion_cdt, cdt = elegir_seccion_por_cdt(intensidad, longitud, tension, cdt_max, trifasico)
 
-    return pd.Series({
-        "Ib (A)": round(ib, 2),
-        "Seccion (mm2)": seccion,
-        "Iz corregida (A)": round(iz, 2),
-        "c.d.t. (%)": round(cdt, 2),
-        "cdt max (%)": limite_cdt,
-        "Proteccion (A)": proteccion,
-        "Cumple": "Cumple" if cumple else "Revisar",
-    })
+    seccion_final = max(seccion_intensidad, seccion_cdt)
+    proteccion = elegir_proteccion(intensidad, iz)
 
-
-def calcular_fv(datos, metodo_instalacion):
-    isc = float(datos.get("isc", 0) or 0)
-    impp = float(datos.get("impp", 0) or 0)
-    num_strings = int(float(datos.get("num_strings", 1) or 1))
-    vmpp = float(datos.get("vmpp", 1) or 1)
-    dist_dc = float(datos.get("dist_string_inversor", 0) or 0)
-    potencia_inversor = float(datos.get("potencia_inversor", 0) or 0)
-    tension_ac = float(datos.get("tension_ac", 400) or 400)
-    fases_ac = datos.get("fases_ac", "Trifasico")
-    dist_ac = float(datos.get("dist_inversor_cuadro", 0) or 0)
-
-    idc_diseno = isc * num_strings * 1.25
-    idc_servicio = impp * num_strings
-    seccion_dc = elegir_seccion_por_intensidad(idc_diseno, metodo_instalacion, 1.0)
-    cdt_dc = cdt_mono_pct(dist_dc, idc_servicio, 1.0, seccion_dc, vmpp)
-    requiere_fusibles_dc = num_strings > 2
-
-    fases_norm = "Trifasico" if fases_ac == "Trifasico" else "Monofasico"
-    iac = intensidad_tri(potencia_inversor, tension_ac, 1.0) if fases_norm == "Trifasico" else intensidad_mono(potencia_inversor, tension_ac, 1.0)
-    seccion_ac = elegir_seccion_por_intensidad(iac * 1.25, metodo_instalacion, 1.0)
-    cdt_ac = cdt_tri_pct(dist_ac, iac, 1.0, seccion_ac, tension_ac) if fases_norm == "Trifasico" else cdt_mono_pct(dist_ac, iac, 1.0, seccion_ac, tension_ac)
-    proteccion_ac = elegir_proteccion(iac, AMPACIDAD[metodo_instalacion][seccion_ac])
+    cdt_final = cdt_tri_pct(intensidad, longitud, seccion_final, tension) if trifasico else cdt_mono_pct(intensidad, longitud, seccion_final, tension)
+    cumple = (cdt_final <= cdt_max) and (iz is not None)
 
     return {
-        "idc_diseno": idc_diseno, "idc_servicio": idc_servicio, "seccion_dc": seccion_dc,
-        "cdt_dc": cdt_dc, "requiere_fusibles_dc": requiere_fusibles_dc,
-        "iac": iac, "seccion_ac": seccion_ac, "cdt_ac": cdt_ac, "proteccion_ac": proteccion_ac,
+        "Intensidad (A)": round(intensidad, 2),
+        "Seccion (mm2)": seccion_final,
+        "Proteccion (A)": proteccion,
+        "CDT (%)": round(cdt_final, 2),
+        "CDT max (%)": cdt_max,
+        "Cumple": "Si" if cumple else "Revisar",
     }
 
 
-def calcular_motor(row, metodo_instalacion):
-    p_kw = float(row.get("Potencia (kW)", 0) or 0)
-    v = float(row.get("Tension (V)", 400) or 400)
-    cosphi = float(row.get("cos phi", 0.85) or 0.85)
-    rendimiento = float(row.get("Rendimiento (%)", 90) or 90) / 100
-    tipo_arranque = row.get("Tipo de arranque", "Directo")
-    longitud = float(row.get("Longitud (m)", 0) or 0)
+def calcular_fv(potencia_pico_kwp, tension_mppt_v, num_paneles, longitud_dc_m, longitud_ac_m, potencia_inversor_kw, tension_ac_v=400):
+    intensidad_dc = (potencia_pico_kwp * 1000) / tension_mppt_v if tension_mppt_v else 0
+    seccion_dc, _ = elegir_seccion_por_intensidad(intensidad_dc, "E", 1.0, 1.0)
+    cdt_dc = cdt_mono_pct(intensidad_dc, longitud_dc_m, seccion_dc, tension_mppt_v) if tension_mppt_v else 0
 
-    in_ = (p_kw * 1000) / (np.sqrt(3) * v * cosphi * rendimiento) if v and cosphi and rendimiento else 0.0
-    factor_arranque = FACTORES_ARRANQUE_MOTOR.get(tipo_arranque, 7.0)
-    ia = in_ * factor_arranque
+    intensidad_ac = intensidad_tri(potencia_inversor_kw * 1000, tension_ac_v)
+    seccion_ac, _ = elegir_seccion_por_intensidad(intensidad_ac, "E", 1.0, 1.0)
+    cdt_ac = cdt_tri_pct(intensidad_ac, longitud_ac_m, seccion_ac, tension_ac_v)
 
-    seccion = elegir_seccion_por_intensidad(in_ * 1.25, metodo_instalacion, 1.0)
-    iz = AMPACIDAD[metodo_instalacion][seccion]
-    cdt = cdt_tri_pct(longitud, in_, cosphi, seccion, v)
+    proteccion_dc = elegir_proteccion(intensidad_dc)
+    proteccion_ac = elegir_proteccion(intensidad_ac)
 
-    termico_min = in_ * 1.00
-    termico_max = in_ * 1.15
-    guardamotor = elegir_proteccion(in_, iz)
-
-    return pd.Series({
-        "In (A)": round(in_, 2),
-        "Ia arranque (A)": round(ia, 2),
-        "Seccion (mm2)": seccion,
-        "c.d.t. (%)": round(cdt, 2),
-        "Termico min (A)": round(termico_min, 2),
-        "Termico max (A)": round(termico_max, 2),
-        "Guardamotor (A)": guardamotor,
-    })
-
-# =====================================================================================
-# 3. MEDICIONES, PRESUPUESTO Y MEMORIA
-# =====================================================================================
-
-def clave_cable(seccion):
-    return "cable_" + str(seccion).replace(".", "_")
+    return {
+        "Intensidad DC (A)": round(intensidad_dc, 2),
+        "Seccion DC (mm2)": seccion_dc,
+        "Proteccion DC (A)": proteccion_dc,
+        "CDT DC (%)": round(cdt_dc, 2),
+        "Intensidad AC (A)": round(intensidad_ac, 2),
+        "Seccion AC (mm2)": seccion_ac,
+        "Proteccion AC (A)": proteccion_ac,
+        "CDT AC (%)": round(cdt_ac, 2),
+    }
 
 
-def generar_mediciones_auto(circuitos_bt, fv_datos, motores, tipos_activos, metodo_instalacion):
-    items = []
-    if tipos_activos.get("bt") and not circuitos_bt.empty:
-        for _, c in circuitos_bt.iterrows():
-            r = calcular_circuito_bt(c, metodo_instalacion)
-            nombre = c.get("Circuito", "circuito")
-            items.append({"Capitulo": "Baja tension", "Descripcion": f"Cable {r['Seccion (mm2)']} mm2 - {nombre}",
-                          "Unidad": "m", "Cantidad": float(c.get("Longitud (m)", 0) or 0), "precio_key": clave_cable(r["Seccion (mm2)"])})
-            items.append({"Capitulo": "Baja tension", "Descripcion": f"Interruptor magnetotermico {r['Proteccion (A)']} A - {nombre}",
-                          "Unidad": "ud", "Cantidad": 1, "precio_key": "magnetotermico"})
-        items.append({"Capitulo": "Baja tension", "Descripcion": "Interruptor diferencial 30 mA",
-                      "Unidad": "ud", "Cantidad": max(1, int(np.ceil(len(circuitos_bt) / 5))), "precio_key": "diferencial"})
-        items.append({"Capitulo": "Baja tension", "Descripcion": "Cuadro general de mando y proteccion",
-                      "Unidad": "ud", "Cantidad": 1, "precio_key": "cuadro_general"})
+def calcular_motor(fila):
+    potencia_kw = float(fila.get("Potencia (kW)", 0) or 0)
+    tension = float(fila.get("Tension (V)", 400) or 400)
+    fases = fila.get("Fases", "Trifasico")
+    rendimiento = float(fila.get("Rendimiento (%)", 90) or 90) / 100
+    cos_phi = float(fila.get("cos phi", 0.85) or 0.85)
+    longitud = float(fila.get("Longitud (m)", 0) or 0)
+    metodo_arranque = fila.get("Metodo arranque", "directo")
+    metodo_inst = fila.get("Metodo instalacion", "B1")
 
-    if tipos_activos.get("fv") and float(fv_datos.get("num_paneles", 0) or 0) > 0:
-        r = calcular_fv(fv_datos, metodo_instalacion)
-        num_paneles = float(fv_datos.get("num_paneles", 0) or 0)
-        items.append({"Capitulo": "Fotovoltaica", "Descripcion": "Modulo fotovoltaico", "Unidad": "ud",
-                      "Cantidad": num_paneles, "precio_key": "panel_fv"})
-        items.append({"Capitulo": "Fotovoltaica", "Descripcion": "Inversor", "Unidad": "ud",
-                      "Cantidad": 1, "precio_key": "inversor"})
-        items.append({"Capitulo": "Fotovoltaica", "Descripcion": "Estructura soporte", "Unidad": "ud",
-                      "Cantidad": num_paneles, "precio_key": "estructura_fv"})
-        items.append({"Capitulo": "Fotovoltaica", "Descripcion": f"Cable CC {r['seccion_dc']} mm2", "Unidad": "m",
-                      "Cantidad": float(fv_datos.get("dist_string_inversor", 0) or 0) * 2, "precio_key": clave_cable(r["seccion_dc"])})
-        items.append({"Capitulo": "Fotovoltaica", "Descripcion": f"Cable CA {r['seccion_ac']} mm2", "Unidad": "m",
-                      "Cantidad": float(fv_datos.get("dist_inversor_cuadro", 0) or 0) * 2, "precio_key": clave_cable(r["seccion_ac"])})
-
-    if tipos_activos.get("industrial") and not motores.empty:
-        for _, m in motores.iterrows():
-            r = calcular_motor(m, metodo_instalacion)
-            nombre = m.get("Motor", "motor")
-            items.append({"Capitulo": "Industrial", "Descripcion": f"Cable {r['Seccion (mm2)']} mm2 - motor {nombre}",
-                          "Unidad": "m", "Cantidad": float(m.get("Longitud (m)", 0) or 0), "precio_key": clave_cable(r["Seccion (mm2)"])})
-            items.append({"Capitulo": "Industrial", "Descripcion": f"Guardamotor {r['Guardamotor (A)']} A - {nombre}",
-                          "Unidad": "ud", "Cantidad": 1, "precio_key": "guardamotor"})
-
-    df = pd.DataFrame(items)
-    if df.empty:
-        df = pd.DataFrame(columns=["Capitulo", "Descripcion", "Unidad", "Cantidad", "precio_key"])
-    df["auto"] = True
-    return df
-
-
-def calcular_presupuesto(mediciones_auto, mediciones_manual, precios, gastos_generales, beneficio_industrial, iva):
-    filas = mediciones_auto.copy()
-    filas["Precio unitario (EUR)"] = filas["precio_key"].map(lambda k: precios.get(k, 0.0))
-    filas = filas[["Capitulo", "Descripcion", "Unidad", "Cantidad", "Precio unitario (EUR)"]]
-
-    manual = mediciones_manual.copy()
-    if not manual.empty:
-        manual = manual[["Capitulo", "Descripcion", "Unidad", "Cantidad", "Precio unitario (EUR)"]]
-        todas = pd.concat([filas, manual], ignore_index=True)
+    potencia_absorbida_w = (potencia_kw * 1000) / rendimiento if rendimiento else 0
+    trifasico = str(fases).lower().startswith("tri")
+    if trifasico:
+        intensidad_nominal = intensidad_tri(potencia_absorbida_w, tension, cos_phi)
     else:
-        todas = filas
+        intensidad_nominal = intensidad_mono(potencia_absorbida_w, tension, cos_phi)
 
-    if todas.empty:
-        todas = pd.DataFrame(columns=["Capitulo", "Descripcion", "Unidad", "Cantidad", "Precio unitario (EUR)"])
+    factor_arranque = FACTORES_ARRANQUE_MOTOR.get(metodo_arranque, 1.25)
+    intensidad_calculo = intensidad_nominal * factor_arranque
 
-    todas["Cantidad"] = pd.to_numeric(todas["Cantidad"], errors="coerce").fillna(0)
-    todas["Precio unitario (EUR)"] = pd.to_numeric(todas["Precio unitario (EUR)"], errors="coerce").fillna(0)
-    todas["Importe (EUR)"] = (todas["Cantidad"] * todas["Precio unitario (EUR)"]).round(2)
+    seccion, iz = elegir_seccion_por_intensidad(intensidad_calculo, metodo_inst, 1.0, 1.0)
+    cdt_max = CDT_MAXIMA["Fuerza / Otros usos"]
+    seccion_cdt, cdt = elegir_seccion_por_cdt(intensidad_calculo, longitud, tension, cdt_max, trifasico, cos_phi)
+    seccion_final = max(seccion, seccion_cdt)
+    proteccion = elegir_proteccion(intensidad_calculo, iz)
 
-    por_capitulo = todas.groupby("Capitulo")["Importe (EUR)"].sum() if not todas.empty else pd.Series(dtype=float)
-    pem = todas["Importe (EUR)"].sum()
-    gg = pem * (gastos_generales / 100)
-    bi = pem * (beneficio_industrial / 100)
-    pca = pem + gg + bi
-    iva_importe = pca * (iva / 100)
-    total = pca + iva_importe
-
-    return {"filas": todas, "por_capitulo": por_capitulo, "pem": pem, "gg": gg, "bi": bi,
-            "pca": pca, "iva_importe": iva_importe, "total": total}
+    return {
+        "Intensidad nominal (A)": round(intensidad_nominal, 2),
+        "Intensidad de calculo (A)": round(intensidad_calculo, 2),
+        "Seccion (mm2)": seccion_final,
+        "Proteccion (A)": proteccion,
+        "CDT (%)": round(cdt, 2),
+        "CDT max (%)": cdt_max,
+    }
 
 
-def generar_memoria_texto(proyecto, circuitos_bt, fv_datos, motores, memoria, tipos_activos, metodo_instalacion):
+# ---------------------------------------------------------------------------
+# REGISTRO DE CAMBIOS EN TIEMPO REAL
+# ---------------------------------------------------------------------------
+
+def registrar_cambio(accion, detalle=""):
+    if "historial" not in st.session_state:
+        st.session_state["historial"] = []
+    st.session_state["historial"].append({
+        "hora": datetime.now().strftime("%H:%M:%S"),
+        "accion": accion,
+        "detalle": detalle,
+    })
+    # Mantener un historial acotado para no consumir memoria en exceso
+    if len(st.session_state["historial"]) > 200:
+        st.session_state["historial"] = st.session_state["historial"][-200:]
+
+
+def detectar_cambios_df(clave_estado, df_nuevo, etiqueta):
+    anterior = st.session_state.get(clave_estado)
+    if anterior is None or not anterior.equals(df_nuevo):
+        filas_antes = 0 if anterior is None else len(anterior)
+        filas_ahora = len(df_nuevo)
+        if filas_ahora > filas_antes:
+            registrar_cambio(f"Añadida fila en {etiqueta}", f"Total filas: {filas_ahora}")
+        elif filas_ahora < filas_antes:
+            registrar_cambio(f"Eliminada fila en {etiqueta}", f"Total filas: {filas_ahora}")
+        else:
+            registrar_cambio(f"Editado {etiqueta}", f"Total filas: {filas_ahora}")
+        st.session_state[clave_estado] = df_nuevo.copy()
+
+
+# ---------------------------------------------------------------------------
+# MEDICIONES Y PRESUPUESTO
+# ---------------------------------------------------------------------------
+
+def clave_cable(seccion_mm2, num_conductores=2):
+    return f"Cable Cu {num_conductores}x{seccion_mm2} mm2"
+
+
+def generar_mediciones_auto(df_bt_calc, df_motores_calc):
+    filas = []
+    if df_bt_calc is not None and not df_bt_calc.empty:
+        for _, r in df_bt_calc.iterrows():
+            longitud = float(r.get("Longitud (m)", 0) or 0)
+            seccion = r.get("Seccion (mm2)", 1.5)
+            proteccion = r.get("Proteccion (A)", 10)
+            filas.append({"Capitulo":"Baja Tension","Descripcion":clave_cable(seccion),"Unidad":"m","Cantidad":longitud,"Precio unitario (EUR)":round(seccion*PRECIOS_DEFECTO["cable_eur_m_mm2"],2)})
+            filas.append({"Capitulo":"Baja Tension","Descripcion":f"Tubo protector para {clave_cable(seccion)}","Unidad":"m","Cantidad":longitud,"Precio unitario (EUR)":PRECIOS_DEFECTO["tubo_eur_m"]})
+            filas.append({"Capitulo":"Baja Tension","Descripcion":f"Proteccion magnetotermica {proteccion} A","Unidad":"ud","Cantidad":1,"Precio unitario (EUR)":PRECIOS_DEFECTO["proteccion_eur_ud"]})
+    if df_motores_calc is not None and not df_motores_calc.empty:
+        for _, r in df_motores_calc.iterrows():
+            longitud = float(r.get("Longitud (m)", 0) or 0)
+            seccion = r.get("Seccion (mm2)", 2.5)
+            proteccion = r.get("Proteccion (A)", 16)
+            filas.append({"Capitulo":"Industrial / Motores","Descripcion":clave_cable(seccion,4),"Unidad":"m","Cantidad":longitud,"Precio unitario (EUR)":round(seccion*PRECIOS_DEFECTO["cable_eur_m_mm2"]*1.6,2)})
+            filas.append({"Capitulo":"Industrial / Motores","Descripcion":f"Guardamotor / proteccion {proteccion} A","Unidad":"ud","Cantidad":1,"Precio unitario (EUR)":PRECIOS_DEFECTO["proteccion_eur_ud"]*1.8})
+    return pd.DataFrame(filas) if filas else df_vacio(["Capitulo","Descripcion","Unidad","Cantidad","Precio unitario (EUR)"])
+
+
+def calcular_presupuesto(df_mediciones):
+    if df_mediciones is None or df_mediciones.empty:
+        return df_vacio(["Capitulo","Descripcion","Unidad","Cantidad","Precio unitario (EUR)","Importe (EUR)"]), {}
+    df = df_mediciones.copy()
+    df["Cantidad"] = pd.to_numeric(df["Cantidad"], errors="coerce").fillna(0)
+    df["Precio unitario (EUR)"] = pd.to_numeric(df["Precio unitario (EUR)"], errors="coerce").fillna(0)
+    df["Importe (EUR)"] = (df["Cantidad"] * df["Precio unitario (EUR)"]).round(2)
+
+    pem = df["Importe (EUR)"].sum()
+    gg = pem * PRECIOS_DEFECTO["gastos_generales_pct"] / 100
+    bi = pem * PRECIOS_DEFECTO["beneficio_industrial_pct"] / 100
+    base_licitacion = pem + gg + bi
+    iva = base_licitacion * PRECIOS_DEFECTO["iva_pct"] / 100
+    total = base_licitacion + iva
+
+    resumen = {
+        "PEM": round(pem, 2),
+        "Gastos generales": round(gg, 2),
+        "Beneficio industrial": round(bi, 2),
+        "Base de licitacion": round(base_licitacion, 2),
+        "IVA": round(iva, 2),
+        "TOTAL": round(total, 2),
+    }
+    return df, resumen
+
+
+def generar_memoria_texto(estado):
+    datos = estado.get("datos_proyecto", {})
+    tipo_sum = estado.get("tipo_suministro", list(TIPOS_SUMINISTRO.keys())[0])
+    info_sum = TIPOS_SUMINISTRO.get(tipo_sum, {})
     partes = []
-    partes.append("1. OBJETO\n" + (memoria.get("objeto") or
-        f"El objeto de la presente memoria es describir y justificar la instalacion electrica de "
-        f"\"{proyecto.get('nombre') or '[nombre del proyecto]'}\", conforme al Reglamento Electrotecnico "
-        f"para Baja Tension (RD 842/2002) y sus Instrucciones Tecnicas Complementarias."))
-    partes.append("2. TITULAR\n" + (memoria.get("titular") or proyecto.get("cliente") or "[titular]"))
-    partes.append("3. EMPLAZAMIENTO\n" + (memoria.get("emplazamiento") or proyecto.get("ubicacion") or "[emplazamiento]"))
-    partes.append("4. DESCRIPCION DE LA INSTALACION\n" + (memoria.get("descripcion") or
-        "Se describe a continuacion cada uno de los subsistemas incluidos en el proyecto. Metodo de "
-        f"instalacion de referencia adoptado: {metodo_instalacion}."))
+    partes.append("MEMORIA TECNICA DE DISEÑO (MTD)")
+    partes.append("")
+    partes.append("1. OBJETO DE LA MEMORIA")
+    partes.append(datos.get("objeto") or "Definir el objeto de la instalacion proyectada.")
+    partes.append("")
+    partes.append("2. TITULAR Y EMPLAZAMIENTO")
+    partes.append(f"Titular: {datos.get('titular','-')}")
+    partes.append(f"Emplazamiento: {datos.get('emplazamiento','-')}")
+    partes.append(f"Referencia catastral / CUPS: {datos.get('referencia','-')}")
+    partes.append("")
+    partes.append("3. REGLAMENTACION Y DISPOSICIONES APLICADAS")
+    partes.append(datos.get("normativa") or ("Reglamento Electrotecnico para Baja Tension (REBT) e Instrucciones Tecnicas Complementarias ITC-BT, "
+                  "Normas UNE de aplicacion, Normas particulares de la empresa distribuidora y Ordenanzas municipales que resulten de aplicacion."))
+    partes.append("")
+    partes.append("4. DESCRIPCION GENERAL DE LA INSTALACION")
+    partes.append(f"Tipo de suministro: {tipo_sum}")
+    partes.append(info_sum.get("descripcion", ""))
+    partes.append("Elementos principales de la instalacion:")
+    for el in info_sum.get("elementos", []):
+        partes.append(f" - {el}")
+    partes.append("")
+    partes.append(datos.get("descripcion") or "Describir potencia total prevista, uso del inmueble y caracteristicas generales.")
+    partes.append("")
+    partes.append("5. CALCULOS JUSTIFICATIVOS")
+    partes.append("Los calculos justificativos de secciones, caidas de tension y protecciones de cada circuito, "
+                  "instalacion fotovoltaica y motores se detallan en los Anexos de calculo adjuntos a la presente memoria.")
+    partes.append("")
+    partes.append("6. ANEXOS")
+    partes.append(" - Anexo I: Calculos de circuitos de Baja Tension")
+    partes.append(" - Anexo II: Calculos de instalacion Fotovoltaica")
+    partes.append(" - Anexo III: Calculos de motores / instalacion industrial")
+    partes.append(" - Anexo IV: Mediciones y Presupuesto")
+    partes.append("")
+    partes.append("7. CONCLUSION")
+    partes.append("La instalacion descrita cumple con las prescripciones del Reglamento Electrotecnico para Baja Tension "
+                  "y sus Instrucciones Tecnicas Complementarias, quedando sujeta a verificacion final por tecnico competente.")
+    return "\\n".join(partes)
 
-    if tipos_activos.get("bt") and not circuitos_bt.empty:
-        texto = "4.1. Instalacion de baja tension (ITC-BT-19, ITC-BT-25)\nCuadro de circuitos calculados:\n"
-        for i, (_, c) in enumerate(circuitos_bt.iterrows(), start=1):
-            r = calcular_circuito_bt(c, metodo_instalacion)
-            texto += (f" C{i} {c.get('Circuito', 'circuito')}: {c.get('Potencia (W)', 0)} W, "
-                      f"{r['Seccion (mm2)']} mm2, Ib={r['Ib (A)']} A, c.d.t.={r['c.d.t. (%)']}%, "
-                      f"proteccion {r['Proteccion (A)']} A ({r['Cumple']}).\n")
-        partes.append(texto)
 
-    if tipos_activos.get("fv") and float(fv_datos.get("num_paneles", 0) or 0) > 0:
-        r = calcular_fv(fv_datos, metodo_instalacion)
-        partes.append("4.2. Instalacion fotovoltaica de autoconsumo (RD 244/2019, ITC-BT-40)\n"
-            f"Potencia pico: {fv_datos.get('potencia_pico', '-')} kWp ({fv_datos.get('num_paneles', '-')} modulos). "
-            f"Tramo CC: seccion {r['seccion_dc']} mm2, c.d.t. {round(r['cdt_dc'], 2)}%. "
-            f"Tramo CA: seccion {r['seccion_ac']} mm2, proteccion {r['proteccion_ac']} A, c.d.t. {round(r['cdt_ac'], 2)}%.")
-
-    if tipos_activos.get("industrial") and not motores.empty:
-        texto = "4.3. Instalacion industrial / motores (ITC-BT-47)\n"
-        for _, m in motores.iterrows():
-            r = calcular_motor(m, metodo_instalacion)
-            texto += (f" {m.get('Motor', 'Motor')}: {m.get('Potencia (kW)', 0)} kW, In={r['In (A)']} A, "
-                      f"Ia={r['Ia arranque (A)']} A, seccion {r['Seccion (mm2)']} mm2, "
-                      f"guardamotor {r['Guardamotor (A)']} A.\n")
-        partes.append(texto)
-
-    partes.append("5. NORMATIVA APLICABLE\n" + (memoria.get("normativa") or
-        "Reglamento Electrotecnico para Baja Tension (RD 842/2002) e Instrucciones Tecnicas "
-        "Complementarias ITC-BT correspondientes. RD 244/2019 de autoconsumo, en su caso. "
-        "Normativa municipal y de la companhia distribuidora aplicable."))
-
-    return "\n\n".join(partes)
-
-# =====================================================================================
-# 4. ESTADO DE LA SESION
-# =====================================================================================
+# ---------------------------------------------------------------------------
+# ESTADO DE SESION
+# ---------------------------------------------------------------------------
 
 def inicializar_estado():
-    defaults = {
-        "proyecto": {"nombre": "", "cliente": "", "ubicacion": "", "tecnico": "", "fecha": str(date.today())},
-        "tipos_activos": {"bt": True, "fv": False, "industrial": False},
-        "metodo_instalacion": list(AMPACIDAD.keys())[2],
-        "circuitos_bt": df_vacio(COLUMNAS_BT),
-        "fv_datos": {"potencia_pico": "", "num_paneles": "", "potencia_panel": "", "voc": "", "isc": "",
-                     "vmpp": "", "impp": "", "num_strings": 1, "dist_string_inversor": 15.0,
-                     "potencia_inversor": "", "tension_ac": 400.0, "fases_ac": "Trifasico",
-                     "dist_inversor_cuadro": 5.0},
-        "motores": df_vacio(COLUMNAS_MOTORES),
-        "mediciones_manual": df_vacio(COLUMNAS_MEDICION_MANUAL),
-        "precios": dict(PRECIOS_DEFECTO),
-        "gastos_generales": 13.0, "beneficio_industrial": 6.0, "iva": 21.0,
-        "memoria": {"objeto": "", "titular": "", "emplazamiento": "", "descripcion": "", "normativa": ""},
+    if "inicializado" in st.session_state:
+        return
+    st.session_state["inicializado"] = True
+    st.session_state["datos_proyecto"] = {
+        "titular": "", "emplazamiento": "", "referencia": "",
+        "objeto": "", "normativa": "", "descripcion": "",
+        "fecha": str(date.today()),
     }
-    for k, v in defaults.items():
-        if k not in st.session_state:
-            st.session_state[k] = v
+    st.session_state["tipo_suministro"] = list(TIPOS_SUMINISTRO.keys())[0]
+    st.session_state["modulos"] = {"bt": True, "fv": False, "industrial": False}
+    st.session_state["df_bt"] = df_vacio(COLUMNAS_BT)
+    st.session_state["df_motores"] = df_vacio(COLUMNAS_MOTORES)
+    st.session_state["df_mediciones_manual"] = df_vacio(COLUMNAS_MEDICION_MANUAL)
+    st.session_state["fv_datos"] = {
+        "potencia_pico_kwp": 5.0, "tension_mppt_v": 600.0, "num_paneles": 12,
+        "longitud_dc_m": 20.0, "longitud_ac_m": 15.0, "potencia_inversor_kw": 5.0,
+        "tension_ac_v": 400.0,
+    }
+    st.session_state["historial"] = []
+    registrar_cambio("Proyecto iniciado", "Se ha creado una nueva sesion de trabajo")
 
 
 def estado_a_dict():
-    s = st.session_state
     return {
-        "proyecto": s.proyecto, "tipos_activos": s.tipos_activos, "metodo_instalacion": s.metodo_instalacion,
-        "circuitos_bt": s.circuitos_bt.to_dict(orient="records"),
-        "fv_datos": s.fv_datos, "motores": s.motores.to_dict(orient="records"),
-        "mediciones_manual": s.mediciones_manual.to_dict(orient="records"),
-        "precios": s.precios, "gastos_generales": s.gastos_generales,
-        "beneficio_industrial": s.beneficio_industrial, "iva": s.iva, "memoria": s.memoria,
+        "datos_proyecto": st.session_state.get("datos_proyecto", {}),
+        "tipo_suministro": st.session_state.get("tipo_suministro"),
+        "modulos": st.session_state.get("modulos", {}),
+        "df_bt": st.session_state["df_bt"].to_dict("records"),
+        "df_motores": st.session_state["df_motores"].to_dict("records"),
+        "df_mediciones_manual": st.session_state["df_mediciones_manual"].to_dict("records"),
+        "fv_datos": st.session_state.get("fv_datos", {}),
     }
 
 
-def cargar_estado_desde_dict(d):
-    if "proyecto" in d:
-        st.session_state.proyecto = d["proyecto"]
-    if "tipos_activos" in d:
-        st.session_state.tipos_activos = d["tipos_activos"]
-    if "metodo_instalacion" in d and d["metodo_instalacion"] in AMPACIDAD:
-        st.session_state.metodo_instalacion = d["metodo_instalacion"]
-    if "circuitos_bt" in d:
-        st.session_state.circuitos_bt = pd.DataFrame(d["circuitos_bt"], columns=COLUMNAS_BT) if d["circuitos_bt"] else df_vacio(COLUMNAS_BT)
-    if "fv_datos" in d:
-        st.session_state.fv_datos = d["fv_datos"]
-    if "motores" in d:
-        st.session_state.motores = pd.DataFrame(d["motores"], columns=COLUMNAS_MOTORES) if d["motores"] else df_vacio(COLUMNAS_MOTORES)
-    if "mediciones_manual" in d:
-        st.session_state.mediciones_manual = pd.DataFrame(d["mediciones_manual"], columns=COLUMNAS_MEDICION_MANUAL) if d["mediciones_manual"] else df_vacio(COLUMNAS_MEDICION_MANUAL)
-    if "precios" in d:
-        st.session_state.precios = d["precios"]
-    if "gastos_generales" in d:
-        st.session_state.gastos_generales = d["gastos_generales"]
-    if "beneficio_industrial" in d:
-        st.session_state.beneficio_industrial = d["beneficio_industrial"]
-    if "iva" in d:
-        st.session_state.iva = d["iva"]
-    if "memoria" in d:
-        st.session_state.memoria = d["memoria"]
+def cargar_estado_desde_dict(data):
+    st.session_state["datos_proyecto"] = data.get("datos_proyecto", {})
+    st.session_state["tipo_suministro"] = data.get("tipo_suministro", list(TIPOS_SUMINISTRO.keys())[0])
+    st.session_state["modulos"] = data.get("modulos", {"bt": True, "fv": False, "industrial": False})
+    st.session_state["df_bt"] = pd.DataFrame(data.get("df_bt", [])) if data.get("df_bt") else df_vacio(COLUMNAS_BT)
+    st.session_state["df_motores"] = pd.DataFrame(data.get("df_motores", [])) if data.get("df_motores") else df_vacio(COLUMNAS_MOTORES)
+    st.session_state["df_mediciones_manual"] = pd.DataFrame(data.get("df_mediciones_manual", [])) if data.get("df_mediciones_manual") else df_vacio(COLUMNAS_MEDICION_MANUAL)
+    st.session_state["fv_datos"] = data.get("fv_datos", {})
+    registrar_cambio("Proyecto importado", "Se ha cargado un archivo de proyecto JSON")
 
 
-def exportar_excel(presupuesto, circuitos_bt, metodo_instalacion):
+def exportar_excel(df_bt_calc, df_motores_calc, df_mediciones, resumen_presupuesto):
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        presupuesto["filas"].to_excel(writer, sheet_name="Mediciones y precios", index=False)
-
-        resumen = pd.DataFrame([
-            {"Concepto": "PEM (Presupuesto Ejecucion Material)", "Importe (EUR)": round(presupuesto["pem"], 2)},
-            {"Concepto": "Gastos generales", "Importe (EUR)": round(presupuesto["gg"], 2)},
-            {"Concepto": "Beneficio industrial", "Importe (EUR)": round(presupuesto["bi"], 2)},
-            {"Concepto": "Presupuesto de contrata (sin IVA)", "Importe (EUR)": round(presupuesto["pca"], 2)},
-            {"Concepto": "IVA", "Importe (EUR)": round(presupuesto["iva_importe"], 2)},
-            {"Concepto": "TOTAL PRESUPUESTO", "Importe (EUR)": round(presupuesto["total"], 2)},
-        ])
-        resumen.to_excel(writer, sheet_name="Resumen presupuesto", index=False)
-
-        if not circuitos_bt.empty:
-            filas_bt = []
-            for i, (_, c) in enumerate(circuitos_bt.iterrows(), start=1):
-                r = calcular_circuito_bt(c, metodo_instalacion)
-                filas_bt.append({"Circuito": f"C{i}", **c.to_dict(), **r.to_dict()})
-            pd.DataFrame(filas_bt).to_excel(writer, sheet_name="Calculo BT", index=False)
+        if df_bt_calc is not None and not df_bt_calc.empty:
+            df_bt_calc.to_excel(writer, sheet_name="Baja Tension", index=False)
+        if df_motores_calc is not None and not df_motores_calc.empty:
+            df_motores_calc.to_excel(writer, sheet_name="Industrial-Motores", index=False)
+        if df_mediciones is not None and not df_mediciones.empty:
+            df_mediciones.to_excel(writer, sheet_name="Mediciones", index=False)
+        if resumen_presupuesto:
+            pd.DataFrame([resumen_presupuesto]).T.rename(columns={0: "Importe (EUR)"}).to_excel(writer, sheet_name="Presupuesto")
     buffer.seek(0)
     return buffer
 
 
-def exportar_memoria_word(texto, proyecto):
-    try:
-        from docx import Document
-    except ImportError:
-        return None
+def exportar_memoria_word(texto_memoria):
+    from docx import Document
     doc = Document()
-    doc.add_heading(proyecto.get("nombre") or "Memoria tecnica", level=1)
-    tabla = doc.add_table(rows=0, cols=2)
-    for campo, valor in [("Cliente", proyecto.get("cliente", "")), ("Emplazamiento", proyecto.get("ubicacion", "")),
-                         ("Tecnico", proyecto.get("tecnico", "")), ("Fecha", proyecto.get("fecha", ""))]:
-        fila = tabla.add_row().cells
-        fila[0].text, fila[1].text = campo, str(valor)
-    doc.add_paragraph("")
-    for bloque in texto.split("\n\n"):
-        doc.add_paragraph(bloque)
+    for linea in texto_memoria.split("\\n"):
+        if linea.isupper() and linea.strip() and len(linea.strip()) > 3 and linea[0].isdigit() is False and linea.strip()[0].isalpha():
+            doc.add_heading(linea, level=1)
+        elif linea.strip().startswith(tuple(f"{n}." for n in range(1, 10))):
+            doc.add_heading(linea, level=1)
+        else:
+            doc.add_paragraph(linea)
     buffer = io.BytesIO()
     doc.save(buffer)
     buffer.seek(0)
     return buffer
 
-def exportar_memoria_pdf(estado_dict, texto_memoria, circuitos_bt, fv_datos, motores, presupuesto, metodo_instalacion):
-    try:
-        from reportlab.lib.pagesizes import A4
-        from reportlab.lib.units import cm
-        from reportlab.lib import colors
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
-        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    except ImportError:
-        return None
+
+def exportar_memoria_pdf(estado, texto_memoria, df_bt_calc, df_fv_calc, df_motores_calc, df_mediciones, resumen_presupuesto):
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import cm
+    from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak)
 
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2.5 * cm, bottomMargin=2 * cm,
-                             leftMargin=2 * cm, rightMargin=2 * cm)
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2*cm, bottomMargin=2*cm)
     styles = getSampleStyleSheet()
-    estilo_titulo = ParagraphStyle("TituloPortada", parent=styles["Title"], fontSize=22, spaceAfter=16, textColor=colors.HexColor("#10263f"))
-    estilo_subtitulo = ParagraphStyle("Subtitulo", parent=styles["Heading2"], textColor=colors.HexColor("#c8790f"), spaceBefore=10, spaceAfter=6)
-    estilo_normal = styles["Normal"]
+    titulo = ParagraphStyle("TituloPortada", parent=styles["Title"], fontSize=22, spaceAfter=20)
+    subt = ParagraphStyle("Subt", parent=styles["Normal"], fontSize=12, spaceAfter=8)
+    h1 = ParagraphStyle("H1", parent=styles["Heading1"], textColor=colors.HexColor("#0B3D91"))
+    h2 = ParagraphStyle("H2", parent=styles["Heading2"], textColor=colors.HexColor("#0B3D91"))
+    normal = styles["Normal"]
 
-    proyecto = estado_dict["proyecto"]
+    datos = estado.get("datos_proyecto", {})
     story = []
 
-    story.append(Spacer(1, 3.5 * cm))
-    story.append(Paragraph(proyecto.get("nombre") or "Memoria Tecnica", estilo_titulo))
-    story.append(Paragraph("Memoria Tecnica Descriptiva - Instalacion Electrica", styles["Heading3"]))
-    story.append(Spacer(1, 1.5 * cm))
-    datos_portada = [
-        ["Cliente / Titular:", proyecto.get("cliente", "") or "-"],
-        ["Emplazamiento:", proyecto.get("ubicacion", "") or "-"],
-        ["Tecnico redactor:", proyecto.get("tecnico", "") or "-"],
-        ["Fecha:", proyecto.get("fecha", "") or "-"],
-        ["Metodo de instalacion:", metodo_instalacion],
-    ]
-    tabla_portada = Table(datos_portada, colWidths=[5 * cm, 10 * cm])
-    tabla_portada.setStyle(TableStyle([
-        ("FONTSIZE", (0, 0), (-1, -1), 11), ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-        ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#45688a")),
-    ]))
-    story.append(tabla_portada)
-    story.append(Spacer(1, 2 * cm))
-    story.append(Paragraph(
-        "Aviso: los valores de intensidades admisibles y factores de correccion utilizados son de "
-        "referencia segun las tablas habituales del REBT/ITC-BT. Verificar contra las tablas oficiales "
-        "vigentes antes de su uso en documentacion oficial.", styles["Italic"]))
+    # ---- Portada ----
+    story.append(Spacer(1, 4*cm))
+    story.append(Paragraph("MEMORIA TECNICA DE DISEÑO (MTD)", titulo))
+    story.append(Paragraph("Instalacion electrica en Baja Tension conforme al REBT", subt))
+    story.append(Spacer(1, 2*cm))
+    story.append(Paragraph(f"<b>Titular:</b> {datos.get('titular','-')}", subt))
+    story.append(Paragraph(f"<b>Emplazamiento:</b> {datos.get('emplazamiento','-')}", subt))
+    story.append(Paragraph(f"<b>Referencia:</b> {datos.get('referencia','-')}", subt))
+    story.append(Paragraph(f"<b>Tipo de suministro:</b> {estado.get('tipo_suministro','-')}", subt))
+    story.append(Paragraph(f"<b>Fecha:</b> {datos.get('fecha', str(date.today()))}", subt))
     story.append(PageBreak())
 
-    for bloque in texto_memoria.split("\n\n"):
-        lineas = bloque.split("\n")
-        titulo = lineas[0]
-        cuerpo = lineas[1:]
-        story.append(Paragraph(titulo, estilo_subtitulo))
-        for parrafo in cuerpo:
-            if parrafo.strip():
-                texto_html = parrafo.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                story.append(Paragraph(texto_html, estilo_normal))
-        story.append(Spacer(1, 0.3 * cm))
+    # ---- Cuerpo de la memoria ----
+    for bloque in texto_memoria.split("\\n\\n"):
+        lineas = bloque.split("\\n")
+        for i, linea in enumerate(lineas):
+            if linea.strip()[:2].rstrip(".").isdigit() or (linea.strip() and linea.strip()[0].isdigit() and "." in linea[:3]):
+                story.append(Paragraph(linea, h1))
+            elif linea.strip().startswith(" - "):
+                story.append(Paragraph(linea.strip(), normal))
+            else:
+                story.append(Paragraph(linea if linea.strip() else "&nbsp;", normal))
+        story.append(Spacer(1, 6))
     story.append(PageBreak())
 
-    estilo_cabecera_tabla = TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#10263f")),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTSIZE", (0, 0), (-1, -1), 8),
-        ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f6f4ee")]),
-    ])
-
-    if not circuitos_bt.empty:
-        story.append(Paragraph("ANEXO I - Calculo de circuitos de baja tension (ITC-BT-19)", styles["Heading1"]))
-        data = [["Circuito", "P (W)", "Fases", "Ib (A)", "Seccion (mm2)", "c.d.t. (%)", "Proteccion (A)", "Estado"]]
-        for _, c in circuitos_bt.iterrows():
-            r = calcular_circuito_bt(c, metodo_instalacion)
-            data.append([str(c.get("Circuito", "")), str(c.get("Potencia (W)", "")), str(c.get("Fases", "")),
-                         r["Ib (A)"], r["Seccion (mm2)"], r["c.d.t. (%)"], r["Proteccion (A)"], r["Cumple"]])
+    def tabla_desde_df(df, titulo_tabla):
+        story.append(Paragraph(titulo_tabla, h2))
+        if df is None or df.empty:
+            story.append(Paragraph("Sin datos introducidos para este capitulo.", normal))
+            story.append(Spacer(1, 12))
+            return
+        cols = list(df.columns)
+        data = [cols] + df.astype(str).values.tolist()
         t = Table(data, repeatRows=1)
-        t.setStyle(estilo_cabecera_tabla)
+        t.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#0B3D91")),
+            ("TEXTCOLOR", (0,0), (-1,0), colors.white),
+            ("FONTSIZE", (0,0), (-1,-1), 7),
+            ("GRID", (0,0), (-1,-1), 0.4, colors.grey),
+            ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, colors.HexColor("#F5F8FF")]),
+        ]))
         story.append(t)
-        story.append(PageBreak())
+        story.append(Spacer(1, 14))
 
-    if float(fv_datos.get("num_paneles", 0) or 0) > 0:
-        r = calcular_fv(fv_datos, metodo_instalacion)
-        story.append(Paragraph("ANEXO II - Instalacion fotovoltaica de autoconsumo (RD 244/2019)", styles["Heading1"]))
-        data = [["Parametro", "Valor"],
-                ["Intensidad de diseno CC (1.25 x Isc)", f"{r['idc_diseno']:.2f} A"],
-                ["Seccion tramo CC", f"{r['seccion_dc']} mm2"],
-                ["c.d.t. tramo CC", f"{r['cdt_dc']:.2f} %"],
-                ["Requiere fusibles por string", "Si" if r["requiere_fusibles_dc"] else "No"],
-                ["Intensidad AC (salida inversor)", f"{r['iac']:.2f} A"],
-                ["Seccion tramo AC", f"{r['seccion_ac']} mm2"],
-                ["c.d.t. tramo AC", f"{r['cdt_ac']:.2f} %"],
-                ["Proteccion AC", f"{r['proteccion_ac']} A"]]
-        t = Table(data, colWidths=[9 * cm, 6 * cm])
-        t.setStyle(estilo_cabecera_tabla)
+    # ---- Anexo I: BT ----
+    story.append(Paragraph("ANEXO I - CALCULOS DE CIRCUITOS DE BAJA TENSION", h1))
+    tabla_desde_df(df_bt_calc, "Resultados de calculo de circuitos")
+    story.append(PageBreak())
+
+    # ---- Anexo II: FV ----
+    story.append(Paragraph("ANEXO II - CALCULOS DE INSTALACION FOTOVOLTAICA", h1))
+    tabla_desde_df(df_fv_calc, "Resultados de calculo fotovoltaico")
+    story.append(PageBreak())
+
+    # ---- Anexo III: Motores ----
+    story.append(Paragraph("ANEXO III - CALCULOS DE MOTORES / INDUSTRIAL", h1))
+    tabla_desde_df(df_motores_calc, "Resultados de calculo de motores")
+    story.append(PageBreak())
+
+    # ---- Anexo IV: Mediciones y presupuesto ----
+    story.append(Paragraph("ANEXO IV - MEDICIONES Y PRESUPUESTO", h1))
+    tabla_desde_df(df_mediciones, "Mediciones")
+    if resumen_presupuesto:
+        story.append(Paragraph("Resumen del presupuesto", h2))
+        data = [["Concepto", "Importe (EUR)"]] + [[k, f"{v:,.2f}"] for k, v in resumen_presupuesto.items()]
+        t = Table(data)
+        t.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#0B3D91")),
+            ("TEXTCOLOR", (0,0), (-1,0), colors.white),
+            ("FONTSIZE", (0,0), (-1,-1), 9),
+            ("GRID", (0,0), (-1,-1), 0.4, colors.grey),
+        ]))
         story.append(t)
-        story.append(PageBreak())
-
-    if not motores.empty:
-        story.append(Paragraph("ANEXO III - Motores e instalacion industrial (ITC-BT-47)", styles["Heading1"]))
-        data = [["Motor", "P (kW)", "In (A)", "Ia arranque (A)", "Seccion (mm2)", "Guardamotor (A)"]]
-        for _, m in motores.iterrows():
-            r = calcular_motor(m, metodo_instalacion)
-            data.append([str(m.get("Motor", "")), str(m.get("Potencia (kW)", "")), r["In (A)"],
-                         r["Ia arranque (A)"], r["Seccion (mm2)"], r["Guardamotor (A)"]])
-        t = Table(data, repeatRows=1)
-        t.setStyle(estilo_cabecera_tabla)
-        story.append(t)
-        story.append(PageBreak())
-
-    story.append(Paragraph("ANEXO IV - Mediciones y presupuesto", styles["Heading1"]))
-    filas = presupuesto["filas"]
-    data = [["Capitulo", "Descripcion", "Ud", "Cantidad", "Precio (EUR)", "Importe (EUR)"]]
-    for _, f in filas.iterrows():
-        data.append([str(f["Capitulo"]), str(f["Descripcion"])[:45], str(f["Unidad"]),
-                     round(float(f["Cantidad"]), 2), round(float(f["Precio unitario (EUR)"]), 2),
-                     round(float(f["Importe (EUR)"]), 2)])
-    t = Table(data, repeatRows=1)
-    t.setStyle(estilo_cabecera_tabla)
-    story.append(t)
-    story.append(Spacer(1, 0.5 * cm))
-    resumen = [
-        ["PEM (Presupuesto de Ejecucion Material)", f"{presupuesto['pem']:.2f} EUR"],
-        ["Gastos generales", f"{presupuesto['gg']:.2f} EUR"],
-        ["Beneficio industrial", f"{presupuesto['bi']:.2f} EUR"],
-        ["Presupuesto de contrata (sin IVA)", f"{presupuesto['pca']:.2f} EUR"],
-        ["IVA", f"{presupuesto['iva_importe']:.2f} EUR"],
-        ["TOTAL PRESUPUESTO", f"{presupuesto['total']:.2f} EUR"],
-    ]
-    t2 = Table(resumen, colWidths=[10 * cm, 5 * cm])
-    t2.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 0.4, colors.grey), ("FONTSIZE", (0, 0), (-1, -1), 10),
-                            ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#f4e2c3")),
-                            ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold")]))
-    story.append(t2)
 
     doc.build(story)
     buffer.seek(0)
     return buffer
 
 
-def generar_esquema_unifilar_dxf(circuitos_bt, proyecto):
-    try:
-        import ezdxf
-    except ImportError:
-        return None
+def generar_esquema_unifilar_dxf(estado, df_bt_calc):
+    """Genera un esquema unifilar en formato DXF (abierto, compatible con
+    AutoCAD mediante 'Guardar como .dwg'), con una distribucion inspirada en
+    los configuradores profesionales tipo CIEBT: bloques en cascada para la
+    acometida / proteccion / medida segun el tipo de suministro elegido, y
+    derivaciones horizontales para cada circuito interior.
 
-    doc = ezdxf.new("R2010")
-    doc.layers.add("LINEAS", color=7)
-    doc.layers.add("TEXTOS", color=3)
-    doc.layers.add("SIMBOLOS", color=1)
+    NOTA IMPORTANTE: no es posible generar un binario .dwg nativo (formato
+    propietario de Autodesk) sin las librerias oficiales de Autodesk/ODA. Se
+    genera un .dxf, formato abierto totalmente compatible, que se puede abrir
+    y volver a guardar como .dwg desde AutoCAD u otro programa CAD.
+    """
+    import ezdxf
+
+    doc = ezdxf.new(setup=True)
     msp = doc.modelspace()
 
-    ancho_cuadro = max(30, 8 * max(1, len(circuitos_bt)))
-    x0, y0 = 0.0, 0.0
+    capas = {
+        "MARCO": 7, "ACOMETIDA": 5, "PROTECCION": 1, "MEDIDA": 3,
+        "CUADRO": 6, "CIRCUITOS": 4, "TEXTOS": 7,
+    }
+    for nombre, color in capas.items():
+        doc.layers.add(name=nombre, color=color)
 
-    msp.add_lwpolyline([(x0, y0), (x0 + ancho_cuadro, y0), (x0 + ancho_cuadro, y0 - 8), (x0, y0 - 8), (x0, y0)],
-                        dxfattribs={"layer": "LINEAS"})
-    msp.add_text(f"CUADRO GENERAL - {proyecto.get('nombre') or 'PROYECTO'}",
-                 dxfattribs={"layer": "TEXTOS", "height": 1.4}).set_placement((x0 + 2, y0 - 4.5))
-    msp.add_text("Acometida", dxfattribs={"layer": "TEXTOS", "height": 1.0}).set_placement((x0 + 2, y0 + 1.5))
-    msp.add_line((x0 + ancho_cuadro / 2, y0 + 6), (x0 + ancho_cuadro / 2, y0), dxfattribs={"layer": "LINEAS"})
+    tipo_sum = estado.get("tipo_suministro", list(TIPOS_SUMINISTRO.keys())[0])
+    elementos = TIPOS_SUMINISTRO.get(tipo_sum, {}).get("elementos", [])
 
-    espaciado = 8
-    y_circuito = y0 - 8
-    for i, (_, c) in enumerate(circuitos_bt.iterrows(), start=1):
-        nombre = str(c.get("Circuito", "") or f"C{i}")
-        x = x0 + 4 + (i - 1) * espaciado
-        msp.add_line((x, y0 - 8), (x, y_circuito - 6), dxfattribs={"layer": "LINEAS"})
-        msp.add_lwpolyline([(x - 0.8, y_circuito - 2), (x + 0.8, y_circuito - 2),
-                             (x + 0.8, y_circuito - 4), (x - 0.8, y_circuito - 4), (x - 0.8, y_circuito - 2)],
-                            dxfattribs={"layer": "SIMBOLOS"})
-        msp.add_text(f"C{i}", dxfattribs={"layer": "TEXTOS", "height": 0.9}).set_placement((x - 0.6, y_circuito - 3.6))
-        msp.add_text(nombre, dxfattribs={"layer": "TEXTOS", "height": 0.8}).set_placement((x - 3, y_circuito - 7))
+    x0 = 0
+    y = 0
+    paso_y = 25
+    ancho_caja = 90
+    alto_caja = 14
 
-    stream = io.StringIO()
-    doc.write(stream)
-    data = stream.getvalue().encode("utf-8")
-    return io.BytesIO(data)
+    # ---- Marco / cajetin tipo plano profesional ----
+    alto_total = paso_y * (len(elementos) + 2) + 40
+    ancho_total = 260
+    msp.add_lwpolyline(
+        [(-20, -alto_total), (-20, 30), (ancho_total, 30), (ancho_total, -alto_total), (-20, -alto_total)],
+        dxfattribs={"layer": "MARCO"},
+    )
+    msp.add_text("ESQUEMA UNIFILAR - INSTALACION ELECTRICA EN BAJA TENSION",
+                 dxfattribs={"layer": "TEXTOS", "height": 4}).set_placement((-15, 15))
+    msp.add_text(f"Tipo de suministro: {tipo_sum}",
+                 dxfattribs={"layer": "TEXTOS", "height": 2.5}).set_placement((-15, 8))
 
-# =====================================================================================
-# 5. INTERFAZ DE USUARIO
-# =====================================================================================
+    # ---- Cadena vertical de elementos del suministro (estilo CIEBT) ----
+    puntos_conexion = []
+    for elemento in elementos:
+        cx, cy = x0, y
+        msp.add_lwpolyline(
+            [(cx, cy), (cx + ancho_caja, cy), (cx + ancho_caja, cy - alto_caja), (cx, cy - alto_caja), (cx, cy)],
+            dxfattribs={"layer": "CUADRO"},
+        )
+        msp.add_text(elemento, dxfattribs={"layer": "TEXTOS", "height": 3}).set_placement(
+            (cx + 4, cy - alto_caja / 2 - 1)
+        )
+        centro = (cx + ancho_caja / 2, cy - alto_caja)
+        puntos_conexion.append(centro)
+        if len(puntos_conexion) > 1:
+            ant = puntos_conexion[-2]
+            msp.add_line((ant[0], ant[1]), (centro[0], centro[1] - (paso_y - alto_caja) + alto_caja),
+                         dxfattribs={"layer": "ACOMETIDA"})
+        y -= paso_y
 
+    ultimo_punto = puntos_conexion[-1] if puntos_conexion else (x0 + ancho_caja / 2, 0)
+
+    # ---- Embarrado del cuadro general ----
+    barra_y = ultimo_punto[1] - 10
+    msp.add_line((ultimo_punto[0], ultimo_punto[1]), (ultimo_punto[0], barra_y), dxfattribs={"layer": "CUADRO"})
+    msp.add_line((-10, barra_y), (ancho_total - 10, barra_y), dxfattribs={"layer": "CUADRO"})
+    msp.add_text("EMBARRADO - CUADRO GENERAL DE MANDO Y PROTECCION",
+                 dxfattribs={"layer": "TEXTOS", "height": 2.5}).set_placement((-10, barra_y + 2))
+
+    # ---- Derivaciones a cada circuito interior (segun datos introducidos) ----
+    if df_bt_calc is not None and not df_bt_calc.empty:
+        n = len(df_bt_calc)
+        espacio_x = (ancho_total - 10) / max(n, 1)
+        for i, (_, fila) in enumerate(df_bt_calc.iterrows()):
+            cx = -10 + espacio_x * i + espacio_x / 2
+            msp.add_line((cx, barra_y), (cx, barra_y - 10), dxfattribs={"layer": "CIRCUITOS"})
+            # simbolo de proteccion magnetotermica (rectangulo pequeño)
+            msp.add_lwpolyline(
+                [(cx - 3, barra_y - 10), (cx + 3, barra_y - 10), (cx + 3, barra_y - 16), (cx - 3, barra_y - 16), (cx - 3, barra_y - 10)],
+                dxfattribs={"layer": "PROTECCION"},
+            )
+            msp.add_line((cx, barra_y - 16), (cx, barra_y - 26), dxfattribs={"layer": "CIRCUITOS"})
+            nombre_circ = str(fila.get("Circuito", f"C{i+1}"))
+            seccion = fila.get("Seccion (mm2)", "-")
+            proteccion = fila.get("Proteccion (A)", "-")
+            etiqueta = f"{nombre_circ}\\nCu {seccion} mm2 / {proteccion} A"
+            for j, linea_txt in enumerate(etiqueta.split("\\n")):
+                msp.add_text(linea_txt, dxfattribs={"layer": "TEXTOS", "height": 1.8}).set_placement(
+                    (cx - 8, barra_y - 30 - j * 3), align="LEFT"
+                )
+    else:
+        msp.add_text("Sin circuitos interiores definidos todavia (ver pestaña Baja Tension)",
+                     dxfattribs={"layer": "TEXTOS", "height": 2.5}).set_placement((-10, barra_y - 12))
+
+    # ---- Cajetin inferior (estilo profesional) ----
+    cy_cajetin = -alto_total + 5
+    msp.add_lwpolyline(
+        [(-20, cy_cajetin), (ancho_total, cy_cajetin), (ancho_total, cy_cajetin - 20), (-20, cy_cajetin - 20), (-20, cy_cajetin)],
+        dxfattribs={"layer": "MARCO"},
+    )
+    datos = estado.get("datos_proyecto", {})
+    msp.add_text(f"Titular: {datos.get('titular','-')}", dxfattribs={"layer": "TEXTOS", "height": 2.2}).set_placement((-15, cy_cajetin - 6))
+    msp.add_text(f"Emplazamiento: {datos.get('emplazamiento','-')}", dxfattribs={"layer": "TEXTOS", "height": 2.2}).set_placement((-15, cy_cajetin - 10))
+    msp.add_text(f"Fecha: {datos.get('fecha', str(date.today()))}   Escala: S/E", dxfattribs={"layer": "TEXTOS", "height": 2.2}).set_placement((-15, cy_cajetin - 14))
+
+    buffer = io.StringIO()
+    doc.write(buffer)
+    contenido = buffer.getvalue()
+    return contenido.encode("utf-8")
+
+
+# ---------------------------------------------------------------------------
+# INTERFAZ DE USUARIO
+# ---------------------------------------------------------------------------
 inicializar_estado()
 
-st.title("\u26a1 Proyectista Electrico - REBT")
-st.caption("Predimensionado de instalaciones de baja tension, fotovoltaica de autoconsumo e industrial, "
-           "conforme al REBT (RD 842/2002, ITC-BT) y RD 244/2019.")
+st.title("\u26A1 Proyectista Electrico - REBT")
+st.markdown(
+    '<div class="aviso-normativa">Esta herramienta calcula valores orientativos de secciones, '
+    'protecciones y caidas de tension conforme a criterios generales del REBT / ITC-BT. '
+    'Las tablas de intensidades admisibles y demas valores normativos deben verificarse siempre '
+    'frente a la edicion vigente del Reglamento Electrotecnico para Baja Tension antes de su uso '
+    'en una memoria o proyecto oficial, y el resultado final debe ser revisado y firmado por un '
+    'tecnico competente.</div>',
+    unsafe_allow_html=True,
+)
 
 with st.sidebar:
-    st.header("\U0001F4CB Datos del proyecto")
-    st.session_state.proyecto["nombre"] = st.text_input("Nombre del proyecto", st.session_state.proyecto.get("nombre", ""))
-    st.session_state.proyecto["cliente"] = st.text_input("Cliente / Titular", st.session_state.proyecto.get("cliente", ""))
-    st.session_state.proyecto["ubicacion"] = st.text_input("Emplazamiento", st.session_state.proyecto.get("ubicacion", ""))
-    st.session_state.proyecto["tecnico"] = st.text_input("Tecnico redactor", st.session_state.proyecto.get("tecnico", ""))
-    st.session_state.proyecto["fecha"] = st.text_input("Fecha", st.session_state.proyecto.get("fecha", str(date.today())))
+    st.header("Datos del proyecto")
+    dp = st.session_state["datos_proyecto"]
+    dp["titular"] = st.text_input("Titular", value=dp.get("titular", ""))
+    dp["emplazamiento"] = st.text_input("Emplazamiento", value=dp.get("emplazamiento", ""))
+    dp["referencia"] = st.text_input("Referencia catastral / CUPS", value=dp.get("referencia", ""))
+    dp["fecha"] = st.text_input("Fecha", value=dp.get("fecha", str(date.today())))
 
-    st.divider()
-    st.subheader("\U0001F527 Modulos incluidos")
-    st.session_state.tipos_activos["bt"] = st.checkbox("\U0001F3E0 Baja tension (REBT)", st.session_state.tipos_activos.get("bt", True))
-    st.session_state.tipos_activos["fv"] = st.checkbox("\u2600\ufe0f Fotovoltaica de autoconsumo", st.session_state.tipos_activos.get("fv", False))
-    st.session_state.tipos_activos["industrial"] = st.checkbox("\u2699\ufe0f Industrial / motores", st.session_state.tipos_activos.get("industrial", False))
+    st.subheader("Tipo de suministro")
+    opciones_suministro = list(TIPOS_SUMINISTRO.keys())
+    tipo_actual = st.session_state.get("tipo_suministro", opciones_suministro[0])
+    nuevo_tipo = st.selectbox(
+        "¿Como se alimenta la instalacion?",
+        opciones_suministro,
+        index=opciones_suministro.index(tipo_actual) if tipo_actual in opciones_suministro else 0,
+        help="Determina los elementos que se dibujan en el esquema unifilar (CGP, centralizacion de contadores, transformador de abonado, generacion propia, etc.)",
+    )
+    if nuevo_tipo != tipo_actual:
+        registrar_cambio("Cambio de tipo de suministro", f"{tipo_actual} -> {nuevo_tipo}")
+    st.session_state["tipo_suministro"] = nuevo_tipo
+    st.caption(TIPOS_SUMINISTRO[nuevo_tipo]["descripcion"])
 
-    st.divider()
-    st.subheader("\U0001F50C Metodo de instalacion")
-    st.caption("ITC-BT-19 - Metodos de referencia A1, A2, B1, B2, C, D, E, F, G")
-    st.session_state.metodo_instalacion = st.selectbox(
-        "Metodo de referencia para el cableado", list(AMPACIDAD.keys()),
-        index=list(AMPACIDAD.keys()).index(st.session_state.metodo_instalacion))
+    st.subheader("Modulos activos")
+    modulos = st.session_state["modulos"]
+    modulos["bt"] = st.checkbox("Baja Tension", value=modulos.get("bt", True))
+    modulos["fv"] = st.checkbox("Fotovoltaica", value=modulos.get("fv", False))
+    modulos["industrial"] = st.checkbox("Industrial / Motores", value=modulos.get("industrial", False))
 
-    st.divider()
-    st.subheader("\U0001F4BE Guardar / cargar proyecto")
-    proyecto_json = json.dumps(estado_a_dict(), ensure_ascii=False, indent=2, default=str)
-    st.download_button("Descargar proyecto (.json)", data=proyecto_json,
-                       file_name=(st.session_state.proyecto.get("nombre") or "proyecto").replace(" ", "_") + ".json",
-                       mime="application/json")
-    archivo_proyecto = st.file_uploader("Cargar proyecto (.json)", type=["json"], key="uploader_json")
+    st.subheader("Proyecto (guardar / cargar)")
+    proyecto_json = json.dumps(estado_a_dict(), indent=2, ensure_ascii=False)
+    st.download_button("Descargar proyecto (.json)", data=proyecto_json, file_name="proyecto_electrico.json", mime="application/json")
+    archivo_proyecto = st.file_uploader("Cargar proyecto (.json)", type=["json"], key="cargador_proyecto")
     if archivo_proyecto is not None:
         try:
-            cargar_estado_desde_dict(json.load(archivo_proyecto))
+            data = json.load(archivo_proyecto)
+            cargar_estado_desde_dict(data)
             st.success("Proyecto cargado correctamente.")
         except Exception as e:
-            st.error(f"No se pudo leer el archivo: {e}")
+            st.error(f"No se ha podido leer el archivo: {e}")
 
-    st.markdown('<div class="bloque-nota">\u26a0\ufe0f Los valores de intensidades admisibles y factores de '
-                "correccion son orientativos. Verifica siempre contra las tablas oficiales del REBT/ITC-BT "
-                "vigentes antes de emitir documentacion oficial.</div>", unsafe_allow_html=True)
-
-tabs = st.tabs(["\u26a1 Baja tension", "\u2600\ufe0f Fotovoltaica", "\u2699\ufe0f Industrial", "\U0001F4CF Mediciones",
-                "\U0001F4B0 Presupuesto", "\U0001F4C4 Memoria", "\U0001F4E4 Importar / Exportar"])
-
-with tabs[0]:
-    st.subheader("Circuitos de baja tension (ITC-BT-19 / ITC-BT-25)")
-    st.caption("Anhade, edita o elimina filas directamente en la tabla. Los resultados se calculan automaticamente.")
-
-    circuitos_editados = st.data_editor(
-        st.session_state.circuitos_bt, num_rows="dynamic", use_container_width=True, key="editor_bt",
-        column_config={
-            "Fases": st.column_config.SelectboxColumn(options=["Monofasico", "Trifasico"], default="Monofasico"),
-            "Tipo de receptor": st.column_config.SelectboxColumn(options=["Alumbrado", "Fuerza / tomas", "Climatizacion", "Mixto"], default="Alumbrado"),
-            "Temp. ambiente (C)": st.column_config.SelectboxColumn(options=list(FACTOR_TEMPERATURA.keys()), default=40),
-            "Circuitos agrupados": st.column_config.SelectboxColumn(options=list(FACTOR_AGRUPAMIENTO.keys()), default=1),
-            "Tipo de linea (cdt)": st.column_config.SelectboxColumn(options=list(CDT_MAXIMA.keys()), default="Instalacion interior - Otros usos (fuerza, tomas...)"),
-        },
-    )
-    st.session_state.circuitos_bt = circuitos_editados
-
-    if not circuitos_editados.empty:
-        resultados = circuitos_editados.apply(lambda r: calcular_circuito_bt(r, st.session_state.metodo_instalacion), axis=1)
-        tabla_resultado = pd.concat([circuitos_editados[["Circuito"]], resultados], axis=1)
-
-        n_total = len(tabla_resultado)
-        n_ok = int((tabla_resultado["Cumple"] == "Cumple").sum())
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Circuitos totales", n_total)
-        c2.metric("Cumplen normativa", n_ok)
-        c3.metric("A revisar", n_total - n_ok)
-
-        st.dataframe(tabla_resultado, use_container_width=True)
-
-        try:
-            import plotly.express as px
-            conteo = tabla_resultado["Cumple"].value_counts().reset_index()
-            conteo.columns = ["Estado", "Cantidad"]
-            fig = px.pie(conteo, names="Estado", values="Cantidad", hole=0.5,
-                        color="Estado", color_discrete_map={"Cumple": "#2f6f4f", "Revisar": "#a8402f"},
-                        title="Cumplimiento normativo de los circuitos")
-            st.plotly_chart(fig, use_container_width=True)
-        except ImportError:
-            pass
+    st.subheader("\U0001F4CB Registro de cambios en tiempo real")
+    historial = list(reversed(st.session_state.get("historial", [])))[:15]
+    if historial:
+        for h in historial:
+            st.markdown(
+                f'<div class="caja-log"><b>{h["hora"]}</b> - {h["accion"]}<br><span style="color:#666">{h["detalle"]}</span></div>',
+                unsafe_allow_html=True,
+            )
     else:
-        st.info("Todavia no hay circuitos. Anhade el primero desde la tabla superior.")
+        st.caption("Todavia no se han registrado cambios en esta sesion.")
 
-with tabs[1]:
-    st.subheader("Instalacion fotovoltaica de autoconsumo (RD 244/2019, ITC-BT-40)")
-    fv = st.session_state.fv_datos
-    c1, c2, c3, c4 = st.columns(4)
-    fv["potencia_pico"] = c1.text_input("Potencia pico (kWp)", str(fv.get("potencia_pico", "")))
-    fv["num_paneles"] = c2.text_input("Numero de paneles", str(fv.get("num_paneles", "")))
-    fv["potencia_panel"] = c3.text_input("Potencia por panel (Wp)", str(fv.get("potencia_panel", "")))
-    fv["num_strings"] = c4.number_input("Numero de strings en paralelo", min_value=1, value=int(fv.get("num_strings", 1) or 1))
 
-    c1, c2, c3, c4 = st.columns(4)
-    fv["voc"] = c1.text_input("Voc (V)", str(fv.get("voc", "")))
-    fv["isc"] = c2.text_input("Isc (A)", str(fv.get("isc", "")))
-    fv["vmpp"] = c3.text_input("Vmpp (V)", str(fv.get("vmpp", "")))
-    fv["impp"] = c4.text_input("Impp (A)", str(fv.get("impp", "")))
+tab_bt, tab_fv, tab_ind, tab_med, tab_pres, tab_esq, tab_mem, tab_io = st.tabs([
+    "\u26A1 Baja Tension", "\u2600\uFE0F Fotovoltaica", "\U0001F3ED Industrial",
+    "\U0001F9FE Mediciones", "\U0001F4B0 Presupuesto", "\U0001F4D0 Esquema unifilar",
+    "\U0001F4C4 Memoria", "\U0001F4C2 Importar/Exportar",
+])
 
-    c1, c2, c3, c4 = st.columns(4)
-    fv["dist_string_inversor"] = c1.number_input("Distancia strings -> inversor (m)", value=float(fv.get("dist_string_inversor", 15.0) or 0))
-    fv["potencia_inversor"] = c2.text_input("Potencia inversor (W)", str(fv.get("potencia_inversor", "")))
-    fv["tension_ac"] = c3.number_input("Tension AC (V)", value=float(fv.get("tension_ac", 400.0) or 0))
-    fv["fases_ac"] = c4.selectbox("Fases AC", ["Monofasico", "Trifasico"], index=["Monofasico", "Trifasico"].index(fv.get("fases_ac", "Trifasico")))
-    fv["dist_inversor_cuadro"] = st.number_input("Distancia inversor -> cuadro AC (m)", value=float(fv.get("dist_inversor_cuadro", 5.0) or 0))
-    st.session_state.fv_datos = fv
+df_bt_calc = df_vacio(COLUMNAS_BT)
+df_fv_calc = None
+df_motores_calc = df_vacio(COLUMNAS_MOTORES)
 
-    if float(fv.get("num_paneles", 0) or 0) > 0 or float(fv.get("impp", 0) or 0) > 0:
-        r = calcular_fv(fv, st.session_state.metodo_instalacion)
-        st.markdown("**Tramo CC (paneles -> inversor)**")
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("I diseno CC (1.25 x Isc)", f"{r['idc_diseno']:.2f} A")
-        c2.metric("Seccion CC", f"{r['seccion_dc']} mm2")
-        c3.metric("c.d.t. CC", f"{r['cdt_dc']:.2f} %")
-        c4.metric("Requiere fusibles", "Si" if r["requiere_fusibles_dc"] else "No")
+# ---------------- BAJA TENSION ----------------
+with tab_bt:
+    st.subheader("Circuitos de Baja Tension")
+    if modulos.get("bt"):
+        df_editado = st.data_editor(
+            st.session_state["df_bt"],
+            num_rows="dynamic",
+            use_container_width=True,
+            key="editor_bt",
+            column_config={
+                "Fases": st.column_config.SelectboxColumn(options=["Monofasico", "Trifasico"]),
+                "Metodo instalacion": st.column_config.SelectboxColumn(options=list(METODOS_INSTALACION.keys())),
+                "Aislamiento": st.column_config.SelectboxColumn(options=["PVC", "XLPE"]),
+                "Uso": st.column_config.SelectboxColumn(options=list(CDT_MAXIMA.keys())),
+            },
+        )
+        detectar_cambios_df("df_bt", df_editado, "circuitos de Baja Tension")
+        st.session_state["df_bt"] = df_editado
 
-        st.markdown("**Tramo CA (inversor -> cuadro AC)**")
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("I AC", f"{r['iac']:.2f} A")
-        c2.metric("Seccion AC", f"{r['seccion_ac']} mm2")
-        c3.metric("c.d.t. AC", f"{r['cdt_ac']:.2f} %")
-        c4.metric("Proteccion AC", f"{r['proteccion_ac']} A")
+        with st.expander("Ver metodos de instalacion disponibles"):
+            for k, v in METODOS_INSTALACION.items():
+                st.markdown(f"**{k}**: {v}")
 
-    st.markdown('<div class="bloque-nota">\u2139\ufe0f Recuerda: interruptor-seccionador CC junto al inversor, '
-                "proteccion contra sobretensiones, diferencial adecuado al tipo de inversor (tipo A o "
-                "superinmunizado tipo B si el fabricante lo exige) y equipo de medida bidireccional segun "
-                "RD 244/2019.</div>", unsafe_allow_html=True)
+        if not df_editado.empty:
+            resultados = df_editado.apply(lambda f: pd.Series(calcular_circuito_bt(f)), axis=1)
+            df_bt_calc = pd.concat([df_editado.reset_index(drop=True), resultados.reset_index(drop=True)], axis=1)
+            st.markdown("#### Resultados de calculo")
+            st.dataframe(df_bt_calc, use_container_width=True)
 
-with tabs[2]:
-    st.subheader("Motores y circuitos industriales (ITC-BT-47)")
-    motores_editados = st.data_editor(
-        st.session_state.motores, num_rows="dynamic", use_container_width=True, key="editor_motores",
-        column_config={"Tipo de arranque": st.column_config.SelectboxColumn(options=list(FACTORES_ARRANQUE_MOTOR.keys()), default="Directo")},
-    )
-    st.session_state.motores = motores_editados
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Circuitos totales", len(df_bt_calc))
+            c2.metric("Cumplen", int((df_bt_calc["Cumple"] == "Si").sum()))
+            c3.metric("A revisar", int((df_bt_calc["Cumple"] == "Revisar").sum()))
 
-    if not motores_editados.empty:
-        resultados_m = motores_editados.apply(lambda r: calcular_motor(r, st.session_state.metodo_instalacion), axis=1)
-        tabla_m = pd.concat([motores_editados[["Motor"]], resultados_m], axis=1)
-        st.dataframe(tabla_m, use_container_width=True)
+            try:
+                import plotly.express as px
+                conteo = df_bt_calc["Cumple"].value_counts().reset_index()
+                conteo.columns = ["Estado", "Cantidad"]
+                fig = px.pie(conteo, names="Estado", values="Cantidad", title="Estado de cumplimiento de circuitos",
+                             color="Estado", color_discrete_map={"Si": "#2E7D32", "Revisar": "#C62828"})
+                st.plotly_chart(fig, use_container_width=True)
+            except Exception:
+                pass
     else:
-        st.info("Anhade un motor para calcular In, Ia de arranque, seccion y protecciones.")
+        st.info("Activa el modulo 'Baja Tension' en la barra lateral para introducir circuitos.")
 
-with tabs[3]:
+# ---------------- FOTOVOLTAICA ----------------
+with tab_fv:
+    st.subheader("Instalacion Fotovoltaica")
+    if modulos.get("fv"):
+        fv = st.session_state["fv_datos"]
+        col1, col2 = st.columns(2)
+        with col1:
+            fv["potencia_pico_kwp"] = st.number_input("Potencia pico (kWp)", value=float(fv.get("potencia_pico_kwp", 5.0)), min_value=0.0, step=0.5)
+            fv["tension_mppt_v"] = st.number_input("Tension MPPT (V)", value=float(fv.get("tension_mppt_v", 600.0)), min_value=1.0, step=10.0)
+            fv["num_paneles"] = st.number_input("Numero de paneles", value=int(fv.get("num_paneles", 12)), min_value=1, step=1)
+            fv["longitud_dc_m"] = st.number_input("Longitud tramo CC (m)", value=float(fv.get("longitud_dc_m", 20.0)), min_value=0.0, step=1.0)
+        with col2:
+            fv["potencia_inversor_kw"] = st.number_input("Potencia inversor (kW)", value=float(fv.get("potencia_inversor_kw", 5.0)), min_value=0.0, step=0.5)
+            fv["tension_ac_v"] = st.number_input("Tension CA (V)", value=float(fv.get("tension_ac_v", 400.0)), min_value=1.0, step=10.0)
+            fv["longitud_ac_m"] = st.number_input("Longitud tramo CA (m)", value=float(fv.get("longitud_ac_m", 15.0)), min_value=0.0, step=1.0)
+
+        resultado_fv = calcular_fv(
+            fv["potencia_pico_kwp"], fv["tension_mppt_v"], fv["num_paneles"],
+            fv["longitud_dc_m"], fv["longitud_ac_m"], fv["potencia_inversor_kw"], fv["tension_ac_v"],
+        )
+        df_fv_calc = pd.DataFrame([resultado_fv])
+        st.markdown("#### Resultados de calculo")
+        cols = st.columns(4)
+        cols[0].metric("Intensidad DC", f"{resultado_fv['Intensidad DC (A)']} A")
+        cols[1].metric("Seccion DC", f"{resultado_fv['Seccion DC (mm2)']} mm2")
+        cols[2].metric("Intensidad AC", f"{resultado_fv['Intensidad AC (A)']} A")
+        cols[3].metric("Seccion AC", f"{resultado_fv['Seccion AC (mm2)']} mm2")
+        st.dataframe(df_fv_calc, use_container_width=True)
+    else:
+        st.info("Activa el modulo 'Fotovoltaica' en la barra lateral para realizar el dimensionado.")
+
+
+# ---------------- INDUSTRIAL / MOTORES ----------------
+with tab_ind:
+    st.subheader("Motores e instalacion industrial")
+    if modulos.get("industrial"):
+        df_editado_m = st.data_editor(
+            st.session_state["df_motores"],
+            num_rows="dynamic",
+            use_container_width=True,
+            key="editor_motores",
+            column_config={
+                "Fases": st.column_config.SelectboxColumn(options=["Monofasico", "Trifasico"]),
+                "Metodo arranque": st.column_config.SelectboxColumn(options=list(FACTORES_ARRANQUE_MOTOR.keys())),
+                "Metodo instalacion": st.column_config.SelectboxColumn(options=list(METODOS_INSTALACION.keys())),
+            },
+        )
+        detectar_cambios_df("df_motores", df_editado_m, "motores")
+        st.session_state["df_motores"] = df_editado_m
+
+        if not df_editado_m.empty:
+            resultados_m = df_editado_m.apply(lambda f: pd.Series(calcular_motor(f)), axis=1)
+            df_motores_calc = pd.concat([df_editado_m.reset_index(drop=True), resultados_m.reset_index(drop=True)], axis=1)
+            st.markdown("#### Resultados de calculo")
+            st.dataframe(df_motores_calc, use_container_width=True)
+    else:
+        st.info("Activa el modulo 'Industrial / Motores' en la barra lateral.")
+
+# ---------------- MEDICIONES ----------------
+with tab_med:
     st.subheader("Mediciones")
-    mediciones_auto = generar_mediciones_auto(st.session_state.circuitos_bt, st.session_state.fv_datos,
-                                              st.session_state.motores, st.session_state.tipos_activos,
-                                              st.session_state.metodo_instalacion)
-    if not mediciones_auto.empty:
-        st.markdown("**Generadas automaticamente a partir de los calculos**")
-        st.dataframe(mediciones_auto[["Capitulo", "Descripcion", "Unidad", "Cantidad"]], use_container_width=True)
-    else:
-        st.info("Anhade circuitos en las pestanhas de calculo para generar mediciones automaticamente.")
+    df_auto = generar_mediciones_auto(df_bt_calc if modulos.get("bt") else None, df_motores_calc if modulos.get("industrial") else None)
+    st.markdown("#### Mediciones generadas automaticamente")
+    st.dataframe(df_auto, use_container_width=True)
 
-    st.markdown("**Partidas manuales**")
-    st.session_state.mediciones_manual = st.data_editor(
-        st.session_state.mediciones_manual, num_rows="dynamic", use_container_width=True, key="editor_mediciones_manual")
+    st.markdown("#### Mediciones manuales adicionales")
+    df_manual_editado = st.data_editor(
+        st.session_state["df_mediciones_manual"], num_rows="dynamic", use_container_width=True, key="editor_mediciones",
+    )
+    detectar_cambios_df("df_mediciones_manual", df_manual_editado, "mediciones manuales")
+    st.session_state["df_mediciones_manual"] = df_manual_editado
 
-with tabs[4]:
-    st.subheader("Presupuesto (PEM + Gastos generales + Beneficio industrial + IVA)")
-    presupuesto = calcular_presupuesto(mediciones_auto, st.session_state.mediciones_manual, st.session_state.precios,
-                                        st.session_state.gastos_generales, st.session_state.beneficio_industrial,
-                                        st.session_state.iva)
+    df_mediciones_total = pd.concat([df_auto, df_manual_editado], ignore_index=True) if not df_manual_editado.empty else df_auto
 
-    if not presupuesto["por_capitulo"].empty:
+# ---------------- PRESUPUESTO ----------------
+with tab_pres:
+    st.subheader("Presupuesto")
+    df_presupuesto, resumen = calcular_presupuesto(df_mediciones_total)
+    st.dataframe(df_presupuesto, use_container_width=True)
+
+    if resumen:
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("PEM", f"{resumen['PEM']:,.2f} EUR")
+        c2.metric("Base licitacion", f"{resumen['Base de licitacion']:,.2f} EUR")
+        c3.metric("IVA", f"{resumen['IVA']:,.2f} EUR")
+        c4.metric("TOTAL", f"{resumen['TOTAL']:,.2f} EUR")
+
         try:
             import plotly.express as px
-            datos_grafico = presupuesto["por_capitulo"].reset_index()
-            datos_grafico.columns = ["Capitulo", "Importe (EUR)"]
-            fig = px.bar(datos_grafico, x="Capitulo", y="Importe (EUR)", color="Capitulo", text_auto=".2f",
-                        title="Distribucion del presupuesto por capitulo",
-                        color_discrete_sequence=["#10263f", "#c8790f", "#2f6f4f", "#45688a"])
-            st.plotly_chart(fig, use_container_width=True)
-        except ImportError:
-            for capitulo, importe in presupuesto["por_capitulo"].items():
-                st.write(f"**{capitulo}**: {importe:.2f} EUR")
+            if not df_presupuesto.empty:
+                resumen_capitulo = df_presupuesto.groupby("Capitulo")["Importe (EUR)"].sum().reset_index()
+                fig = px.bar(resumen_capitulo, x="Capitulo", y="Importe (EUR)", title="Importe por capitulo", color="Capitulo")
+                st.plotly_chart(fig, use_container_width=True)
+        except Exception:
+            pass
 
-    st.divider()
-    c1, c2 = st.columns(2)
-    c1.metric("PEM (Presupuesto de Ejecucion Material)", f"{presupuesto['pem']:.2f} EUR")
-    st.session_state.gastos_generales = c1.number_input("Gastos generales (%)", value=float(st.session_state.gastos_generales))
-    st.session_state.beneficio_industrial = c1.number_input("Beneficio industrial (%)", value=float(st.session_state.beneficio_industrial))
-    st.session_state.iva = c2.number_input("IVA (%)", value=float(st.session_state.iva))
-    c2.metric("Presupuesto de contrata (sin IVA)", f"{presupuesto['pca']:.2f} EUR")
-    st.metric("TOTAL PRESUPUESTO", f"{presupuesto['total']:.2f} EUR")
+    with st.expander("Editar precios por defecto"):
+        for k in list(PRECIOS_DEFECTO.keys()):
+            PRECIOS_DEFECTO[k] = st.number_input(k, value=float(PRECIOS_DEFECTO[k]), key=f"precio_{k}")
 
-    with st.expander(f"Editar precios unitarios ({len(st.session_state.precios)})"):
-        cols = st.columns(3)
-        claves = list(st.session_state.precios.keys())
-        for i, k in enumerate(claves):
-            st.session_state.precios[k] = cols[i % 3].number_input(k.replace("_", " "), value=float(st.session_state.precios[k]), key=f"precio_{k}")
+# ---------------- ESQUEMA UNIFILAR ----------------
+with tab_esq:
+    st.subheader("Esquema unifilar")
+    st.caption(
+        "Configurador tipo CIEBT: selecciona el tipo de suministro en la barra lateral y genera "
+        "el esquema unifilar con la cadena de acometida, proteccion, medida y derivaciones a cada "
+        "circuito interior, listo para exportar en formato DXF."
+    )
+    info_sum = TIPOS_SUMINISTRO[st.session_state["tipo_suministro"]]
+    st.markdown(f"**Tipo de suministro seleccionado:** {st.session_state['tipo_suministro']}")
+    st.markdown(info_sum["descripcion"])
+    st.markdown("**Elementos que se incluiran en el esquema:**")
+    for el in info_sum["elementos"]:
+        st.markdown(f"- {el}")
+    if not df_bt_calc.empty:
+        st.markdown(f"Se incluiran **{len(df_bt_calc)}** circuitos interiores derivados del embarrado del cuadro general.")
+    else:
+        st.warning("No hay circuitos de Baja Tension definidos todavia; el esquema se generara solo con la parte de suministro.")
 
-with tabs[5]:
-    st.subheader("Memoria tecnica")
-    memoria = st.session_state.memoria
-    memoria["objeto"] = st.text_area("Objeto (vacio para usar el texto por defecto)", memoria.get("objeto", ""))
-    memoria["normativa"] = st.text_area("Normativa (opcional)", memoria.get("normativa", ""))
-    memoria["descripcion"] = st.text_area("Descripcion general (opcional)", memoria.get("descripcion", ""))
-    st.session_state.memoria = memoria
+# ---------------- MEMORIA ----------------
+with tab_mem:
+    st.subheader("Memoria Tecnica de Diseño (MTD)")
+    dp["objeto"] = st.text_area("1. Objeto de la memoria", value=dp.get("objeto", ""), height=80)
+    dp["normativa"] = st.text_area("3. Reglamentacion y disposiciones aplicadas", value=dp.get("normativa", ""), height=80)
+    dp["descripcion"] = st.text_area("4. Descripcion general de la instalacion (potencia, uso, caracteristicas)", value=dp.get("descripcion", ""), height=100)
 
-    texto_memoria = generar_memoria_texto(st.session_state.proyecto, st.session_state.circuitos_bt,
-                                          st.session_state.fv_datos, st.session_state.motores, memoria,
-                                          st.session_state.tipos_activos, st.session_state.metodo_instalacion)
-    st.text_area("Vista previa", texto_memoria, height=350)
+    texto_memoria = generar_memoria_texto({
+        "datos_proyecto": dp, "tipo_suministro": st.session_state["tipo_suministro"],
+    })
+    st.markdown("#### Vista previa")
+    st.text_area("Contenido de la memoria", value=texto_memoria, height=350)
 
-with tabs[6]:
-    st.subheader("\U0001F4E5 Importar circuitos, motores o partidas desde CSV/Excel")
-    st.caption("Descarga la plantilla, rellenala y vuelve a subirla para cargar datos en bloque.")
 
-    colp1, colp2, colp3 = st.columns(3)
-    colp1.download_button("Plantilla circuitos BT (.csv)", df_vacio(COLUMNAS_BT).to_csv(index=False), "plantilla_circuitos_bt.csv", "text/csv")
-    colp2.download_button("Plantilla motores (.csv)", df_vacio(COLUMNAS_MOTORES).to_csv(index=False), "plantilla_motores.csv", "text/csv")
-    colp3.download_button("Plantilla mediciones (.csv)", df_vacio(COLUMNAS_MEDICION_MANUAL).to_csv(index=False), "plantilla_mediciones.csv", "text/csv")
+# ---------------- IMPORTAR / EXPORTAR ----------------
+with tab_io:
+    st.subheader("Importar datos desde archivo")
+    st.markdown("Descarga las plantillas, rellenalas y vuelve a subirlas para importar circuitos, motores o mediciones de forma masiva.")
 
-    tipo_importacion = st.selectbox("Que quieres importar", ["Circuitos de baja tension", "Motores", "Partidas de mediciones manuales"])
-    archivo = st.file_uploader("Selecciona un archivo .csv o .xlsx", type=["csv", "xlsx"], key="uploader_datos")
-    modo = st.radio("Modo de carga", ["Anhadir a los datos actuales", "Reemplazar los datos actuales"], horizontal=True)
+    col_a, col_b, col_c = st.columns(3)
+    with col_a:
+        st.download_button("Plantilla circuitos BT (.csv)", data=df_vacio(COLUMNAS_BT).to_csv(index=False), file_name="plantilla_circuitos_bt.csv", mime="text/csv")
+    with col_b:
+        st.download_button("Plantilla motores (.csv)", data=df_vacio(COLUMNAS_MOTORES).to_csv(index=False), file_name="plantilla_motores.csv", mime="text/csv")
+    with col_c:
+        st.download_button("Plantilla mediciones (.csv)", data=df_vacio(COLUMNAS_MEDICION_MANUAL).to_csv(index=False), file_name="plantilla_mediciones.csv", mime="text/csv")
 
-    if archivo is not None:
+    tipo_importacion = st.selectbox("¿Que deseas importar?", ["Circuitos de Baja Tension", "Motores", "Mediciones manuales"])
+    archivo_datos = st.file_uploader("Selecciona un archivo .csv o .xlsx", type=["csv", "xlsx"], key="cargador_datos")
+    if archivo_datos is not None:
         try:
-            nuevo_df = pd.read_csv(archivo) if archivo.name.endswith(".csv") else pd.read_excel(archivo)
-            if tipo_importacion == "Circuitos de baja tension":
-                destino, columnas = "circuitos_bt", COLUMNAS_BT
+            if archivo_datos.name.endswith(".csv"):
+                df_importado = pd.read_csv(archivo_datos)
+            else:
+                df_importado = pd.read_excel(archivo_datos)
+            if tipo_importacion == "Circuitos de Baja Tension":
+                st.session_state["df_bt"] = df_importado
             elif tipo_importacion == "Motores":
-                destino, columnas = "motores", COLUMNAS_MOTORES
+                st.session_state["df_motores"] = df_importado
             else:
-                destino, columnas = "mediciones_manual", COLUMNAS_MEDICION_MANUAL
-
-            nuevo_df = nuevo_df.reindex(columns=columnas)
-            if modo == "Reemplazar los datos actuales":
-                st.session_state[destino] = nuevo_df
-            else:
-                st.session_state[destino] = pd.concat([st.session_state[destino], nuevo_df], ignore_index=True)
-            st.success(f"Se han importado {len(nuevo_df)} filas en '{tipo_importacion}'.")
+                st.session_state["df_mediciones_manual"] = df_importado
+            registrar_cambio("Importacion de archivo", f"{tipo_importacion} desde {archivo_datos.name}")
+            st.success(f"Datos de '{tipo_importacion}' importados correctamente. Revisa la pestaña correspondiente.")
         except Exception as e:
-            st.error(f"No se pudo importar el archivo: {e}")
+            st.error(f"No se ha podido importar el archivo: {e}")
 
     st.divider()
-    st.subheader("\U0001F4E4 Exportar resultados")
+    st.subheader("Exportar resultados")
 
-    col1, col2 = st.columns(2)
+    col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.markdown("**Excel** - mediciones, presupuesto y calculo BT")
-        excel_buffer = exportar_excel(presupuesto, st.session_state.circuitos_bt, st.session_state.metodo_instalacion)
-        st.download_button("\U0001F4CA Descargar Excel (.xlsx)", data=excel_buffer,
-                           file_name=(st.session_state.proyecto.get("nombre") or "proyecto").replace(" ", "_") + ".xlsx",
-                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-        st.markdown("**Esquema unifilar** - cuadro general y circuitos")
-        st.caption("Se genera en formato DXF (estandar CAD abierto). AutoCAD, BricsCAD y similares lo abren "
-                   "directamente y permiten guardarlo como .dwg con 'Guardar como'.")
-        dxf_buffer = generar_esquema_unifilar_dxf(st.session_state.circuitos_bt, st.session_state.proyecto)
-        if dxf_buffer is not None:
-            st.download_button("\U0001F4D0 Descargar esquema unifilar (.dxf)", data=dxf_buffer,
-                               file_name=(st.session_state.proyecto.get("nombre") or "esquema").replace(" ", "_") + "_unifilar.dxf",
-                               mime="application/dxf")
-        else:
-            st.warning("Instala la libreria 'ezdxf' (incluida en requirements.txt) para generar el esquema unifilar.")
+        buffer_excel = exportar_excel(df_bt_calc, df_motores_calc, df_mediciones_total if "df_mediciones_total" in dir() else None, resumen if "resumen" in dir() else {})
+        st.download_button("\U0001F4CA Excel (mediciones/presupuesto)", data=buffer_excel, file_name="calculo_electrico.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
     with col2:
-        st.markdown("**Memoria tecnica en PDF** - portada + capitulos + anexos por capitulo")
-        pdf_buffer = exportar_memoria_pdf(estado_a_dict(), texto_memoria, st.session_state.circuitos_bt,
-                                          st.session_state.fv_datos, st.session_state.motores, presupuesto,
-                                          st.session_state.metodo_instalacion)
-        if pdf_buffer is not None:
-            st.download_button("\U0001F4D5 Descargar memoria (.pdf)", data=pdf_buffer,
-                               file_name=(st.session_state.proyecto.get("nombre") or "memoria").replace(" ", "_") + ".pdf",
-                               mime="application/pdf")
-        else:
-            st.warning("Instala la libreria 'reportlab' (incluida en requirements.txt) para generar el PDF.")
+        try:
+            dxf_bytes = generar_esquema_unifilar_dxf({"datos_proyecto": dp, "tipo_suministro": st.session_state["tipo_suministro"]}, df_bt_calc)
+            st.download_button("\U0001F4D0 Esquema unifilar (.dxf)", data=dxf_bytes, file_name="esquema_unifilar.dxf", mime="application/dxf")
+            st.caption("Formato DXF abierto; se puede abrir y guardar como .dwg desde AutoCAD.")
+        except Exception as e:
+            st.error(f"No se ha podido generar el DXF: {e}")
 
-        st.markdown("**Memoria tecnica en Word** - editable")
-        word_buffer = exportar_memoria_word(texto_memoria, st.session_state.proyecto)
-        if word_buffer is not None:
-            st.download_button("\U0001F4C4 Descargar memoria (.docx)", data=word_buffer,
-                               file_name=(st.session_state.proyecto.get("nombre") or "memoria").replace(" ", "_") + ".docx",
-                               mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-        else:
-            st.download_button("Descargar memoria (texto .txt)", data=texto_memoria,
-                               file_name=(st.session_state.proyecto.get("nombre") or "memoria").replace(" ", "_") + ".txt",
-                               mime="text/plain")
+    with col3:
+        try:
+            buffer_pdf = exportar_memoria_pdf(
+                {"datos_proyecto": dp, "tipo_suministro": st.session_state["tipo_suministro"]},
+                texto_memoria, df_bt_calc, df_fv_calc, df_motores_calc,
+                df_mediciones_total if "df_mediciones_total" in dir() else None,
+                resumen if "resumen" in dir() else {},
+            )
+            st.download_button("\U0001F4C4 Memoria (.pdf)", data=buffer_pdf, file_name="memoria_tecnica.pdf", mime="application/pdf")
+        except Exception as e:
+            st.error(f"No se ha podido generar el PDF: {e}")
+
+    with col4:
+        try:
+            buffer_word = exportar_memoria_word(texto_memoria)
+            st.download_button("\U0001F4DD Memoria (.docx)", data=buffer_word, file_name="memoria_tecnica.docx",
+                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        except Exception as e:
+            st.error(f"No se ha podido generar el Word: {e}")
