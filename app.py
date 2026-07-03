@@ -26,6 +26,25 @@ import streamlit as st
 st.set_page_config(page_title="Proyectista Electrico - REBT", page_icon="\u26a1", layout="wide")
 
 # =====================================================================================
+# 0. ESTILO VISUAL
+# =====================================================================================
+
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
+html, body, [class*="css"] { font-family: 'IBM Plex Sans', sans-serif; }
+h1, h2, h3 { font-family: 'Space Grotesk', sans-serif; color: #10263f; }
+[data-testid="stMetric"] { background: #f6f4ee; border: 1px solid #e2ddcf; border-radius: 10px; padding: 12px 16px; }
+[data-testid="stMetricLabel"] { color: #45688a; font-weight: 600; }
+[data-testid="stMetricValue"] { color: #10263f; font-family: 'IBM Plex Mono', monospace; }
+.stTabs [data-baseweb="tab"] { font-weight: 600; font-size: 15px; }
+.stTabs [aria-selected="true"] { color: #c8790f !important; }
+div[data-testid="stExpander"] { border: 1px solid #e2ddcf; border-radius: 8px; }
+.bloque-nota { background: #f4e2c3; border-left: 4px solid #c8790f; padding: 10px 14px; border-radius: 4px; font-size: 13px; }
+</style>
+""", unsafe_allow_html=True)
+
+# =====================================================================================
 # 1. DATOS TECNICOS DE REFERENCIA (REBT / ITC-BT)
 # =====================================================================================
 
@@ -33,32 +52,50 @@ SECCIONES_MM2 = [1.5, 2.5, 4, 6, 10, 16, 25, 35, 50, 70, 95, 120, 150, 185, 240,
 
 # ITC-BT-19, Tabla 1 (orientativa). Intensidades admisibles (A). Conductores de cobre,
 # aislamiento PVC, 2 conductores cargados. Metodos de instalacion de referencia
-# segun UNE-HD 60364-5-52 / ITC-BT-19.
+# segun UNE-HD 60364-5-52 / guia tecnica de aplicacion de la ITC-BT-19.
 AMPACIDAD = {
-    "B1 - Bajo tubo empotrado en pared aislante o en superficie": {
+    "A1 - Conductores aislados en conducto empotrado en pared aislante": {
+        1.5: 13, 2.5: 17.5, 4: 23, 6: 29, 10: 39, 16: 52, 25: 68, 35: 83,
+        50: 99, 70: 125, 95: 150, 120: 172, 150: 196, 185: 223, 240: 261, 300: 298,
+    },
+    "A2 - Cable multiconductor en conducto empotrado en pared aislante": {
+        1.5: 13.5, 2.5: 18, 4: 24, 6: 31, 10: 42, 16: 56, 25: 73, 35: 89,
+        50: 108, 70: 136, 95: 164, 120: 188, 150: 216, 185: 245, 240: 286, 300: 328,
+    },
+    "B1 - Conductores aislados en tubo empotrado en obra o en superficie": {
         1.5: 15, 2.5: 21, 4: 28, 6: 36, 10: 50, 16: 68, 25: 89, 35: 111,
         50: 134, 70: 171, 95: 207, 120: 239, 150: 262, 185: 296, 240: 346, 300: 388,
     },
-    "C - Cables multiconductores sobre pared o bandeja": {
+    "B2 - Cable multiconductor en tubo en superficie": {
+        1.5: 14, 2.5: 19, 4: 25, 6: 32, 10: 45, 16: 61, 25: 80, 35: 96,
+        50: 118, 70: 150, 95: 180, 120: 208, 150: 228, 185: 255, 240: 297, 300: 339,
+    },
+    "C - Cable multiconductor tendido directo sobre pared o techo": {
         1.5: 17.5, 2.5: 24, 4: 32, 6: 41, 10: 57, 16: 76, 25: 96, 35: 119,
         50: 144, 70: 184, 95: 223, 120: 259, 150: 299, 185: 341, 240: 403, 300: 464,
     },
-    "E - Al aire libre, bandeja perforada (unipolares separados)": {
+    "D - Cable multiconductor enterrado (bajo tubo o directo)": {
+        1.5: 18, 2.5: 24, 4: 31, 6: 39, 10: 52, 16: 67, 25: 86, 35: 103,
+        50: 122, 70: 151, 95: 179, 120: 203, 150: 230, 185: 258, 240: 297, 300: 336,
+    },
+    "E - Cable multiconductor al aire libre / bandeja perforada": {
+        1.5: 19, 2.5: 26, 4: 35, 6: 45, 10: 61, 16: 82, 25: 108, 35: 133,
+        50: 161, 70: 205, 95: 249, 120: 289, 150: 332, 185: 378, 240: 445, 300: 512,
+    },
+    "F - Cables unipolares en contacto mutuo, al aire libre": {
         1.5: 19.5, 2.5: 27, 4: 36, 6: 46, 10: 63, 16: 85, 25: 112, 35: 138,
         50: 168, 70: 213, 95: 258, 120: 299, 150: 344, 185: 392, 240: 461, 300: 530,
     },
+    "G - Cables unipolares separados entre si, al aire libre": {
+        1.5: 22, 2.5: 30, 4: 40, 6: 51, 10: 70, 16: 94, 25: 119, 35: 148,
+        50: 180, 70: 232, 95: 282, 120: 328, 150: 379, 185: 434, 240: 514, 300: 593,
+    },
 }
 
-# ITC-BT-19, Tabla de correccion por temperatura ambiente distinta de 40 C (aislamiento PVC)
 FACTOR_TEMPERATURA = {25: 1.12, 30: 1.08, 35: 1.04, 40: 1.00, 45: 0.91, 50: 0.82, 55: 0.71}
-
-# ITC-BT-19, factor de correccion por agrupamiento de circuitos (orientativo)
 FACTOR_AGRUPAMIENTO = {1: 1.00, 2: 0.80, 3: 0.70, 4: 0.65, 5: 0.60, 6: 0.57, 7: 0.54, 8: 0.52, 9: 0.50}
-
-# Calibres normalizados de protecciones magnetotermicas (UNE-EN 60898)
 PROTECCIONES_NORMALIZADAS = [6, 10, 13, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250, 400]
 
-# ITC-BT-19, apartado 2.2.2 - caida de tension maxima admisible orientativa
 CDT_MAXIMA = {
     "Linea general de alimentacion (LGA)": 0.5,
     "Derivacion individual (con centralizacion de contadores)": 1.0,
@@ -67,7 +104,7 @@ CDT_MAXIMA = {
     "Instalacion interior - Otros usos (fuerza, tomas...)": 5.0,
 }
 
-RESISTIVIDAD_INV_CU = 56.0  # 1/rho del cobre (m / (ohm*mm2)), aprox. a 20 C, uso habitual en calculo de cdt
+RESISTIVIDAD_INV_CU = 56.0
 
 FACTORES_ARRANQUE_MOTOR = {
     "Directo": 7.0,
@@ -89,10 +126,8 @@ PRECIOS_DEFECTO = {
 COLUMNAS_BT = ["Circuito", "Tipo de receptor", "Fases", "Tension (V)", "Potencia (W)",
                "cos phi", "Longitud (m)", "Temp. ambiente (C)", "Circuitos agrupados",
                "Tipo de linea (cdt)"]
-
 COLUMNAS_MOTORES = ["Motor", "Potencia (kW)", "Tension (V)", "cos phi", "Rendimiento (%)",
                      "Tipo de arranque", "Longitud (m)"]
-
 COLUMNAS_MEDICION_MANUAL = ["Capitulo", "Descripcion", "Unidad", "Cantidad", "Precio unitario (EUR)"]
 
 
@@ -145,7 +180,6 @@ def elegir_seccion_por_cdt(long_m, ib, cosphi, v, limite_pct, fases):
 
 
 def elegir_proteccion(ib, iz_corregida):
-    # ITC-BT-22 / UNE 20-460: Ib <= In <= Iz
     candidatos = [p for p in PROTECCIONES_NORMALIZADAS if p >= ib]
     if not candidatos:
         return PROTECCIONES_NORMALIZADAS[-1]
@@ -200,7 +234,6 @@ def calcular_fv(datos, metodo_instalacion):
     fases_ac = datos.get("fases_ac", "Trifasico")
     dist_ac = float(datos.get("dist_inversor_cuadro", 0) or 0)
 
-    # Tramo CC: IDAE / UNE-EN 62548 recomiendan dimensionar con 1.25 x Isc por rama
     idc_diseno = isc * num_strings * 1.25
     idc_servicio = impp * num_strings
     seccion_dc = elegir_seccion_por_intensidad(idc_diseno, metodo_instalacion, 1.0)
@@ -232,12 +265,10 @@ def calcular_motor(row, metodo_instalacion):
     factor_arranque = FACTORES_ARRANQUE_MOTOR.get(tipo_arranque, 7.0)
     ia = in_ * factor_arranque
 
-    # ITC-BT-47 apartado 3: seccion del cable no inferior a 1.25 x In a plena carga
     seccion = elegir_seccion_por_intensidad(in_ * 1.25, metodo_instalacion, 1.0)
     iz = AMPACIDAD[metodo_instalacion][seccion]
     cdt = cdt_tri_pct(longitud, in_, cosphi, seccion, v)
 
-    # Rango de regulacion orientativo del rele termico (ajustar segun placa de caracteristicas)
     termico_min = in_ * 1.00
     termico_max = in_ * 1.15
     guardamotor = elegir_proteccion(in_, iz)
@@ -338,7 +369,6 @@ def calcular_presupuesto(mediciones_auto, mediciones_manual, precios, gastos_gen
 
 def generar_memoria_texto(proyecto, circuitos_bt, fv_datos, motores, memoria, tipos_activos, metodo_instalacion):
     partes = []
-    partes.append("MEMORIA TECNICA DESCRIPTIVA")
     partes.append("1. OBJETO\n" + (memoria.get("objeto") or
         f"El objeto de la presente memoria es describir y justificar la instalacion electrica de "
         f"\"{proyecto.get('nombre') or '[nombre del proyecto]'}\", conforme al Reglamento Electrotecnico "
@@ -389,7 +419,7 @@ def inicializar_estado():
     defaults = {
         "proyecto": {"nombre": "", "cliente": "", "ubicacion": "", "tecnico": "", "fecha": str(date.today())},
         "tipos_activos": {"bt": True, "fv": False, "industrial": False},
-        "metodo_instalacion": list(AMPACIDAD.keys())[0],
+        "metodo_instalacion": list(AMPACIDAD.keys())[2],
         "circuitos_bt": df_vacio(COLUMNAS_BT),
         "fv_datos": {"potencia_pico": "", "num_paneles": "", "potencia_panel": "", "voc": "", "isc": "",
                      "vmpp": "", "impp": "", "num_strings": 1, "dist_string_inversor": 15.0,
@@ -423,7 +453,7 @@ def cargar_estado_desde_dict(d):
         st.session_state.proyecto = d["proyecto"]
     if "tipos_activos" in d:
         st.session_state.tipos_activos = d["tipos_activos"]
-    if "metodo_instalacion" in d:
+    if "metodo_instalacion" in d and d["metodo_instalacion"] in AMPACIDAD:
         st.session_state.metodo_instalacion = d["metodo_instalacion"]
     if "circuitos_bt" in d:
         st.session_state.circuitos_bt = pd.DataFrame(d["circuitos_bt"], columns=COLUMNAS_BT) if d["circuitos_bt"] else df_vacio(COLUMNAS_BT)
@@ -445,7 +475,7 @@ def cargar_estado_desde_dict(d):
         st.session_state.memoria = d["memoria"]
 
 
-def exportar_excel(mediciones_auto, mediciones_manual, presupuesto, circuitos_bt, metodo_instalacion):
+def exportar_excel(presupuesto, circuitos_bt, metodo_instalacion):
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         presupuesto["filas"].to_excel(writer, sheet_name="Mediciones y precios", index=False)
@@ -490,6 +520,181 @@ def exportar_memoria_word(texto, proyecto):
     buffer.seek(0)
     return buffer
 
+def exportar_memoria_pdf(estado_dict, texto_memoria, circuitos_bt, fv_datos, motores, presupuesto, metodo_instalacion):
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.units import cm
+        from reportlab.lib import colors
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    except ImportError:
+        return None
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2.5 * cm, bottomMargin=2 * cm,
+                             leftMargin=2 * cm, rightMargin=2 * cm)
+    styles = getSampleStyleSheet()
+    estilo_titulo = ParagraphStyle("TituloPortada", parent=styles["Title"], fontSize=22, spaceAfter=16, textColor=colors.HexColor("#10263f"))
+    estilo_subtitulo = ParagraphStyle("Subtitulo", parent=styles["Heading2"], textColor=colors.HexColor("#c8790f"), spaceBefore=10, spaceAfter=6)
+    estilo_normal = styles["Normal"]
+
+    proyecto = estado_dict["proyecto"]
+    story = []
+
+    story.append(Spacer(1, 3.5 * cm))
+    story.append(Paragraph(proyecto.get("nombre") or "Memoria Tecnica", estilo_titulo))
+    story.append(Paragraph("Memoria Tecnica Descriptiva - Instalacion Electrica", styles["Heading3"]))
+    story.append(Spacer(1, 1.5 * cm))
+    datos_portada = [
+        ["Cliente / Titular:", proyecto.get("cliente", "") or "-"],
+        ["Emplazamiento:", proyecto.get("ubicacion", "") or "-"],
+        ["Tecnico redactor:", proyecto.get("tecnico", "") or "-"],
+        ["Fecha:", proyecto.get("fecha", "") or "-"],
+        ["Metodo de instalacion:", metodo_instalacion],
+    ]
+    tabla_portada = Table(datos_portada, colWidths=[5 * cm, 10 * cm])
+    tabla_portada.setStyle(TableStyle([
+        ("FONTSIZE", (0, 0), (-1, -1), 11), ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#45688a")),
+    ]))
+    story.append(tabla_portada)
+    story.append(Spacer(1, 2 * cm))
+    story.append(Paragraph(
+        "Aviso: los valores de intensidades admisibles y factores de correccion utilizados son de "
+        "referencia segun las tablas habituales del REBT/ITC-BT. Verificar contra las tablas oficiales "
+        "vigentes antes de su uso en documentacion oficial.", styles["Italic"]))
+    story.append(PageBreak())
+
+    for bloque in texto_memoria.split("\n\n"):
+        lineas = bloque.split("\n")
+        titulo = lineas[0]
+        cuerpo = lineas[1:]
+        story.append(Paragraph(titulo, estilo_subtitulo))
+        for parrafo in cuerpo:
+            if parrafo.strip():
+                texto_html = parrafo.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                story.append(Paragraph(texto_html, estilo_normal))
+        story.append(Spacer(1, 0.3 * cm))
+    story.append(PageBreak())
+
+    estilo_cabecera_tabla = TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#10263f")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f6f4ee")]),
+    ])
+
+    if not circuitos_bt.empty:
+        story.append(Paragraph("ANEXO I - Calculo de circuitos de baja tension (ITC-BT-19)", styles["Heading1"]))
+        data = [["Circuito", "P (W)", "Fases", "Ib (A)", "Seccion (mm2)", "c.d.t. (%)", "Proteccion (A)", "Estado"]]
+        for _, c in circuitos_bt.iterrows():
+            r = calcular_circuito_bt(c, metodo_instalacion)
+            data.append([str(c.get("Circuito", "")), str(c.get("Potencia (W)", "")), str(c.get("Fases", "")),
+                         r["Ib (A)"], r["Seccion (mm2)"], r["c.d.t. (%)"], r["Proteccion (A)"], r["Cumple"]])
+        t = Table(data, repeatRows=1)
+        t.setStyle(estilo_cabecera_tabla)
+        story.append(t)
+        story.append(PageBreak())
+
+    if float(fv_datos.get("num_paneles", 0) or 0) > 0:
+        r = calcular_fv(fv_datos, metodo_instalacion)
+        story.append(Paragraph("ANEXO II - Instalacion fotovoltaica de autoconsumo (RD 244/2019)", styles["Heading1"]))
+        data = [["Parametro", "Valor"],
+                ["Intensidad de diseno CC (1.25 x Isc)", f"{r['idc_diseno']:.2f} A"],
+                ["Seccion tramo CC", f"{r['seccion_dc']} mm2"],
+                ["c.d.t. tramo CC", f"{r['cdt_dc']:.2f} %"],
+                ["Requiere fusibles por string", "Si" if r["requiere_fusibles_dc"] else "No"],
+                ["Intensidad AC (salida inversor)", f"{r['iac']:.2f} A"],
+                ["Seccion tramo AC", f"{r['seccion_ac']} mm2"],
+                ["c.d.t. tramo AC", f"{r['cdt_ac']:.2f} %"],
+                ["Proteccion AC", f"{r['proteccion_ac']} A"]]
+        t = Table(data, colWidths=[9 * cm, 6 * cm])
+        t.setStyle(estilo_cabecera_tabla)
+        story.append(t)
+        story.append(PageBreak())
+
+    if not motores.empty:
+        story.append(Paragraph("ANEXO III - Motores e instalacion industrial (ITC-BT-47)", styles["Heading1"]))
+        data = [["Motor", "P (kW)", "In (A)", "Ia arranque (A)", "Seccion (mm2)", "Guardamotor (A)"]]
+        for _, m in motores.iterrows():
+            r = calcular_motor(m, metodo_instalacion)
+            data.append([str(m.get("Motor", "")), str(m.get("Potencia (kW)", "")), r["In (A)"],
+                         r["Ia arranque (A)"], r["Seccion (mm2)"], r["Guardamotor (A)"]])
+        t = Table(data, repeatRows=1)
+        t.setStyle(estilo_cabecera_tabla)
+        story.append(t)
+        story.append(PageBreak())
+
+    story.append(Paragraph("ANEXO IV - Mediciones y presupuesto", styles["Heading1"]))
+    filas = presupuesto["filas"]
+    data = [["Capitulo", "Descripcion", "Ud", "Cantidad", "Precio (EUR)", "Importe (EUR)"]]
+    for _, f in filas.iterrows():
+        data.append([str(f["Capitulo"]), str(f["Descripcion"])[:45], str(f["Unidad"]),
+                     round(float(f["Cantidad"]), 2), round(float(f["Precio unitario (EUR)"]), 2),
+                     round(float(f["Importe (EUR)"]), 2)])
+    t = Table(data, repeatRows=1)
+    t.setStyle(estilo_cabecera_tabla)
+    story.append(t)
+    story.append(Spacer(1, 0.5 * cm))
+    resumen = [
+        ["PEM (Presupuesto de Ejecucion Material)", f"{presupuesto['pem']:.2f} EUR"],
+        ["Gastos generales", f"{presupuesto['gg']:.2f} EUR"],
+        ["Beneficio industrial", f"{presupuesto['bi']:.2f} EUR"],
+        ["Presupuesto de contrata (sin IVA)", f"{presupuesto['pca']:.2f} EUR"],
+        ["IVA", f"{presupuesto['iva_importe']:.2f} EUR"],
+        ["TOTAL PRESUPUESTO", f"{presupuesto['total']:.2f} EUR"],
+    ]
+    t2 = Table(resumen, colWidths=[10 * cm, 5 * cm])
+    t2.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 0.4, colors.grey), ("FONTSIZE", (0, 0), (-1, -1), 10),
+                            ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#f4e2c3")),
+                            ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold")]))
+    story.append(t2)
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
+
+
+def generar_esquema_unifilar_dxf(circuitos_bt, proyecto):
+    try:
+        import ezdxf
+    except ImportError:
+        return None
+
+    doc = ezdxf.new("R2010")
+    doc.layers.add("LINEAS", color=7)
+    doc.layers.add("TEXTOS", color=3)
+    doc.layers.add("SIMBOLOS", color=1)
+    msp = doc.modelspace()
+
+    ancho_cuadro = max(30, 8 * max(1, len(circuitos_bt)))
+    x0, y0 = 0.0, 0.0
+
+    msp.add_lwpolyline([(x0, y0), (x0 + ancho_cuadro, y0), (x0 + ancho_cuadro, y0 - 8), (x0, y0 - 8), (x0, y0)],
+                        dxfattribs={"layer": "LINEAS"})
+    msp.add_text(f"CUADRO GENERAL - {proyecto.get('nombre') or 'PROYECTO'}",
+                 dxfattribs={"layer": "TEXTOS", "height": 1.4}).set_placement((x0 + 2, y0 - 4.5))
+    msp.add_text("Acometida", dxfattribs={"layer": "TEXTOS", "height": 1.0}).set_placement((x0 + 2, y0 + 1.5))
+    msp.add_line((x0 + ancho_cuadro / 2, y0 + 6), (x0 + ancho_cuadro / 2, y0), dxfattribs={"layer": "LINEAS"})
+
+    espaciado = 8
+    y_circuito = y0 - 8
+    for i, (_, c) in enumerate(circuitos_bt.iterrows(), start=1):
+        nombre = str(c.get("Circuito", "") or f"C{i}")
+        x = x0 + 4 + (i - 1) * espaciado
+        msp.add_line((x, y0 - 8), (x, y_circuito - 6), dxfattribs={"layer": "LINEAS"})
+        msp.add_lwpolyline([(x - 0.8, y_circuito - 2), (x + 0.8, y_circuito - 2),
+                             (x + 0.8, y_circuito - 4), (x - 0.8, y_circuito - 4), (x - 0.8, y_circuito - 2)],
+                            dxfattribs={"layer": "SIMBOLOS"})
+        msp.add_text(f"C{i}", dxfattribs={"layer": "TEXTOS", "height": 0.9}).set_placement((x - 0.6, y_circuito - 3.6))
+        msp.add_text(nombre, dxfattribs={"layer": "TEXTOS", "height": 0.8}).set_placement((x - 3, y_circuito - 7))
+
+    stream = io.StringIO()
+    doc.write(stream)
+    data = stream.getvalue().encode("utf-8")
+    return io.BytesIO(data)
+
 # =====================================================================================
 # 5. INTERFAZ DE USUARIO
 # =====================================================================================
@@ -500,9 +705,8 @@ st.title("\u26a1 Proyectista Electrico - REBT")
 st.caption("Predimensionado de instalaciones de baja tension, fotovoltaica de autoconsumo e industrial, "
            "conforme al REBT (RD 842/2002, ITC-BT) y RD 244/2019.")
 
-# ---------------------------- BARRA LATERAL: PROYECTO -------------------------------
 with st.sidebar:
-    st.header("Datos del proyecto")
+    st.header("\U0001F4CB Datos del proyecto")
     st.session_state.proyecto["nombre"] = st.text_input("Nombre del proyecto", st.session_state.proyecto.get("nombre", ""))
     st.session_state.proyecto["cliente"] = st.text_input("Cliente / Titular", st.session_state.proyecto.get("cliente", ""))
     st.session_state.proyecto["ubicacion"] = st.text_input("Emplazamiento", st.session_state.proyecto.get("ubicacion", ""))
@@ -510,19 +714,20 @@ with st.sidebar:
     st.session_state.proyecto["fecha"] = st.text_input("Fecha", st.session_state.proyecto.get("fecha", str(date.today())))
 
     st.divider()
-    st.subheader("Modulos incluidos")
-    st.session_state.tipos_activos["bt"] = st.checkbox("Baja tension (REBT)", st.session_state.tipos_activos.get("bt", True))
-    st.session_state.tipos_activos["fv"] = st.checkbox("Fotovoltaica de autoconsumo", st.session_state.tipos_activos.get("fv", False))
-    st.session_state.tipos_activos["industrial"] = st.checkbox("Industrial / motores", st.session_state.tipos_activos.get("industrial", False))
+    st.subheader("\U0001F527 Modulos incluidos")
+    st.session_state.tipos_activos["bt"] = st.checkbox("\U0001F3E0 Baja tension (REBT)", st.session_state.tipos_activos.get("bt", True))
+    st.session_state.tipos_activos["fv"] = st.checkbox("\u2600\ufe0f Fotovoltaica de autoconsumo", st.session_state.tipos_activos.get("fv", False))
+    st.session_state.tipos_activos["industrial"] = st.checkbox("\u2699\ufe0f Industrial / motores", st.session_state.tipos_activos.get("industrial", False))
 
     st.divider()
-    st.subheader("Metodo de instalacion (ITC-BT-19)")
+    st.subheader("\U0001F50C Metodo de instalacion")
+    st.caption("ITC-BT-19 - Metodos de referencia A1, A2, B1, B2, C, D, E, F, G")
     st.session_state.metodo_instalacion = st.selectbox(
         "Metodo de referencia para el cableado", list(AMPACIDAD.keys()),
         index=list(AMPACIDAD.keys()).index(st.session_state.metodo_instalacion))
 
     st.divider()
-    st.subheader("Guardar / cargar proyecto")
+    st.subheader("\U0001F4BE Guardar / cargar proyecto")
     proyecto_json = json.dumps(estado_a_dict(), ensure_ascii=False, indent=2, default=str)
     st.download_button("Descargar proyecto (.json)", data=proyecto_json,
                        file_name=(st.session_state.proyecto.get("nombre") or "proyecto").replace(" ", "_") + ".json",
@@ -535,14 +740,13 @@ with st.sidebar:
         except Exception as e:
             st.error(f"No se pudo leer el archivo: {e}")
 
-    st.info("Los valores de intensidades admisibles y factores de correccion son orientativos. "
-            "Verifica siempre contra las tablas oficiales del REBT/ITC-BT vigentes antes de emitir "
-            "documentacion oficial.", icon="\u26a0\ufe0f")
+    st.markdown('<div class="bloque-nota">\u26a0\ufe0f Los valores de intensidades admisibles y factores de '
+                "correccion son orientativos. Verifica siempre contra las tablas oficiales del REBT/ITC-BT "
+                "vigentes antes de emitir documentacion oficial.</div>", unsafe_allow_html=True)
 
-tabs = st.tabs(["Baja tension", "Fotovoltaica", "Industrial", "Mediciones", "Presupuesto",
-                "Memoria", "Importar / Exportar"])
+tabs = st.tabs(["\u26a1 Baja tension", "\u2600\ufe0f Fotovoltaica", "\u2699\ufe0f Industrial", "\U0001F4CF Mediciones",
+                "\U0001F4B0 Presupuesto", "\U0001F4C4 Memoria", "\U0001F4E4 Importar / Exportar"])
 
-# ---------------------------------- TAB: BAJA TENSION --------------------------------
 with tabs[0]:
     st.subheader("Circuitos de baja tension (ITC-BT-19 / ITC-BT-25)")
     st.caption("Anhade, edita o elimina filas directamente en la tabla. Los resultados se calculan automaticamente.")
@@ -562,11 +766,29 @@ with tabs[0]:
     if not circuitos_editados.empty:
         resultados = circuitos_editados.apply(lambda r: calcular_circuito_bt(r, st.session_state.metodo_instalacion), axis=1)
         tabla_resultado = pd.concat([circuitos_editados[["Circuito"]], resultados], axis=1)
+
+        n_total = len(tabla_resultado)
+        n_ok = int((tabla_resultado["Cumple"] == "Cumple").sum())
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Circuitos totales", n_total)
+        c2.metric("Cumplen normativa", n_ok)
+        c3.metric("A revisar", n_total - n_ok)
+
         st.dataframe(tabla_resultado, use_container_width=True)
+
+        try:
+            import plotly.express as px
+            conteo = tabla_resultado["Cumple"].value_counts().reset_index()
+            conteo.columns = ["Estado", "Cantidad"]
+            fig = px.pie(conteo, names="Estado", values="Cantidad", hole=0.5,
+                        color="Estado", color_discrete_map={"Cumple": "#2f6f4f", "Revisar": "#a8402f"},
+                        title="Cumplimiento normativo de los circuitos")
+            st.plotly_chart(fig, use_container_width=True)
+        except ImportError:
+            pass
     else:
         st.info("Todavia no hay circuitos. Anhade el primero desde la tabla superior.")
 
-# ---------------------------------- TAB: FOTOVOLTAICA ---------------------------------
 with tabs[1]:
     st.subheader("Instalacion fotovoltaica de autoconsumo (RD 244/2019, ITC-BT-40)")
     fv = st.session_state.fv_datos
@@ -606,11 +828,11 @@ with tabs[1]:
         c3.metric("c.d.t. AC", f"{r['cdt_ac']:.2f} %")
         c4.metric("Proteccion AC", f"{r['proteccion_ac']} A")
 
-    st.info("Recuerda: interruptor-seccionador CC junto al inversor, proteccion contra sobretensiones, "
-            "diferencial adecuado al tipo de inversor (tipo A o superinmunizado tipo B si el fabricante lo exige) "
-            "y equipo de medida bidireccional segun RD 244/2019.", icon="\u2139\ufe0f")
+    st.markdown('<div class="bloque-nota">\u2139\ufe0f Recuerda: interruptor-seccionador CC junto al inversor, '
+                "proteccion contra sobretensiones, diferencial adecuado al tipo de inversor (tipo A o "
+                "superinmunizado tipo B si el fabricante lo exige) y equipo de medida bidireccional segun "
+                "RD 244/2019.</div>", unsafe_allow_html=True)
 
-# ---------------------------------- TAB: INDUSTRIAL -----------------------------------
 with tabs[2]:
     st.subheader("Motores y circuitos industriales (ITC-BT-47)")
     motores_editados = st.data_editor(
@@ -626,7 +848,6 @@ with tabs[2]:
     else:
         st.info("Anhade un motor para calcular In, Ia de arranque, seccion y protecciones.")
 
-# ---------------------------------- TAB: MEDICIONES -----------------------------------
 with tabs[3]:
     st.subheader("Mediciones")
     mediciones_auto = generar_mediciones_auto(st.session_state.circuitos_bt, st.session_state.fv_datos,
@@ -642,14 +863,25 @@ with tabs[3]:
     st.session_state.mediciones_manual = st.data_editor(
         st.session_state.mediciones_manual, num_rows="dynamic", use_container_width=True, key="editor_mediciones_manual")
 
-# ---------------------------------- TAB: PRESUPUESTO ----------------------------------
 with tabs[4]:
     st.subheader("Presupuesto (PEM + Gastos generales + Beneficio industrial + IVA)")
     presupuesto = calcular_presupuesto(mediciones_auto, st.session_state.mediciones_manual, st.session_state.precios,
                                         st.session_state.gastos_generales, st.session_state.beneficio_industrial,
                                         st.session_state.iva)
-    for capitulo, importe in presupuesto["por_capitulo"].items():
-        st.write(f"**{capitulo}**: {importe:.2f} EUR")
+
+    if not presupuesto["por_capitulo"].empty:
+        try:
+            import plotly.express as px
+            datos_grafico = presupuesto["por_capitulo"].reset_index()
+            datos_grafico.columns = ["Capitulo", "Importe (EUR)"]
+            fig = px.bar(datos_grafico, x="Capitulo", y="Importe (EUR)", color="Capitulo", text_auto=".2f",
+                        title="Distribucion del presupuesto por capitulo",
+                        color_discrete_sequence=["#10263f", "#c8790f", "#2f6f4f", "#45688a"])
+            st.plotly_chart(fig, use_container_width=True)
+        except ImportError:
+            for capitulo, importe in presupuesto["por_capitulo"].items():
+                st.write(f"**{capitulo}**: {importe:.2f} EUR")
+
     st.divider()
     c1, c2 = st.columns(2)
     c1.metric("PEM (Presupuesto de Ejecucion Material)", f"{presupuesto['pem']:.2f} EUR")
@@ -665,7 +897,6 @@ with tabs[4]:
         for i, k in enumerate(claves):
             st.session_state.precios[k] = cols[i % 3].number_input(k.replace("_", " "), value=float(st.session_state.precios[k]), key=f"precio_{k}")
 
-# ---------------------------------- TAB: MEMORIA --------------------------------------
 with tabs[5]:
     st.subheader("Memoria tecnica")
     memoria = st.session_state.memoria
@@ -679,9 +910,8 @@ with tabs[5]:
                                           st.session_state.tipos_activos, st.session_state.metodo_instalacion)
     st.text_area("Vista previa", texto_memoria, height=350)
 
-# ---------------------------------- TAB: IMPORTAR / EXPORTAR --------------------------
 with tabs[6]:
-    st.subheader("Importar circuitos, motores o partidas desde CSV/Excel")
+    st.subheader("\U0001F4E5 Importar circuitos, motores o partidas desde CSV/Excel")
     st.caption("Descarga la plantilla, rellenala y vuelve a subirla para cargar datos en bloque.")
 
     colp1, colp2, colp3 = st.columns(3)
@@ -713,19 +943,47 @@ with tabs[6]:
             st.error(f"No se pudo importar el archivo: {e}")
 
     st.divider()
-    st.subheader("Exportar resultados")
-    excel_buffer = exportar_excel(mediciones_auto, st.session_state.mediciones_manual, presupuesto,
-                                  st.session_state.circuitos_bt, st.session_state.metodo_instalacion)
-    st.download_button("Descargar Excel (mediciones + presupuesto + calculo BT)", data=excel_buffer,
-                       file_name=(st.session_state.proyecto.get("nombre") or "proyecto").replace(" ", "_") + ".xlsx",
-                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    st.subheader("\U0001F4E4 Exportar resultados")
 
-    word_buffer = exportar_memoria_word(texto_memoria, st.session_state.proyecto)
-    if word_buffer is not None:
-        st.download_button("Descargar memoria (Word .docx)", data=word_buffer,
-                           file_name=(st.session_state.proyecto.get("nombre") or "memoria").replace(" ", "_") + ".docx",
-                           mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-    else:
-        st.download_button("Descargar memoria (texto .txt)", data=texto_memoria,
-                           file_name=(st.session_state.proyecto.get("nombre") or "memoria").replace(" ", "_") + ".txt",
-                           mime="text/plain")
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("**Excel** - mediciones, presupuesto y calculo BT")
+        excel_buffer = exportar_excel(presupuesto, st.session_state.circuitos_bt, st.session_state.metodo_instalacion)
+        st.download_button("\U0001F4CA Descargar Excel (.xlsx)", data=excel_buffer,
+                           file_name=(st.session_state.proyecto.get("nombre") or "proyecto").replace(" ", "_") + ".xlsx",
+                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+        st.markdown("**Esquema unifilar** - cuadro general y circuitos")
+        st.caption("Se genera en formato DXF (estandar CAD abierto). AutoCAD, BricsCAD y similares lo abren "
+                   "directamente y permiten guardarlo como .dwg con 'Guardar como'.")
+        dxf_buffer = generar_esquema_unifilar_dxf(st.session_state.circuitos_bt, st.session_state.proyecto)
+        if dxf_buffer is not None:
+            st.download_button("\U0001F4D0 Descargar esquema unifilar (.dxf)", data=dxf_buffer,
+                               file_name=(st.session_state.proyecto.get("nombre") or "esquema").replace(" ", "_") + "_unifilar.dxf",
+                               mime="application/dxf")
+        else:
+            st.warning("Instala la libreria 'ezdxf' (incluida en requirements.txt) para generar el esquema unifilar.")
+
+    with col2:
+        st.markdown("**Memoria tecnica en PDF** - portada + capitulos + anexos por capitulo")
+        pdf_buffer = exportar_memoria_pdf(estado_a_dict(), texto_memoria, st.session_state.circuitos_bt,
+                                          st.session_state.fv_datos, st.session_state.motores, presupuesto,
+                                          st.session_state.metodo_instalacion)
+        if pdf_buffer is not None:
+            st.download_button("\U0001F4D5 Descargar memoria (.pdf)", data=pdf_buffer,
+                               file_name=(st.session_state.proyecto.get("nombre") or "memoria").replace(" ", "_") + ".pdf",
+                               mime="application/pdf")
+        else:
+            st.warning("Instala la libreria 'reportlab' (incluida en requirements.txt) para generar el PDF.")
+
+        st.markdown("**Memoria tecnica en Word** - editable")
+        word_buffer = exportar_memoria_word(texto_memoria, st.session_state.proyecto)
+        if word_buffer is not None:
+            st.download_button("\U0001F4C4 Descargar memoria (.docx)", data=word_buffer,
+                               file_name=(st.session_state.proyecto.get("nombre") or "memoria").replace(" ", "_") + ".docx",
+                               mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        else:
+            st.download_button("Descargar memoria (texto .txt)", data=texto_memoria,
+                               file_name=(st.session_state.proyecto.get("nombre") or "memoria").replace(" ", "_") + ".txt",
+                               mime="text/plain")
