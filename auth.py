@@ -1,24 +1,15 @@
-import sqlite3
-import os
+import gspread
+import streamlit as st
 
-def init_db():
-    # Usamos una ruta absoluta para que siempre encuentre el archivo
-    db_path = os.path.join(os.getcwd(), 'datos_estudiantes.db')
-    conn = sqlite3.connect(db_path)
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS usuarios 
-                 (nombre TEXT, num_estudiante TEXT PRIMARY KEY, estado TEXT)''')
-    conn.commit()
-    conn.close()
+# Conexión rápida a Google Sheets (asegúrate de compartir el sheet con 'cualquiera puede editar')
+def get_gsheet():
+    # Nota: para proyectos más grandes, usa credenciales JSON. 
+    # Para algo rápido, gspread puede abrir sheets públicos.
+    gc = gspread.service_account(filename="credenciales.json") # Necesitarás subir un archivo JSON de Google Cloud
+    return gc.open_by_key("https://docs.google.com/spreadsheets/d/1jGXK9O8iqP6L4AU7GEuFITTh63A3e61WKM4UxoZSUOw/edit?usp=sharing").sheet1
 
-def registrar_usuario(nombre, num_estudiante):
-    conn = sqlite3.connect('usuarios.db')
-    c = conn.cursor()
-    try:
-        c.execute("INSERT INTO usuarios VALUES (?, ?)", (nombre, num_estudiante))
-        conn.commit()
-        return True
-    except sqlite3.IntegrityError:
-        return False # El número ya existe
-    finally:
-        conn.close()
+# Pero para evitarte complicaciones de configuración JSON ahora mismo:
+# USA ESTA LÓGICA SIMPLE:
+def registrar_usuario_en_sheet(nombre, num):
+    # Aquí iría la lógica de escritura. 
+    # Si te parece muy técnico, ¿prefieres que usemos "st.secrets" o una solución aún más simple?
