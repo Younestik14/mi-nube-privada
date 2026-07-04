@@ -1,17 +1,18 @@
 import streamlit as st
-import streamlit as st
+from auth import verificar_acceso
 
-# Verificamos si la variable de sesión existe (esto lo harás cuando apruebes al usuario)
-if 'acceso_concedido' not in st.session_state:
-    st.error("🚫 Acceso restringido. Por favor, regístrate.")
-    st.stop() # Esto corta la página y no muestra el resto
-# Configuración de la página (Debe ser lo primero)
-st.set_page_config(
-    page_title="CoreElec - Ingeniería Hub",
-    page_icon="⚡",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+num_input = st.text_input("Introduce tu número regional para entrar:")
+
+if num_input:
+    if verificar_acceso(num_input):
+        st.success("Acceso concedido.")
+        # AQUÍ VA TU CONTENIDO PRIVADO
+    else:
+        st.error("Acceso denegado. Contacta con el administrador.")
+        st.stop()
+else:
+    st.info("Introduce tu ID para continuar.")
+    st.stop()
 
 # Título Principal
 st.title("⚡ CoreElec: Plataforma de Ingeniería Eléctrica")
