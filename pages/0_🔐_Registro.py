@@ -1,23 +1,14 @@
-import sqlite3
+import streamlit as st
+from auth import init_db, registrar_usuario
 
-def init_db():
-    # Esto crea el archivo que guardará los nombres de tus alumnos
-    conn = sqlite3.connect('datos_estudiantes.db')
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS usuarios 
-                 (nombre TEXT, num_estudiante TEXT PRIMARY KEY, estado TEXT)''')
-    conn.commit()
-    conn.close()
+init_db()
 
-def registrar_usuario(nombre, num_estudiante):
-    conn = sqlite3.connect('datos_estudiantes.db')
-    c = conn.cursor()
-    try:
-        # Se guarda como 'pendiente' hasta que tú lo apruebes
-        c.execute("INSERT INTO usuarios VALUES (?, ?, 'pendiente')", (nombre, num_estudiante))
-        conn.commit()
-        return True
-    except:
-        return False
-    finally:
-        conn.close()
+st.title("🔐 Registro de Acceso")
+with st.form("registro"):
+    nombre = st.text_input("Nombre completo:")
+    num = st.text_input("Número regional:")
+    if st.form_submit_button("Enviar"):
+        if registrar_usuario(nombre, num):
+            st.success("¡Enviado! Espera a que el administrador te apruebe.")
+        else:
+            st.error("Error: ese número ya existe.")
