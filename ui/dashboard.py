@@ -1,6 +1,6 @@
 """Panel principal (dashboard) de la aplicacion: pestanas de Baja
 Tension, Fotovoltaica, Industrial, Mediciones, Presupuesto, Esquema
-unifilar, Memoria, Importar/Exportar, Ayuda y Asistente IA.
+unifilar, Memoria, Importar/Exportar y Ayuda.
 
 Reproduce exactamente la misma logica que el bloque de interfaz
 original del archivo app.py monolitico; unicamente se ha reorganizado
@@ -436,118 +436,18 @@ def _tab_ayuda() -> None:
             "del REBT/ITC-BT-19. Antes de presentar un proyecto o boletin oficial, verifica siempre los "
             "datos con la edicion vigente del reglamento y con un tecnico competente."
         )
-
-
-def _tab_asistente_ia() -> None:
-    """Pestana del asistente de IA (orientativo, requiere clave de API propia)."""
-    st.subheader("Asistente IA para dimensionado")
-    mostrar_caja_ayuda(
-        "Este asistente puede darte orientacion adicional sobre como dimensionar "
-        "tu instalacion, pero <b>no sustituye el calculo normativo de la aplicacion ni la revision de un "
-        "tecnico competente</b>. Las respuestas son orientativas."
-    )
-
-    clave_api = None
-    try:
-        clave_api = st.secrets.get("OPENAI_API_KEY", None)
-    except Exception:
-        clave_api = None
-
-    if not clave_api:
-        st.warning(
-            "No hay ninguna clave de API configurada todavia, asi que el asistente no puede conectarse. "
-            "Para activarlo, tienes que anadir tu propia clave (por ejemplo de OpenAI) en los 'Secrets' "
-            "de tu aplicacion de Streamlit:"
-        )
-        st.markdown(
-            "- En Streamlit Community Cloud: abre tu app, entra en 'Settings', luego 'Secrets' y anade "
-            "una linea con el texto OPENAI_API_KEY seguido de un signo igual y tu clave entre comillas; "
-            "guarda los cambios.\n"
-            "- En local: crea un archivo secrets.toml dentro de una carpeta llamada .streamlit en tu "
-            "proyecto, con esa misma linea.\n\n"
-            "Por seguridad, esa clave la debes generar y pegar tu mismo: esta aplicacion nunca almacena "
-            "ni pide tu clave a traves del chat."
-        )
-        return
-
-    if "campo_pregunta_ia" not in st.session_state:
-        st.session_state["campo_pregunta_ia"] = ""
-    st.text_area(
-        "Describe tu instalacion o tu duda",
-        key="campo_pregunta_ia",
-        height=120,
-        help="Ejemplo: Tengo una vivienda de 90 m2 con cocina de induccion de 7kW, que seccion necesito para ese circuito?",
-    )
-    incluir_contexto = st.checkbox(
-        "Incluir automaticamente los datos ya introducidos en el proyecto (tipo de suministro, numero de circuitos, etc.)",
-        value=True,
-    )
-
-    if not st.button("Preguntar al asistente"):
-        return
-
-    pregunta = st.session_state["campo_pregunta_ia"].strip()
-    if not pregunta:
-        st.error("Escribe primero tu pregunta o una breve descripcion de la instalacion.")
-        return
-
-    contexto = ""
-    if incluir_contexto:
-        contexto = (
-            f"Tipo de suministro: {st.session_state.get('tipo_suministro')}. "
-            f"Circuitos de Baja Tension definidos: {len(st.session_state.get('df_bt', []))}. "
-            f"Motores definidos: {len(st.session_state.get('df_motores', []))}. "
-            f"Modulos activos: {st.session_state.get('modulos')}."
-        )
-    try:
-        import requests
-        respuesta = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {clave_api}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": "gpt-4o-mini",
-                "messages": [
-                    {"role": "system", "content": (
-                        "Eres un asistente de apoyo para el predimensionado de instalaciones "
-                        "electricas de baja tension conforme al REBT/ITC-BT espanol. Da "
-                        "respuestas claras, breves y orientativas, recordando siempre que deben "
-                        "verificarse por un tecnico competente antes de ejecutar o legalizar la "
-                        "instalacion."
-                    )},
-                    {"role": "user", "content": f"{contexto}\n\nPregunta: {pregunta}"},
-                ],
-                "temperature": 0.3,
-            },
-            timeout=30,
-        )
-        if respuesta.status_code == 200:
-            texto_respuesta = respuesta.json()["choices"][0]["message"]["content"]
-            st.markdown("#### Respuesta del asistente")
-            st.write(texto_respuesta)
-            HistorialCambios.registrar("Consulta al asistente IA", pregunta[:80])
-        else:
-            logger.error("El servicio de IA devolvio un error HTTP %s", respuesta.status_code)
-            st.error(f"El servicio de IA ha devuelto un error ({respuesta.status_code}). Revisa tu clave de API.")
-    except Exception as e:
-        logger.error("No se ha podido contactar con el servicio de IA: %s", e)
-        st.error(f"No se ha podido contactar con el servicio de IA: {e}")
-
-
 def render_dashboard(modulos: Dict[str, bool], dp: Dict[str, Any]) -> None:
-    """Renderiza el panel principal completo (las 10 pestanas de la aplicacion).
+    """Renderiza el panel principal completo (las 9 pestanas de la aplicacion).
 
     Args:
         modulos: Diccionario de modulos activos (bt, fv, industrial).
         dp: Diccionario de datos generales del proyecto (titular, emplazamiento, etc.).
     """
     (tab_bt, tab_fv, tab_ind, tab_med, tab_pres, tab_esq,
-     tab_mem, tab_io, tab_ayuda, tab_ia) = st.tabs([
+     tab_mem, tab_io, tab_ayuda) = st.tabs([
         "Baja Tension", "Fotovoltaica", "Industrial",
         "Mediciones", "Presupuesto", "Esquema unifilar",
-        "Memoria", "Importar/Exportar", "Ayuda", "Asistente IA",
+        "Memoria", "Importar/Exportar", "Ayuda",
     ])
 
     with tab_bt:
@@ -577,5 +477,3 @@ def render_dashboard(modulos: Dict[str, bool], dp: Dict[str, Any]) -> None:
     with tab_ayuda:
         _tab_ayuda()
 
-    with tab_ia:
-        _tab_asistente_ia()
