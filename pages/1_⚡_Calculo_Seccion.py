@@ -208,10 +208,10 @@ else:
                 
             with col_m2:
                 st.markdown("#### 🌡️ Criterio de Calentamiento (Intensidad Admisible)")
-                st.write(f"Corriente nominal de la carga ($I_b$): **{inst['Ib']} A**")
-                st.write(f"Aplicando factores de corrección por entorno ($K_1 \\cdot K_2 = {d['f_tot']:.2f}$):")
-                st.latex(r"I_{b\_corregida} = \frac{I_b}{K_1 \cdot K_2}")
-                st.write(f"$$I_{{b\\_corregida}} = \\frac{{{inst['Ib']}}}{{{d['f_tot']:.2f}}} = {inst['Ib_corr']} \\text{ A}$$")
-                st.write(f"Consultando tablas de la norma para el **Método {d['metodo']}**, la sección mínima que soporta esta corriente es **{inst['s_iz']} mm²** (Admite hasta ${inst['Iz_real']} \\text{{ A}}$ reales).")
+               st.write(f"Corriente nominal de la carga ($I_b$): **{inst['Ib']} A**")
+st.write(f"Aplicando factores de corrección por entorno ($K_1 \\cdot K_2 = {d['f_tot']:.2f}$):")
+st.latex(r"I_{b\_corregida} = \frac{I_b}{K_1 \cdot K_2}")
+st.info(f"**Intensidad Corregida resultante:** {inst['Ib']} / {d['f_tot']:.2f} = **{inst['Ib_corr']} A**")
+st.write(f"Consultando tablas de la norma para el **Método {d['metodo']}**, la sección mínima que soporta esta corriente es de **{inst['s_iz']} mm²** (Admite hasta **{inst['Iz_real']} A** reales con los factores aplicados).")
             
             st.success(f"**Dictamen final:** Se instala una sección de **{inst['s_final']} mm²** por ser el valor límite más restrictivo de ambos métodos.")
