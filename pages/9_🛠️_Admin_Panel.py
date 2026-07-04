@@ -25,15 +25,20 @@ if password == "1868628":
     registros = c.fetchall()
     conn.close()
 
+# ... (código anterior)
     if not registros:
         st.info("No hay solicitudes pendientes.")
     else:
         for registro in registros:
-            nombre, num, estado = registro
+            # En lugar de nombre, num, estado = registro, usamos índices:
+            nombre = registro[0]
+            num = registro[1]
+            estado = registro[2]
+            
             col1, col2, col3 = st.columns([2, 1, 1])
             col1.write(f"**{nombre}** (ID: {num})")
             col2.write(f"Estado: {estado}")
-            
+            # ... resto del código
             if estado == 'pendiente':
                 if col3.button("✅ Aprobar", key=num):
                     aprobar_usuario(num)
