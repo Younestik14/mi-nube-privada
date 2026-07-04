@@ -36,15 +36,24 @@ class ExportadorProyecto:
     ) -> io.BytesIO:
         """Exporta los resultados de calculo, mediciones y presupuesto a un libro Excel."""
         buffer = io.BytesIO()
+        hoja_escrita = False
         with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
             if df_bt_calc is not None and not df_bt_calc.empty:
                 df_bt_calc.to_excel(writer, sheet_name="Baja Tension", index=False)
+                hoja_escrita = True
             if df_motores_calc is not None and not df_motores_calc.empty:
                 df_motores_calc.to_excel(writer, sheet_name="Industrial-Motores", index=False)
+                hoja_escrita = True
             if df_mediciones is not None and not df_mediciones.empty:
                 df_mediciones.to_excel(writer, sheet_name="Mediciones", index=False)
+                hoja_escrita = True
             if resumen_presupuesto:
                 pd.DataFrame([resumen_presupuesto]).T.rename(columns={0: "Importe (EUR)"}).to_excel(writer, sheet_name="Presupuesto")
+                hoja_escrita = True
+            if not hoja_escrita:
+                pd.DataFrame(
+                    {"Aviso": ["Todavia no se han introducido datos en el proyecto. Anade circuitos, motores o mediciones antes de exportar."]}
+                ).to_excel(writer, sheet_name="Aviso", index=False)
         buffer.seek(0)
         logger.info("Excel de resultados generado correctamente")
         return buffer
