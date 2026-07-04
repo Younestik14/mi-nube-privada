@@ -122,7 +122,7 @@ else:
         
         # 1. Dimensionamiento de la protección de potencia (Fuerza)
         calibre_fuerza = 125
-        for c_com in calibre_pia:
+        for c_com in calibres_pia:
             if c_com >= linea["i_diseno"]:
                 calibre_fuerza = c_com
                 break
