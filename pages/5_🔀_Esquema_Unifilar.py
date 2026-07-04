@@ -117,7 +117,7 @@ with col_izq:
                 st.success(f"Circuito {id_circuito} acoplado con éxito.")
                 st.rerun()
 
-# --- COLUMNA DERECHA: VISOR ESTILO CANECO BT Y EXPORTACIÓN DXF ---
+# --- COLUMNA DERECHA: VISOR ESTILO CANECO BT Y EXPORTACIÓN DXF CORREGIDA ---
 with col_der:
     st.header(f"📊 Vista de Caneco BT: {nombre_cuadro}")
     
@@ -188,13 +188,13 @@ with col_der:
             doc = ezdxf.new('R2010')
             msp = doc.modelspace()
             
-            # Dibujar Cabecera General
-            msp.add_text("ESQUEMA UNIFILAR - CANECO GENERATOR", dxfattribs={'height': 3.5}).set_pos((0, 80))
-            msp.add_text(f"CUADRO: {nombre_cuadro}", dxfattribs={'height': 2.5}).set_pos((0, 72))
+            # Dibujar Cabecera General con posicionamiento mediante diccionario de atributos ('insert')
+            msp.add_text("ESQUEMA UNIFILAR - CANECO GENERATOR", dxfattribs={'height': 3.5, 'insert': (0, 80)})
+            msp.add_text(f"CUADRO: {nombre_cuadro}", dxfattribs={'height': 2.5, 'insert': (0, 72)})
             
             msp.add_line((10, 65), (10, 55))
             msp.add_lwpolyline([(5, 55), (15, 55), (15, 45), (5, 45), (5, 55)])
-            msp.add_text(f"IGA {iga_cabecera}", dxfattribs={'height': 1.8}).set_pos((17, 50))
+            msp.add_text(f"IGA {iga_cabecera}", dxfattribs={'height': 1.8, 'insert': (17, 50)})
             
             msp.add_line((10, 45), (10, 35))
             msp.add_line((0, 35), (len(st.session_state['cuadro_unifilar']) * 30, 35))
@@ -207,12 +207,12 @@ with col_der:
                 msp.add_circle((x_offset, 25), radius=2)
                 msp.add_line((x_offset - 4, 23), (x_offset + 4, 23))
                 
-                msp.add_text(f"Línea {c['id']}", dxfattribs={'height': 1.8, 'color': 1}).set_pos((x_offset + 3, 28))
-                msp.add_text(f"PIA {c['pia']} / {c['polos']}", dxfattribs={'height': 1.5}).set_pos((x_offset + 3, 25))
-                msp.add_text(f"Icn {c['icp']}", dxfattribs={'height': 1.2}).set_pos((x_offset + 3, 22))
+                msp.add_text(f"Línea {c['id']}", dxfattribs={'height': 1.8, 'color': 1, 'insert': (x_offset + 3, 28)})
+                msp.add_text(f"PIA {c['pia']} / {c['polos']}", dxfattribs={'height': 1.5, 'insert': (x_offset + 3, 25)})
+                msp.add_text(f"Icn {c['icp']}", dxfattribs={'height': 1.2, 'insert': (x_offset + 3, 22)})
                 
                 msp.add_line((x_offset, 21), (x_offset, 12))
-                msp.add_text(f"Cu {c['seccion']}", dxfattribs={'height': 1.5}).set_pos((x_offset + 2, 16))
+                msp.add_text(f"Cu {c['seccion']}", dxfattribs={'height': 1.5, 'insert': (x_offset + 2, 16)})
                 
                 # Carga terminal / Salida final
                 msp.add_lwpolyline([
@@ -221,8 +221,8 @@ with col_der:
                 ])
                 
                 nombre_corto = c['tipo'][:15]
-                msp.add_text(nombre_corto, dxfattribs={'height': 1.2}).set_pos((x_offset - 4, 7))
-                msp.add_text(c['mecanismo'][:18], dxfattribs={'height': 1.0, 'color': 3}).set_pos((x_offset - 5, 1))
+                msp.add_text(nombre_corto, dxfattribs={'height': 1.2, 'insert': (x_offset - 4, 7)})
+                msp.add_text(c['mecanismo'][:18], dxfattribs={'height': 1.0, 'color': 3, 'insert': (x_offset - 5, 1)})
                 
                 x_offset += 30
                 
