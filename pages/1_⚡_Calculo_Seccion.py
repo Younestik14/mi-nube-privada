@@ -208,7 +208,7 @@ else:
                 
             with col_m2:
                 st.markdown("#### 🌡️ Criterio de Calentamiento (Intensidad Admisible)")
-                st.write(f"Corriente nominal de la carga: $I_b = {inst['Ib']} \\text{ A}$")
+                st.write(f"Corriente nominal de la carga ($I_b$): **{inst['Ib']} A**")
                 st.write(f"Aplicando factores de corrección por entorno ($K_1 \\cdot K_2 = {d['f_tot']:.2f}$):")
                 st.latex(r"I_{b\_corregida} = \frac{I_b}{K_1 \cdot K_2}")
                 st.write(f"$$I_{{b\\_corregida}} = \\frac{{{inst['Ib']}}}{{{d['f_tot']:.2f}}} = {inst['Ib_corr']} \\text{ A}$$")
