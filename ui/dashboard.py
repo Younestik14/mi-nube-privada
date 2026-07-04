@@ -311,9 +311,13 @@ def _tab_importar_exportar(
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        buffer_excel = ExportadorProyecto.exportar_excel(df_bt_calc, df_motores_calc, df_mediciones_total, resumen)
-        st.download_button("Excel (mediciones/presupuesto)", data=buffer_excel, file_name="calculo_electrico.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        try:
+            buffer_excel = ExportadorProyecto.exportar_excel(df_bt_calc, df_motores_calc, df_mediciones_total, resumen)
+            st.download_button("Excel (mediciones/presupuesto)", data=buffer_excel, file_name="calculo_electrico.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        except Exception as e:
+            logger.error("Error al generar el Excel: %s", e)
+            st.error(f"No se ha podido generar el Excel: {e}")
 
     with col2:
         try:
