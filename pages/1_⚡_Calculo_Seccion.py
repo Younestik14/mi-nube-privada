@@ -3,7 +3,7 @@ import math
 import pandas as pd
 import streamlit as st
 # 1. Importas tus funciones de estilo desde la carpeta utils
-from utils.style import aplicar_estilo_global, generar_banner
+from utils.style import aplicar_estilo_global, generar_banner, aplicar_marca_agua
 
 # 3. Aplicas el diseño y generas el banner superior
 aplicar_estilo_global()
