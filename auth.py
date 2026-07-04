@@ -1,11 +1,13 @@
 import sqlite3
-import streamlit as st
+import os
 
 def init_db():
-    conn = sqlite3.connect('usuarios.db')
+    # Usamos una ruta absoluta para que siempre encuentre el archivo
+    db_path = os.path.join(os.getcwd(), 'datos_estudiantes.db')
+    conn = sqlite3.connect(db_path)
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS usuarios 
-                 (nombre TEXT, num_estudiante TEXT PRIMARY KEY)''')
+                 (nombre TEXT, num_estudiante TEXT PRIMARY KEY, estado TEXT)''')
     conn.commit()
     conn.close()
 
