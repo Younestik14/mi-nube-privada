@@ -75,7 +75,7 @@ with col3:
 st.write("---")
 
 # --- RECOMENDACIÓN TÉCNICA ---
-col_inf1, col_inf2 = col_inf1, col_inf2 = st.columns(2)
+col_inf1, col_inf2 = st.columns(2)
 
 with col_inf1:
     st.subheader("🛡️ Selección de Protecciones y Maniobra")
