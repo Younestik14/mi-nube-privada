@@ -1,107 +1,174 @@
 import streamlit as st
+import pandas as pd
 
-st.set_page_config(page_title="Memoria Técnica", page_icon="📝", layout="wide")
+st.set_page_config(page_title="Memoria Técnica de Diseño MTD", page_icon="📝", layout="wide")
 
-st.title("📝 Módulo 6: Generación de Memoria Técnica")
-st.markdown("Generación automática del documento descriptivo y justificativo del proyecto.")
+st.title("📝 Módulo 2: Memoria Técnica de Diseño (IEBT)")
+st.markdown("Cumplimentación e integración de datos según el modelo oficial de la Dirección General de Energía y Minas.")
 
-# Recuperar todos los datos del estado de la sesión
-elementos_proyecto = st.session_state.get('proyecto', {})
-resumen_economico = st.session_state.get('resumen_economico', {})
-cuadro_general = st.session_state.get('cuadro_general', {})
+# --- INICIALIZACIÓN DEL STATE PARA GUARDAR LOS DATOS DEL DOCUMENTO ---
+if 'mtd_datos' not in st.session_state:
+    st.session_state['mtd_datos'] = {
+        # Titular
+        "titular_nombre": "", "titular_nif": "", "titular_direccion": "", "titular_cp": "", "titular_poblacion": "La Aljorra",
+        # Emplazamiento
+        "emp_calle": "", "emp_num": "", "emp_poblacion": "Cartagena", "emp_cp": "30390", "emp_uso": "Vivienda",
+        # Instalador
+        "inst_empresa": "IDEA TSG", "inst_nif": "B30888888", "inst_num": "4567-MUR", "inst_categoria": "Especialista",
+        # Características
+        "car_tension": "230 V (Monofásica)", "car_potencia": 9.2, "car_cpm": "En Fachada (Norma Iberdrola)", "car_iga": "40 A"
+    }
 
-if not elementos_proyecto:
-    st.warning("⚠️ No hay datos suficientes para generar la memoria. Por favor, calcula y guarda elementos en los módulos anteriores.")
-else:
-    # --- CONFIGURACIÓN DE LOS DATOS DEL PROYECTO ---
-    st.sidebar.header("📋 Datos de Cabecera")
-    titulo_proy = st.sidebar.text_input("Título del Proyecto", value="Instalación Eléctrica Industrial y FV")
-    proyectista = st.sidebar.text_input("Técnico / Proyectista", value="Ingeniero Técnico")
-    cliente = st.sidebar.text_input("Cliente / Empresa", value="Industrias Delta S.L.")
-    ubicacion = st.sidebar.text_input("Ubicación", value="Polígono Industrial Cabezo Beaza, Cartagena")
+# --- PANTALLA PRINCIPAL: PESTAÑAS DE TRABAJO ---
+tabs_mtd = st.tabs([
+    "🏢 1. Datos Identificativos y Emplazamiento", 
+    "🛠️ 2. Empresa Instaladora y Técnico", 
+    "⚡ 3. Características Técnicas de la Instalación",
+    "📄 4. Vista Previa del Documento Oficial"
+])
 
-    # --- ESTRUCTURACIÓN DEL TEXTO DE LA MEMORIA ---
-    st.subheader("📄 Vista Previa del Documento")
-
-    # Construimos el cuerpo del texto en una variable string para poder exportarla después
-    memoria_texto = f"""# MEMORIA TÉCNICA JUSTIFICATIVA
-
-## 1. DATOS GENERALES
-* **Proyecto:** {titulo_proy}
-* **Ubicación:** {ubicacion}
-* **Promotor / Cliente:** {cliente}
-* **Redactor del Proyecto:** {proyectista}
-
----
-
-## 2. OBJETO DE LA INSTALACIÓN
-El objeto de la presente memoria es definir, justificar y describir los cálculos técnicos de la instalación eléctrica y de generación de energía solar fotovoltaica para el suministro óptimo de los receptores solicitados por el cliente, cumpliendo estrictamente con la normativa reglamentaria vigente (REBT / CNE).
-
----
-
-## 3. DESCRIPCIÓN TÉCNICA DE LOS CIRCUITOS Y SISTEMAS
-A continuación se detallan los elementos calculados e integrados en el sistema:
-"""
-
-    # Bucles para inyectar la información técnica guardada
-    for nombre, datos in elementos_proyecto.items():
-        if "sistema" in datos: # Línea del Módulo 1
-            memoria_texto += f"""
-### ⚡ Línea Distribución: {nombre}
-* **Tipo de Sistema:** {datos['sistema']} ({datos['tension']} V)
-* **Intensidad de Diseño:** {datos['intensidad']} A
-* **Conductor Adjudicado:** {datos['seccion']} mm² en material de {datos['material']}.
-* **Longitud del tendido:** {datos['longitud']} metros.
-"""
-        elif "potencia_kwp" in datos: # FV del Módulo 2
-            memoria_texto += f"""
-### ☀️ Instalación Solar: {nombre}
-* **Modalidad:** {datos['tipo']}
-* **Potencia Pico Total:** {datos['potencia_kwp']} kWp
-* **Número de Módulos:** {datos['num_paneles']} unidades de alta eficiencia.
-* **Capacidad Acumulación:** {datos['batería_ah']} Ah (si aplica).
-"""
-        elif "kvar_bateria" in datos: # Motores del Módulo 3
-            memoria_texto += f"""
-### 🏭 Carga Industrial: {nombre}
-* **Tipo:** {datos['tipo']}
-* **Potencia Nominal:** {datos['potencia_kw']} kW
-* **Corriente de Operación:** {datos['intensidad']} A
-* **Compensación de Reactiva asociada:** {datos['kvar_bateria']} kVAr.
-"""
-
-    # Añadir sección de protecciones si se configuró el esquema unifilar
-    if cuadro_general:
-        memoria_texto += f"""
----
-
-## 4. PROTECCIÓN Y APARAMENTA
-El cuadro principal denominado **{cuadro_general['nombre']}** contará con una protección de cabecera armada con un Interruptor General Automático (IGA) de **{cuadro_general['iga']} A**, garantizando la protección contra sobreintensidades y cortocircuitos de la instalación aguas abajo.
-"""
-
-    # Añadir resumen económico si está disponible
-    if resumen_economico:
-        memoria_texto += f"""
----
-
-## 5. RESUMEN ECONÓMICO DEL PROYECTO
-El coste de ejecución material y de contrata de la obra se resume en las siguientes partidas económicas consolidadas:
-* **Presupuesto Base Imponible:** {resumen_economico['base_imponible']:,.2f} €
-* **Presupuesto con Gastos y Beneficio Industrial:** {resumen_economico['total_con_beneficio']:,.2f} €
-* **PRECIO DE VENTA FINAL (CON IVA INCLUIDO): {resumen_economico['precio_final']:,.2f} €**
-"""
-
-    # Mostrar la memoria formateada de forma elegante en la UI de Streamlit
-    st.markdown(memoria_texto)
-
-    st.write("---")
-    st.subheader("💾 Descarga de Documentación")
+# ==========================================
+# PESTAÑA 1: TITULAR Y EMPLAZAMIENTO
+# ==========================================
+with tabs_mtd[0]:
+    st.subheader("👤 Datos del Titular y Ubicación de la Instalación")
     
-    # Botón de descarga nativo de Streamlit para el archivo .txt/.md de la memoria
-    st.download_button(
-        label="📥 Descargar Memoria Técnica (.md)",
-        data=memoria_texto,
-        file_name=f"Memoria_{titulo_proy.replace(' ', '_')}.md",
-        mime="text/markdown"
+    with st.form("form_titular_emplazamiento"):
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("**Datos del Titular de la Instalación:**")
+            nombre = st.text_input("Nombre / Razón Social del Titular:", value=st.session_state['mtd_datos']['titular_nombre'])
+            nif = st.text_input("N.I.F. / C.I.F.:", value=st.session_state['mtd_datos']['titular_nif'])
+            dir_titular = st.text_input("Dirección Postal Titular:", value=st.session_state['mtd_datos']['titular_direccion'])
+            pob_titular = st.text_input("Población / Distrito:", value=st.session_state['mtd_datos']['titular_poblacion'])
+            cp_titular = st.text_input("Código Postal (Titular):", value=st.session_state['mtd_datos']['titular_cp'])
+            
+        with col2:
+            st.markdown("**Datos de Emplazamiento (Ubicación de la Obra):**")
+            calle_emp = st.text_input("Calle / Avda / Polígono:", value=st.session_state['mtd_datos']['emp_calle'])
+            num_emp = st.text_input("Número / Bloque / Piso:", value=st.session_state['mtd_datos']['emp_num'])
+            pob_emp = st.text_input("Localidad / Municipio:", value=st.session_state['mtd_datos']['emp_poblacion'])
+            cp_emp = st.text_input("Código Postal (Ubicación):", value=st.session_state['mtd_datos']['emp_cp'])
+            uso_emp = st.selectbox("Uso del Local / Edificio:", 
+                                   ["Vivienda", "Local Comercial / Oficinas", "Nave Industrial (Fuerza)", "Garaje / Parking con IRVE", "Piscina / Alumbrado Exterior"])
+            
+        btn_save_1 = st.form_submit_button("💾 Guardar Bloque 1")
+        if btn_save_1:
+            st.session_state['mtd_datos'].update({
+                "titular_nombre": nombre, "titular_nif": nif, "titular_direccion": dir_titular, "titular_poblacion": pob_titular, "titular_cp": cp_titular,
+                "emp_calle": calle_emp, "emp_num": num_emp, "emp_poblacion": pob_emp, "emp_cp": cp_emp, "emp_uso": uso_emp
+            })
+            st.success("Sección 1 guardada correctamente en memoria local.")
+
+# ==========================================
+# PESTAÑA 2: EMPRESA INSTALADORA
+# ==========================================
+with tabs_mtd[1]:
+    st.subheader("🔧 Datos Identificativos del Redactor de la Memoria")
+    
+    with st.form("form_instalador"):
+        col_inst1, col_inst2 = st.columns(2)
+        with col_inst1:
+            st.markdown("**Empresa Habilitada en Baja Tensión:**")
+            empresa = st.text_input("Razon Social de la Empresa:", value=st.session_state['mtd_datos']['inst_empresa'])
+            nif_emp = st.text_input("N.I.F. Empresa:", value=st.session_state['mtd_datos']['inst_nif'])
+            
+        with col_inst2:
+            st.markdown("**Registro y Cualificación:**")
+            num_reg = st.text_input("Número de Inscripción Industrial:", value=st.session_state['mtd_datos']['inst_num'])
+            cat_inst = st.selectbox("Categoría Habilitada:", ["Básica (IBTB)", "Especialista (IBTE)"], index=1 if st.session_state['mtd_datos']['inst_categoria'] == "Especialista" else 0)
+            
+        btn_save_2 = st.form_submit_button("💾 Guardar Bloque 2")
+        if btn_save_2:
+            st.session_state['mtd_datos'].update({
+                "inst_empresa": empresa, "inst_nif": nif_emp, "inst_num": num_reg, "inst_categoria": cat_inst
+            })
+            st.success("Sección 2 guardada correctamente.")
+
+# ==========================================
+# PESTAÑA 3: CARACTERÍSTICAS TÉCNICAS
+# ==========================================
+with tabs_mtd[2]:
+    st.subheader("⚡ Características Técnicas Específicas del Diseño")
+    
+    with st.form("form_caracteristicas"):
+        col_car1, col_car2 = st.columns(2)
+        with col_car1:
+            st.markdown("**Datos del Suministro Eléctrico:**")
+            tension = st.selectbox("Tensión de Servicio Nominal:", ["230 V (Monofásica)", "400 V (Trifásica)"])
+            potencia = st.number_input("Potencia Prevista en el Proyecto (kW):", min_value=1.0, max_value=150.0, value=st.session_state['mtd_datos']['car_potencia'], step=0.1)
+            
+        with col_car2:
+            st.markdown("**Elementos de Enlace y Protección:**")
+            cpm = st.text_input("Ubicación de la Caja General de Protección (CGP/CPM):", value=st.session_state['mtd_datos']['car_cpm'])
+            iga = st.selectbox("Calibre del Interruptor General Automático (IGA):", ["25 A", "32 A", "40 A", "50 A", "63 A"])
+            
+        btn_save_3 = st.form_submit_button("💾 Guardar Datos Técnicos")
+        if btn_save_3:
+            st.session_state['mtd_datos'].update({
+                "car_tension": tension, "car_potencia": potencia, "car_cpm": cpm, "car_iga": iga
+            })
+            st.success("Sección de Parámetros Eléctricos actualizada.")
+
+# ==========================================
+# PESTAÑA 4: VISTA PREVIA (ESTRUCTURA OFICIAL)
+# ==========================================
+with tabs_mtd[3]:
+    st.subheader("📄 Copia de Revisión Oficial - Dirección General de Industria")
+    st.info("Esta vista preliminar reproduce fielmente los campos del formulario oficial listos para anexar al visado o firma del instalador.")
+    
+    d = st.session_state['mtd_datos']
+    
+    html_oficial = f"""
+    <div style="border: 2px solid #333; padding: 20px; font-family: monospace; background-color: #f9f9f9; color: #111; border-radius: 5px;">
+        <h3 style="text-align: center; margin-top: 0;">MEMORIA TÉCNICA DE DISEÑO DE INSTALACIONES ELÉCTRICAS DE BAJA TENSIÓN</h3>
+        <hr style="border-top: 1px solid #333;">
+        
+        <b>[1] DATOS IDENTIFICATIVOS DEL TITULAR DE LA INSTALACIÓN</b><br>
+        • Nombre/Razon Social: {d['titular_nombre'] if d['titular_nombre'] else "................................................."}<br>
+        • N.I.F.: {d['titular_nif'] if d['titular_nif'] else "....................."}<br>
+        • Dirección: {d['titular_direccion'] if d['titular_direccion'] else "................................................."} &nbsp;&nbsp; Población: {d['titular_poblacion']}<br>
+        • C.P.: {d['titular_cp'] if d['titular_cp'] else "..........."}<br>
+        <br>
+        
+        <b>[2] DATOS DE EMPLAZAMIENTO DE LA INSTALACIÓN</b><br>
+        • Emplazamiento: {d['emp_calle'] if d['emp_calle'] else "................................................."} &nbsp;&nbsp; Nº: {d['emp_num'] if d['emp_num'] else "...."}<br>
+        • Localidad/Municipio: {d['emp_poblacion']} &nbsp;&nbsp; C.P.: {d['emp_cp']}<br>
+        • Uso del Edificio/Local: {d['emp_uso']}<br>
+        <br>
+        
+        <b>[3] DATOS IDENTIFICATIVOS DEL REDACTOR DE LA MEMORIA (EMPRESA INSTALADORA)</b><br>
+        • Razón Social Empresa: {d['inst_empresa']} &nbsp;&nbsp; N.I.F.: {d['inst_nif']}<br>
+        • N.º Inscripción Comunidad Autónoma: {d['inst_num']}<br>
+        • Categoría: {d['inst_categoria']}<br>
+        <br>
+        
+        <b>[4] PRINCIPALES CARACTERÍSTICAS TÉCNICAS</b><br>
+        • Tensión de servicio: {d['car_tension']}<br>
+        • Potencia prevista: {d['car_potencia']} kW<br>
+        • Tipo/Ubicación CPM: {d['car_cpm']}<br>
+        • Calibre del IGA General: {d['car_iga']}<br>
+        <hr style="border-top: 1px solid #333;">
+        <p style="text-align: right; font-size: 11px;">Documento visado digitalmente conforme a la Guía Técnica REBT - Región de Murcia</p>
+    </div>
+    """
+    
+    st.markdown(html_oficial, unsafe_allow_html=True)
+    
+    # Botón complementario para exportar a texto plano los datos estructurados
+    st.write("---")
+    resumen_texto = (
+        f"MEMORIA TÉCNICA DE DISEÑO\n"
+        f"=========================\n"
+        f"TITULAR: {d['titular_nombre']} ({d['titular_nif']})\n"
+        f"EMPLAZAMIENTO: {d['emp_calle']}, Nº{d['emp_num']} - {d['emp_poblacion']}\n"
+        f"EMPRESA INSTALADORA: {d['inst_empresa']} Reg:{d['inst_num']}\n"
+        f"POTENCIA PREVISTA: {d['car_potencia']} kW - IGA: {d['car_iga']}\n"
     )
-    st.info("💡 Consejo: El archivo se descarga en formato Markdown (.md), que es perfectamente compatible con Word, Typora o cualquier editor de texto enriquecido.")
+    
+    st.download_button(
+        label="📥 Descargar Extracto Estructurado de la Memoria (.TXT)",
+        data=resumen_texto,
+        file_name="extracto_mtd_murcia.txt",
+        mime="text/plain"
+    )
