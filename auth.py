@@ -7,7 +7,7 @@ Para dar acceso a alguien, simplemente añade su ID a la lista 'lista_aprobados'
 # Lista maestra de estudiantes autorizados. 
 # Solo los números que estén aquí podrán iniciar sesión.
 lista_aprobados = [
-    "1868628", 
+    "1868628", "123456"
     # Añade aquí los nuevos IDs aceptados, por ejemplo:
     # "12345", 
     # "67890"
