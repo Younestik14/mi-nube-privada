@@ -5,12 +5,23 @@ import pandas as pd
 st.set_page_config(page_title="Módulo Fotovoltaica REBT", page_icon="☀️", layout="wide")
 
 st.title("☀️ Módulo 2: Dimensionamiento Fotovoltaico según Normativa Española")
-st.markdown("Cálculo y clasificación según el **RD 244/2019** y el **REBT**, con gestión de sombreados y optimización de strings.")
+st.markdown("Cálculo y clasificación según el **RD 244/2019**, selección de inversores comerciales y esquema de protecciones.")
 
-# --- CONFIGURACIÓN E INTRODUCCIÓN DE DATOS EN LA PÁGINA PRINCIPAL ---
+# --- BASE DE DATOS DE INVERSORES COMERCIALES (Datos de catálogo reales) ---
+INVERSORES_COMERCIALES = [
+    {"marca": "Enphase IQ8AC (Microinversor)", "potencia_w": 366, "tipo": "Microinversor", "fases": "Monofásico"},
+    {"marca": "Huawei SUN2000-2KTL-L1", "potencia_w": 2000, "tipo": "Inversor de String", "fases": "Monofásico"},
+    {"marca": "Fronius Primo 3.0-1", "potencia_w": 3000, "tipo": "Inversor de String", "fases": "Monofásico"},
+    {"marca": "Huawei SUN2000-5KTL-L1", "potencia_w": 5000, "tipo": "Inversor de String", "fases": "Monofásico"},
+    {"marca": "Fronius Symo 6.0-3-M", "potencia_w": 6000, "tipo": "Inversor de String", "fases": "Trifásico"},
+    {"marca": "Huawei SUN2000-10KTL-M1", "potencia_w": 10000, "tipo": "Inversor de String", "fases": "Trifásico"},
+    {"marca": "Ingeteam INGCON SUN 20TL", "potencia_w": 20000, "tipo": "Inversor de String", "fases": "Trifásico"},
+    {"marca": "Huawei SUN2000-50KTL-M0", "potencia_w": 50000, "tipo": "Inversor de String", "fases": "Trifásico"}
+]
+
+# --- CONFIGURACIÓN E INTRODUCCIÓN DE DATOS ---
 st.header("⚙️ Configuración del Proyecto Solar")
 
-# Clasificación según RD 244/2019 en España
 MODALIDADES_AUTOCONSUMO = [
     "Autoconsumo SIN excedentes (Requiere sistema antivertido - ITC-BT-40)",
     "Autoconsumo CON excedentes ACOGIDO a compensación simplificada",
@@ -29,8 +40,8 @@ with col_config1:
         dias_autonomia = st.slider("Días de Autonomía Requeridos", min_value=1, max_value=5, value=2)
         v_bateria = st.selectbox("Tensión del Banco de Baterías (V)", [12, 24, 48], index=2)
     else:
-        consumo_anual = st.number_input("Consumo Anual de la Vivienda/Industria (Commercial/Residencial) (kWh/año)", value=5500, step=500)
-        hsp = st.number_input("Horas de Sol Pico (HSP) medias anuales de la zona", value=4.7, min_value=1.0, step=0.1)
+        consumo_anual = st.number_input("Consumo Anual de la Vivienda/Industria (kWh/año)", value=5500, step=500)
+        hsp = st.number_input("Horas de Sol Pico (HSP) medias anuales", value=4.7, min_value=1.0, step=0.1)
 
 with col_config2:
     st.markdown("**⚡ Factores de Rendimiento y Afección de Sombras**")
@@ -39,7 +50,6 @@ with col_config2:
         ["Sin sombras (Condición óptima)", "Sombras parciales / temporales (Pérdidas moderadas)", "Sombras severas"]
     )
     
-    # Solución técnica ante sombras
     solucion_sombras = "Inversor Central Estándar"
     if sombreado != "Sin sombras (Condición óptima)":
         solucion_sombras = st.selectbox(
@@ -51,23 +61,12 @@ with col_config2:
             ]
         )
 
-# Penalización del rendimiento por sombras y corrección por tecnología
+# Penalización del rendimiento por sombras y corrección
 f_perdidas_base = 0.15 if not "Aislada" in modalidad else 0.25
-
 if sombreado == "Sombras parciales / temporales (Pérdidas moderadas)":
-    if "Optimizadores" in solucion_sombras:
-        f_perdidas = f_perdidas_base + 0.03 # Mitigado casi por completo
-    elif "Microinversores" in solucion_sombras:
-        f_perdidas = f_perdidas_base + 0.02 # Rendimiento óptimo individual
-    else:
-        f_perdidas = f_perdidas_base + 0.15 # Penalización fuerte en string
+    f_perdidas = f_perdidas_base + (0.02 if "Microinversores" in solucion_sombras or "Optimizadores" in solucion_sombras else 0.15)
 elif sombreado == "Sombras severas":
-    if "Optimizadores" in solucion_sombras:
-        f_perdidas = f_perdidas_base + 0.08
-    elif "Microinversores" in solucion_sombras:
-        f_perdidas = f_perdidas_base + 0.05
-    else:
-        f_perdidas = f_perdidas_base + 0.35 # El string cae por completo
+    f_perdidas = f_perdidas_base + (0.05 if "Microinversores" in solucion_sombras or "Optimizadores" in solucion_sombras else 0.35)
 else:
     f_perdidas = f_perdidas_base
 
@@ -78,29 +77,45 @@ col_comp1, col_comp2 = st.columns(2)
 with col_comp1:
     p_panel = st.number_input("Potencia del Panel Solar Seleccionado (Wp)", value=450, step=10)
     vmp_panel = st.number_input("Tensión a máxima potencia Vmp (V)", value=41.5, step=0.5)
+    isc_panel = st.number_input("Corriente de Cortocircuito Isc (A)", value=13.5, step=0.5)
 with col_comp2:
-    if "Microinversores" not in solucion_sombras:
-        v_max_mppt = st.number_input("Tensión Máxima del Inversor Central / MPPT (V)", value=800, step=50)
-        v_min_mppt = st.number_input("Tensión Mínima del Inversor Central / MPPT (V)", value=200, step=50)
-    else:
-        st.info("ℹ️ Al usar Microinversores, cada panel se conecta directamente a su propio microinversor de baja tensión. No aplica el cálculo de strings de alta tensión.")
+    fases_instalacion = st.selectbox("Tipo de Red Eléctrica de la instalación", ["Monofásico", "Trifásico"])
 
 # --- LÓGICA DE CÁLCULO FOTOVOLTAICO ---
 if not "Aislada" in modalidad:
-    # Autoconsumo (Red)
-    p_pico_req_w = consumo_anual / (hsp * 365 * (1 - f_perdidas)) * 1000
+    p_pico_req_w = (consumo_anual / (hsp * 365 * (1 - f_perdidas))) * 1000
     num_paneles = math.ceil(p_pico_req_w / p_panel)
     potencia_total_kwp = (num_paneles * p_panel) / 1000
     cap_nominal_ah = 0
 else:
-    # Aislada
     p_pico_req_w = consumo_diario / (hsp * (1 - f_perdidas))
     num_paneles = math.ceil(p_pico_req_w / p_panel)
     potencia_total_kwp = (num_paneles * p_panel) / 1000
-    
-    dod = 0.6 # Profundidad de descarga
     cap_util_wh = consumo_diario * dias_autonomia
-    cap_nominal_ah = cap_util_wh / (v_bateria * dod)
+    cap_nominal_ah = cap_util_wh / (v_bateria * 0.6)
+
+# --- SELECCIÓN AUTOMÁTICA DEL INVERSOR COMERCIAL ---
+inversor_sugerido = None
+num_microinversores = 0
+
+if "Microinversores" in solucion_sombras:
+    # Buscar el microinversor en la base de datos
+    for inv in INVERSORES_COMERCIALES:
+        if inv["tipo"] == "Microinversor":
+            inversor_sugerido = inv
+            num_microinversores = num_paneles
+            break
+else:
+    # Buscar inversor central que cubra la potencia total en kWp (con margen de sobredimensionamiento estándar del 10-20%)
+    potencia_busqueda_w = (potencia_total_kwp * 1000) * 0.90
+    for inv in INVERSORES_COMERCIALES:
+        if inv["tipo"] == "Inversor de String" and inv["fases"] == fases_instalacion:
+            if inv["potencia_w"] >= potencia_busqueda_w:
+                inversor_sugerido = inv
+                break
+    # Si excede nuestra tabla, coger el más grande
+    if not inversor_sugerido:
+        inversor_sugerido = INVERSORES_COMERCIALES[-1]
 
 # --- PANEL DE RESULTADOS ---
 st.write("---")
@@ -108,51 +123,72 @@ st.header("📊 Dictamen y Resultados del Dimensionamiento")
 
 col_res1, col_res2, col_res3 = st.columns(3)
 with col_res1:
-    st.metric(label="Potencia Mínima Recomendada", value=f"{p_pico_req_w/1000:.2f} kWp")
-    st.caption(f"Pérdidas totales del sistema estimadas: **{f_perdidas*100:.1f}%**")
+    st.metric(label="Potencia Campo FV Real Instalada", value=f"{potencia_total_kwp:.2f} kWp")
+    st.caption(f"Número de paneles: **{num_paneles} uds** de {p_panel}Wp")
 with col_res2:
-    st.metric(label="Número de Módulos Necesarios", value=f"{num_paneles} uds")
-with col_res3:
-    st.metric(label="Potencia de Campos FV Real Instalada", value=f"{potencia_total_kwp:.2f} kWp")
-
-# --- RECOMENDACIÓN TÉCNICA Y NORMATIVA ---
-st.write("---")
-col_det1, col_det2 = st.columns(2)
-
-with col_det1:
-    st.subheader("📐 Arquitectura del Sistema")
-    st.write(f"* **Elemento de Inversión principal:** {solucion_sombras}")
-    
-    if "Microinversores" in solucion_sombras:
-        st.write(f"* **Configuración:** Se instalarán **{num_paneles} microinversores** acoplados individualmente a la parte trasera de cada panel.")
-        st.write("* **Ventaja:** Si un panel recibe sombra, el resto sigue rindiendo al 100%. La salida del campo ya es en Corriente Alterna (CA).")
-    elif "Optimizadores" in solucion_sombras:
-        st.write(f"* **Configuración:** **{num_paneles} optimizadores** de corriente continua + 1 Inversor Centralizado.")
-        st.write("* **Ventaja:** Evita el cuello de botella en el string regulando la tensión de cada panel de forma independiente.")
+    if num_microinversores > 0:
+        st.metric(label="Inversor Comercial Asignado", value=f"{num_microinversores}x {inversor_sugerido['marca']}")
+        st.caption(f"Potencia unitaria: {inversor_sugerido['potencia_w']}W AC")
     else:
-        st.write("* **Configuración:** Conexión en Serie (String convencional).")
-        if "Microinversores" not in solucion_sombras:
-            paneles_max_serie = math.floor(v_max_mppt / 49.5) # Asumiendo Voc ~49.5V
-            st.write(f"* **Límite técnico por MPPT:** Máximo **{paneles_max_serie}** paneles en serie para no quemar el inversor.")
+        st.metric(label="Inversor Comercial Asignado", value=inversor_sugerido["marca"])
+        st.caption(f"Potencia Nominal del Equipo: **{inversor_sugerido['potencia_w']/1000:.1f} kW AC**")
+with col_res3:
+    st.metric(label="Pérdidas Totales Estimadas", value=f"{f_perdidas*100:.1f} %")
+    st.caption(f"Estrategia contra sombras: **{solucion_sombras.split(' (')[0]}**")
 
-with col_det2:
-    st.subheader("⚖️ Consideraciones Legales REBT")
-    if "SIN excedentes" in modalidad:
-        st.write("* **REBT (ITC-BT-40):** Obligatorio instalar un **mecanismo antivertido** homologado según la norma UNE 217001.")
-        st.write("* **Tramitación:** Tramitación rápida mediante comunicación a la comunidad autónoma (sin necesidad de solicitar punto de conexión a la distribuidora).")
-    elif "CON excedentes" in modalidad:
-        st.write("* **RD 244/2019:** Si la potencia es $\le$ 15 kW, estás exento de solicitar permisos de acceso y conexión para generación a la distribuidora.")
-        st.write("* **Compensación:** La comercializadora compensará tus excedentes mensualmente a precio de pool o pactado (el saldo nunca será negativo).")
-    elif "Aislada" in modalidad:
-        st.write(f"* **Capacidad del acumulador:** Requiere un banco de baterías de **{cap_nominal_ah:.1f} Ah** a **{v_bateria} V**.")
-        st.write("* **Nota:** Queda fuera del alcance de los peajes y trámites administrativos de inyección a red.")
+# --- ESQUEMA DE PROTECCIONES REBT ---
+st.write("---")
+st.header("🛡️ Esquema Técnico de Protecciones Obligatorias (REBT)")
+
+col_prot1, col_prot2 = st.columns(2)
+
+with col_prot1:
+    st.subheader("🔌 Tramo Corriente Continua (CC) - Aguas arriba del Inversor")
+    if "Microinversores" in solucion_sombras:
+        st.info("ℹ️ Al usar Microinversores, la conversión CC a CA se realiza en el propio panel. No se requiere un cuadro de CC centralizado de alta tensión. Las protecciones se simplifican al tramo de Alterna.")
+    else:
+        # Cálculo de fusibles e interruptor de corte en carga
+        corriente_string = isc_panel * 1.25
+        fusible_calibre = 15 if corriente_string <= 15 else 20 # Valores estándar comerciales aproximados
+        
+        st.markdown(f"""
+        * **Interruptor de Corte en Carga (Seccionador CC):** Mínimo **1000V CC** con capacidad de corte para soportar la tensión del string en vacío.
+        * **Fusibles de protección (Polo + y Polo -):** Calibre sugerido de **{fusible_calibre}A** (gPV especial fotovoltaica).
+        * **Protector contra Sobretensiones Transitorias (SPD CC):** Clase II, tensión de operación superior a la Voc máxima del string (ej. 600V/1000V CC) conectado a la toma de tierra del edificio.
+        """)
+
+with col_prot2:
+    st.subheader("⚡ Tramo Corriente Alterna (CA) - Cuadro de Interconexión Solar")
+    
+    # Calcular corriente AC aproximada de salida del inversor para dimensionar magnetotérmico
+    p_ac_estimada = inversor_sugerido["potencia_w"] if num_microinversores == 0 else (inversor_sugerido["potencia_w"] * num_microinversores)
+    v_ac = 230 if fases_instalacion == "Monofásico" else 400
+    
+    if fases_instalacion == "Monofásico":
+        i_ac = p_ac_estimada / v_ac
+    else:
+        i_ac = p_ac_estimada / (math.sqrt(3) * v_ac)
+        
+    # Calibres comerciales estándar de interruptores automáticos
+    calibres_pia = [6, 10, 16, 20, 25, 32, 40, 50, 63]
+    pia_ac = calibres_pia[-1]
+    for p in calibres_pia:
+        if p >= i_ac * 1.25: # Margen normativo del 25% para evitar disparos térmicos continuados
+            pia_ac = p
+            break
+            
+    st.markdown(f"""
+    * **Interruptor Automático (PIA CA):** **{fases_instalacion}**, Calibre de **{pia_ac}A**, Curva C. Capacidad de corte de 6kA según ITC-BT-22.
+    * **Interruptor Diferencial (ID CA):** Calibre de **{max(pia_ac, 25)}A / 30mA**. **¡Obligatorio Tipo Clase A / Superinmunizado o Tipo B!** (Para soportar las componentes continuas y fugas de los filtros de los inversores).
+    * **Protección contra Sobretensiones (Permanentes y Transitorias CA):** Protector combinado Bobina de disparo + Vigía de tensión para proteger el inversor de anomalías en la red de la distribuidora.
+    """)
 
 # --- GUARDAR EN SESSION STATE ---
 if 'proyecto' not in st.session_state:
     st.session_state['proyecto'] = {}
 
 st.write("---")
-st.subheader("💾 Guardar en el Proyecto Global")
+st.subheader("💾 Guardar Datos en el Proyecto Global")
 nombre_fv = st.text_input("Identificador del Sistema Solar", value="Autoconsumo Solar FV")
 
 if st.button("Guardar instalación solar"):
@@ -160,7 +196,7 @@ if st.button("Guardar instalación solar"):
         "tipo": modalidad.split(" (")[0],
         "potencia_kwp": round(potencia_total_kwp, 2),
         "num_paneles": num_paneles,
-        "elemento_maniobra": solucion_sombras,
+        "elemento_maniobra": inversor_sugerido["marca"] if num_microinversores == 0 else f"{num_microinversores}x {inversor_sugerido['marca']}",
         "batería_ah": round(cap_nominal_ah, 2) if "Aislada" in modalidad else "N/A"
     }
-    st.success(f"✔️ ¡Instalación solar '{nombre_fv}' guardada con éxito!")
+    st.success(f"✔️ ¡Instalación solar '{nombre_fv}' guardada con éxito con su correspondiente inversor comercial!")
