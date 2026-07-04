@@ -17,8 +17,6 @@ Bienvenido a la plataforma modular para proyectos eléctricos e industriales.
 Utiliza el menú de la izquierda para navegar por los diferentes módulos de cálculo y gestión.
 """)
 
----
-
 # Ventana de Ayuda / Guía Rápida integrada en el Home
 st.header("❓ Ventana de Ayuda y Documentación")
 
