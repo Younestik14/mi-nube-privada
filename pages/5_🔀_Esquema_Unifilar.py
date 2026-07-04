@@ -117,85 +117,153 @@ with col_izq:
                 })
                 st.success(f"Circuito {id_circuito} acoplado con éxito.")
                 st.rerun()
-                # --- COLUMNA DERECHA: VISOR DE ESQUEMA UNIFILAR ESTILO CANECO BT (PARTE 2) ---
+               import io
+import ezdxf
+import streamlit as st
+import pandas as pd
+
+# --- COLUMNA DERECHA: VISOR ESTILO CANECO BT Y EXPORTACIÓN DXF (PARTE 2) ---
 with col_der:
     st.header(f"📊 Vista de Caneco BT: {nombre_cuadro}")
     
     # 1. Dibujo de la Acometida de Cabecera General
     st.markdown("### 🔌 Entrada General y Protección de Cabecera")
     
-    # Renderizado en texto monoespaciado técnico del bloque general
     esquema_cabecera = f"""
     [ ACOMETIDA GENERAL ]
              │
              ▼
     ┌─────────────────┐
-    │  IGA: {iga_cabecera:<10}│  <-- Protección Magnetotérmica General
+    │  IGA: {iga_cabecera:<10}│  <-- Protección Magnetotérmica (Fase/Neutro)
     │  Icn: 10 kA     │
     └─────────────────┘
              │
              ▼
     ┌─────────────────┐
-    │  DIF: {sens_dif:<10}│  <-- Protección Diferencial Resi9
+    │  DIF: {sens_dif:<10}│  <-- Interruptor Diferencial (Protección Personas)
     └─────────────────┘
              │
-    ═════════╧═════════════════════════════════════════════════════════ (Embarrado Cuadro R9)
+    ═════════╧═════════════════════════════════════════════════════════ (Embarrado de Cobre Cu)
     """
     st.code(esquema_cabecera, language="text")
     
     # 2. Generación del árbol dinámico de circuitos derivados
-    st.markdown("### 🌿 Líneas y Circuitos Derivados")
+    st.markdown("### 🌿 Líneas y Circuitos Derivados (Simbología Unifilar REBT)")
     
     if not st.session_state['cuadro_unifilar']:
         st.info("El embarrado está vacío. Añade circuitos desde el panel izquierdo.")
     else:
-        # Dibujamos las columnas verticales simulando la salida de Caneco
         for c in st.session_state['cuadro_unifilar']:
             with st.expander(f"{c['icono']} Línea {c['id']}: {c['tipo']}", expanded=True):
                 col_c1, col_c2 = st.columns([1, 2])
                 
                 with col_c1:
-                    # Representación gráfica normalizada del ramal
+                    # Representación gráfica unifilar normalizada usando bloques ASCII técnicos
                     dibujo_ramal = f"""
-         │ (Derivación Embarrado)
+         │ (Derivación de Barra)
          ▼
-       ──[ ]──  {c['polos']}
+       ──[ ]──  {c['polos']} (Símbolo Unifilar Mecanismo)
       /       \\
-     [  {c['pia']:<4}  ] PIA (Poder corte: {c['icp']})
+     [  {c['pia']:<4}  ] PIA Magn. (Icn: {c['icp']})
      [_______]
          │
-         │  Manguera: {c['seccion']} Cu
+         │  Manguera LH: {c['seccion']}
          ▼
      ┌───────┐
-     │ {c['icono']}     │ Terminal:
+     │ {c['icono']}     │ Receptor Final:
      └───────┘ {c['mecanismo']}
                     """
                     st.code(dibujo_ramal, language="text")
                     
                 with col_c2:
-                    st.markdown("**Ficha de Datos Técnicos (Caneco BT Check):**")
+                    st.markdown("**Parámetros de Cálculo de Línea:**")
                     datos_tabla = {
-                        "Parámetro Técnico": ["Código Circuito", "Destino de Carga", "Tipo de Polos", "Calibre Magnetotérmico", "Capacidad de Corte", "Sección Conductor", "Elemento Mecanismo Final"],
-                        "Valor Asignado": [c['id'], c['tipo'], c['polos'], c['pia'], c['icp'], c['seccion'], c['mecanismo']]
+                        "Especificación Técnica (Norma)": ["Identificador", "Uso previsto", "Número de Polos", "Calibre PIA", "Poder de Corte", "Sección Conductor", "Mecanismo Terminal"],
+                        "Valor Caneco Check": [c['id'], c['tipo'], c['polos'], c['pia'], c['icp'], c['seccion'], c['mecanismo']]
                     }
                     st.table(pd.DataFrame(datos_tabla))
                     
-                    # Botón individual para eliminar circuitos del cuadro
-                    if st.button(f"🗑️ Eliminar Salida {c['id']}", key=f"del_{c['id']}"):
+                    if st.button(f"🗑️ Desconectar Salida {c['id']}", key=f"del_{c['id']}"):
                         st.session_state['cuadro_unifilar'] = [circ for circ in st.session_state['cuadro_unifilar'] if circ['id'] != c['id']]
-                        st.success(f"Circuito {c['id']} desconectado del embarrado.")
+                        st.success(f"Circuito {c['id']} retirado.")
                         st.rerun()
 
-    # --- TABLA RESUMEN DE COMPILACIÓN GENERAL ---
+    # --- MOTOR DE GENERACIÓN AUTOMÁTICA DXF PARA AUTOCAD ---
     st.write("---")
-    st.subheader("📋 Resumen de Cargas de la Instalación")
+    st.subheader("💾 Exportación a Oficina Técnica (Formato CAD)")
     
     if st.session_state['cuadro_unifilar']:
-        df_resumen = pd.DataFrame(st.session_state['cuadro_unifilar'])
-        df_resumen.columns = ["ID Línea", "Uso / Destino", "Polos", "Protección PIA", "Sección Manguera", "Poder Corte Icn", "Mecanismo Conectado", "Icono"]
-        st.dataframe(df_resumen[["ID Línea", "Uso / Destino", "Polos", "Protección PIA", "Sección Manguera", "Poder Corte Icn", "Mecanismo Conectado"]], use_container_width=True, hide_index=True)
+        # Función interna para construir el esquema vectorial usando ezdxf
+        def generar_dxf_unifilar():
+            doc = ezdxf.new('R2010')
+            msp = doc.modelspace()
+            
+            # 1. Dibujar Cabecera General (Líneas de trazo continuo)
+            msp.add_text("ESQUEMA UNIFILAR - CANECO GENERATOR", dxfattribs={'height': 3.5}).set_pos((0, 80))
+            msp.add_text(f"CUADRO: {nombre_cuadro}", dxfattribs={'height': 2.5}).set_pos((0, 72))
+            
+            # Bloque IGA
+            msp.add_line((10, 65), (10, 55))
+            msp.add_lwpolyline([(5, 55), (15, 55), (15, 45), (5, 45), (5, 55)])
+            msp.add_text(f"IGA {iga_cabecera}", dxfattribs={'height': 1.8}).set_pos((17, 50))
+            
+            # Embarrado General (Línea horizontal gruesa)
+            msp.add_line((10, 45), (10, 35))
+            linea_embarrado = msp.add_line((0, 35), (len(st.session_state['cuadro_unifilar']) * 30, 35))
+            
+            # 2. Dibujar ramales dinámicos en cascada horizontal (Paso = 30 unidades de plano por circuito)
+            x_offset = 15
+            for c in st.session_state['cuadro_unifilar']:
+                # Línea de bajada desde embarrado
+                msp.add_line((x_offset, 35), (x_offset, 28))
+                
+                # Símbolo normalizado de corte (Magnetotérmico PIA)
+                msp.add_circle((x_offset, 25), radius=2)
+                msp.add_line((x_offset - 4, 23), (x_offset + 4, 23))
+                
+                # Textos técnicos de la manguera y calibre
+                msp.add_text(f"Línea {c['id']}", dxfattribs={'height': 1.8, 'color': 1}).set_pos((x_offset + 3, 28))
+                msp.add_text(f"PIA {c['pia']} / {c['polos']}", dxfattribs={'height': 1.5}).set_pos((x_offset + 3, 25))
+                msp.add_text(f"Icn {c['icp']}", dxfattribs={'height': 1.2}).set_pos((x_offset + 3, 22))
+                
+                # Cable / Canalización
+                msp.add_line((x_offset, 21), (x_offset, 12))
+                msp.add_text(f"Cu {c['seccion']}", dxfattribs={'height': 1.5}).set_pos((x_offset + 2, 16))
+                
+                # Símbolo del Receptor Terminal (Caja / Carga) según el PDF de PLC Madrid
+                msp.add_lwpolyline([
+                    (x_offset - 5, 12), (x_offset + 5, 12), 
+                    (x_offset + 5, 4), (x_offset - 5, 4), (x_offset - 5, 12)
+                ])
+                
+                # Ajustar texto del destino dentro o al lado de la carga terminal
+                nombre_corto = c['tipo'][:15]
+                msp.add_text(nombre_corto, dxfattribs={'height': 1.2}).set_pos((x_offset - 4, 7))
+                msp.add_text(c['mecanismo'][:18], dxfattribs={'height': 1.0, 'color': 3}).set_pos((x_offset - 5, 1))
+                
+                x_offset += 30 # Desplazar el siguiente circuito a la derecha
+                
+            # Guardar el documento CAD en un buffer binario de salida
+            out_stream = io.StringIO()
+            doc.write(out_stream)
+            return out_stream.getvalue().encode('utf-8')
         
+        try:
+            dxf_data = generar_dxf_unifilar()
+            
+            st.success("¡Plano CAD generado de forma limpia con simbología normalizada!")
+            st.download_button(
+                label="📥 Descargar Esquema Unifilar en formato (.DXF)",
+                data=dxf_data,
+                file_name=f"unifilar_{nombre_cuadro.lower().replace(' ', '_')}.dxf",
+                mime="image/vnd.dxf"
+            )
+            st.caption("💡 Puedes abrir directamente este archivo `.dxf` descargado en AutoCAD, ZWCAD, Caneco o cualquier suite de diseño de esquemas eléctricos.")
+        except Exception as e:
+            st.error(f"No se pudo compilar el bloque CAD: {e}")
+            
         # Opción para reiniciar el cuadro completo
         if st.button("🗑️ Vaciar Configuración Completa del Cuadro"):
             st.session_state['cuadro_unifilar'] = []
             st.rerun()
+        
