@@ -34,7 +34,6 @@ if password == "1868628":
             nombre = registro[0]
             num = registro[1]
             estado = registro[2]
-            
             col1, col2, col3 = st.columns([2, 1, 1])
             col1.write(f"**{nombre}** (ID: {num})")
             col2.write(f"Estado: {estado}")
