@@ -1,18 +1,19 @@
 import streamlit as st
 from auth import verificar_acceso
 
-num_input = st.text_input("Introduce tu número regional para entrar:")
+st.set_page_config(page_title="Mi Nube Privada", layout="wide")
 
-if num_input:
-    if verificar_acceso(num_input):
-        st.success("Acceso concedido.")
-        # AQUÍ VA TU CONTENIDO PRIVADO
-    else:
-        st.error("Acceso denegado. Contacta con el administrador.")
-        st.stop()
-else:
-    st.info("Introduce tu ID para continuar.")
-    st.stop()
+# Barra lateral para identificarse
+st.sidebar.title("🔐 Acceso")
+id_usuario = st.sidebar.text_input("Introduce tu Número Regional:", type="password")
+
+# Filtro de seguridad (si no está autorizado, paramos aquí)
+if not id_usuario or not verificar_acceso(id_usuario):
+    st.error("🚫 Acceso denegado. Introduce un ID de estudiante autorizado.")
+    st.stop() # ¡ESTO ES LO QUE BLOQUEA TODA LA WEB!
+
+# Si llega aquí, es porque está autorizado
+st.success("Acceso concedido. Bienvenido a la Oficina Técnica.")
 
 # Título Principal
 st.title("⚡ CoreElec: Plataforma de Ingeniería Eléctrica")
