@@ -209,6 +209,7 @@ with tabs_p[2]:
     total_general = total_subtotal + importe_iva
     
     # Algoritmo de transcripción nativa a texto legal (Evita fallos de dependencias en la nube)
+    # --- FUNCIÓN NATIVA DE FORMATEO A LETRA CORREGIDA ---
     def numero_a_letras(numero):
         def _convertir_grupo(n):
             unidades = ["", "un", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve"]
@@ -216,7 +217,7 @@ with tabs_p[2]:
             especiales = {11: "once", 12: "doce", 13: "trece", 14: "catorce", 15: "quince", 
                           16: "dieciséis", 17: "diecisiete", 18: "diecocho", 19: "diecinueve"}
             centenas = ["", "ciento", "doscientos", "trescientos", "cuatrocientos", "quinientos", 
-                        "seiscientos", "setentacientos", "ochocientos", "novecientos"]
+                        "seiscientos", "setecientos", "ochocientos", "novecientos"]
             if n == 100: return "cien"
             u = n % 10
             d = (n // 10) % 10
@@ -237,7 +238,10 @@ with tabs_p[2]:
         partes = str(round(numero, 2)).split('.')
         enteros = int(partes[0])
         centimos = int(partes[1]) if len(partes) > 1 else 0
-        if len(partes)[1] == 1 if len(partes) > 1 else False: centimos *= 10
+        
+        # Corregido: Si los céntimos vienen como un solo dígito (ej: .7 en vez de .70), se multiplican por 10
+        if len(partes) > 1 and len(partes[1]) == 1: 
+            centimos *= 10
 
         if enteros == 0: txt_ent = "cero"
         elif enteros < 1000: txt_ent = _convertir_grupo(enteros)
