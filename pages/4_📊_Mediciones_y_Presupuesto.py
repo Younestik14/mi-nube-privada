@@ -3,7 +3,9 @@ import pandas as pd
 import streamlit as st
 # 1. Importas tus funciones de estilo desde la carpeta utils
 from utils.style import aplicar_estilo_global, generar_banner
-
+from seguridad import verificar_sesion
+verificar_sesion()
+# ... resto de tu código de la página ...
 # 2. Configuras la página de Streamlit
 st.set_page_config(page_title="Mi Apartado - IDEA", layout="wide", initial_sidebar_state="collapsed")
 
