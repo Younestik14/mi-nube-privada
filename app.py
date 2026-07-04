@@ -1,10 +1,5 @@
 import streamlit as st
-from estilos import aplicar_marca_agua
 
-# Llamamos a la función justo después de cualquier configuración inicial
-aplicar_marca_agua()
-
-# ... resto de tu código ...
 
 # Título Principal
 st.title("⚡ CoreElec: Plataforma de Ingeniería Eléctrica")
