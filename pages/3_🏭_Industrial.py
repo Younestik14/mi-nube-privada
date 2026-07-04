@@ -45,7 +45,7 @@ with tabs_ing[0]:
         with col_c3:
             longitud_ramal = st.number_input("Longitud del ramal al cuadro (m)", value=15.0, step=2.0)
             seccion_conductor = st.selectbox("Sección asignada al cable (mm²)", [1.5, 2.5, 4, 6, 10, 16, 25, 35, 50, 70])
-            compensar = st.checkbox("¿Prever compensación individual de reactiva ($\cos \phi \to 0.95$)?", value=True)
+            compensar = st.checkbox("¿Prever compensación individual de reactiva (Cos phi a 0.95)?", value=True)
             
         btn_carga = st.form_submit_button("📥 Registrar Receptor")
         
