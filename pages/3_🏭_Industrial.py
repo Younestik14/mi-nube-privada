@@ -2,183 +2,210 @@ import streamlit as st
 import math
 import pandas as pd
 
-st.set_page_config(page_title="Módulo Industrial REBT", page_icon="🏭", layout="wide")
+st.set_page_config(page_title="Diseño Multifilar Industrial", page_icon="🏭", layout="wide")
 
-st.title("🏭 Módulo 3: Gestión de Cargas Industriales y Centro de Mando")
-st.markdown("Configuración de receptores, diseño del cuadro general y auditoría automática de errores técnicos según el REBT.")
+st.title("🏭 Módulo 3: Modelado de Esquema Multifilar (Fuerza y Mando)")
+st.markdown("Diseña la arquitectura de tu cuadro eléctrico asociando elementos de potencia y circuitos de maniobra según el REBT.")
 
-# Inicializar listas en la sesión si no existen para evitar pérdidas de datos al refrescar
-if 'cargas_industriales' not in st.session_state:
-    st.session_state['cargas_industriales'] = []
+# --- INICIALIZACIÓN DEL ESQUEMA EN SESSION STATE ---
+if 'esquema_multifilar' not in st.session_state:
+    st.session_state['esquema_multifilar'] = []
 if 'proyecto' not in st.session_state:
     st.session_state['proyecto'] = {}
 
-# --- PANELES PRINCIPALES DE ENTRADA (Páginas Centrales sin Sidebar) ---
-tabs_ing = st.tabs(["🔌 1. Añadir Receptores Industriales", "🛡️ 2. Configuración del Centro de Mando (CGMP)"])
+# --- CATÁLOGO EXTENSO DE APARAMENTA COMERCIAL ---
+COMPONENTES_FUERZA = [
+    "Interruptor Seccionador en Carga (Corte General)",
+    "Interruptor Automático Magnetotérmico (PIA)",
+    "Interruptor Automático Caja Moldeada (MCCB)",
+    "Interruptor Diferencial Superinmunizado (Clase A/B)",
+    "Disyuntor Guardamotor (Protección Térmico-Magnética de Motores)",
+    "Contactor de Potencia (KM)",
+    "Relé Térmico de Sobrecarga (F)",
+    "Variador de Frecuencia (VFD) / Arrancador Suave",
+    "Bornes de Potencia (U-V-W-PE)"
+]
 
-# --- TAB 1: REGISTRO DE MAQUINARIA INDUSTRIAL ---
-with tabs_ing[0]:
-    st.subheader("Añadir maquinaria y elementos habituales a la instalación")
-    
-    with st.form("form_cargas", clear_on_submit=True):
-        col_c1, col_c2, col_c3 = st.columns(3)
-        
-        with col_c1:
-            nombre_carga = st.text_input("Nombre de la Carga / Máquina", value="Motor Extractor Central")
-            tipo_receptor = st.selectbox(
-                "Tipo de Elemento Industrial",
-                [
-                    "Motor Asíncrono Trifásico (Fuerza)", 
-                    "Horno Industrial / Resistivo", 
-                    "Línea de Alumbrado Fluorescente/LED Industrial", 
-                    "Grupo de Soldadura", 
-                    "Climatización / VRV"
-                ]
-            )
-            sistema_carga = st.selectbox("Alimentación", ["Trifásico", "Monofásico"])
-            
-        with col_c2:
-            potencia_kw = st.number_input("Potencia Nominal (kW)", value=7.5, min_value=0.1, step=0.5)
-            tension_carga = st.number_input("Tensión de Servicio (V)", value=400 if sistema_carga == "Trifásico" else 230)
-            cos_phi_actual = st.number_input("Cos phi Actual del Receptor", value=0.75, min_value=0.2, max_value=1.0, step=0.05)
-            
-        with col_c3:
-            longitud_ramal = st.number_input("Longitud del ramal al cuadro (m)", value=15.0, step=2.0)
-            seccion_conductor = st.selectbox("Sección asignada al cable (mm2)", [1.5, 2.5, 4, 6, 10, 16, 25, 35, 50, 70])
-            compensar = st.checkbox("Prever compensación individual de reactiva (Cos phi a 0.95)", value=True)
-            
-        btn_carga = st.form_submit_button("📥 Registrar Receptor")
-        
-        if btn_carga:
-            p_w = potencia_kw * 1000
-            # Coeficiente REBT de seguridad por picos de arranque (ITC-BT-47)
-            factor_motor = 1.25 if "Motor" in tipo_receptor else 1.0
-            
-            if sistema_carga == "Trifásico":
-                i_nom = p_w / (math.sqrt(3) * tension_carga * cos_phi_actual)
-            else:
-                i_nom = p_w / (tension_carga * cos_phi_actual)
-                
-            i_diseno = i_nom * factor_motor
-            
-            # Cálculo de potencia reactiva para la batería de condensadores
-            kvar_condensador = 0.0
-            if compensar and cos_phi_actual < 0.95:
-                tan_fi_actual = math.tan(math.acos(cos_phi_actual))
-                tan_fi_target = math.tan(math.acos(0.95))
-                kvar_condensador = (p_w / 1000) * (tan_fi_actual - tan_fi_target)
-                
-            st.session_state['cargas_industriales'].append({
-                "nombre": nombre_carga,
-                "tipo": tipo_receptor,
-                "sistema": sistema_carga,
-                "potencia_kw": potencia_kw,
-                "i_nom": round(i_nom, 2),
-                "i_diseno": round(i_diseno, 2),
-                "longitud": longitud_ramal,
-                "seccion": seccion_conductor,
-                "kvar_bateria": round(max(0.0, kvar_condensador), 2),
-                "cos_phi": cos_phi_actual
-            })
-            st.success(f"Receptor registrado correctamente.")
+COMPONENTES_MANDO = [
+    "Transformador de Maniobra (400V/230V a 24V CA)",
+    "Fuente de Alimentación Conmutada (230V CA a 24V CC)",
+    "Seta de Emergencia (Contacto NC de seguridad)",
+    "Interruptor Magnetotérmico de Maniobra (Calibre bajo 2A-6A)",
+    "Autómata Programable (PLC / LOGO!)",
+    "Módulo de Relé de Seguridad (Pilz / Preadvertencia)",
+    "Contactor Auxiliar / Relé de Maniobra (KA)",
+    "Pulsador de Marcha (NA) / Paro (NC)",
+    "Final de Carrera / Sensor Inductivo",
+    "Piloto Luminoso de Señalización (H)",
+    "Sirena / Avisador Acústico"
+]
 
-# --- TAB 2: CONFIGURACIÓN DE LA CABECERA DEL CUADRO ---
-with tabs_ing[1]:
-    st.subheader("Parámetros de la Cabecera del Cuadro General")
-    col_cc1, col_cc2 = st.columns(2)
+# --- INTERFAZ PRINCIPAL DE MODELADO ---
+st.header("🛠️ Configuración de Líneas del Esquema")
+
+with st.form("form_multifilar", clear_on_submit=True):
+    col1, col2, col3 = st.columns(3)
     
-    with col_cc1:
-        nombre_cuadro = st.text_input("Denominación del Cuadro", value="CGMP Central Industria")
-        iga_elegido = st.selectbox("Calibre del IGA deseado (A)", [16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 250], index=6)
-    with col_cc2:
-        dif_sens = st.selectbox("Sensibilidad del Diferencial General", ["30 mA", "300 mA (Industrial)", "500 mA"], index=1)
-        tipo_dif = st.selectbox("Tipo de Diferencial", ["Clase AC", "Clase A (Superinmunizado)", "Clase B"])
-        # --- PROCESAMIENTO GENERAL, CALIBRES Y ERRORES (PARTE 2) ---
+    with col1:
+        id_linea = st.text_input("Identificador de la Línea / Símbolo", value="Línea Cinta Transportadora - Q1")
+        tipo_arranque = st.selectbox(
+            "Configuración del Circuito de Fuerza",
+            [
+                "Salida Directa (Protección + Contactor)",
+                "Arranque Motor con Guardamotor + Contactor + Térmico",
+                "Línea de Distribución Directa (Solo Protección)",
+                "Salida Especial con Variador de Frecuencia",
+                "Línea Dedicada a Maniobra (Alimentación de Mando)"
+            ]
+        )
+        potencia_linea_kw = st.number_input("Potencia Activa Asociada (kW)", value=4.0, step=0.5)
+
+    with col2:
+        st.markdown("**⚡ Aparamenta de Fuerza Seleccionada**")
+        comp_fuerza_sel = st.multiselect(
+            "Componentes en el carril DIN de Potencia:",
+            COMPONENTES_FUERZA,
+            default=[COMPONENTES_FUERZA[4], COMPONENTES_FUERZA[5]] if "Motor" in tipo_arranque else [COMPONENTES_FUERZA[1]]
+        )
+        seccion_cable = st.selectbox("Sección del conductor (mm2)", [1.5, 2.5, 4, 6, 10, 16, 25, 35, 50])
+
+    with col3:
+        st.markdown("**🧠 Circuito de Mando y Maniobra Asociado**")
+        tension_mando = st.selectbox("Tensión del Lazo de Mando", ["24 V CC (Seguridad)", "24 V CA", "230 V CA", "Sin circuito de mando"])
+        comp_mando_sel = st.multiselect(
+            "Componentes del circuito de maniobra:",
+            COMPONENTES_MANDO,
+            default=[COMPONENTES_MANDO[2], COMPONENTES_MANDO[4], COMPONENTES_MANDO[7], COMPONENTES_MANDO[9]] if tension_mando != "Sin circuito de mando" else []
+        )
+        longitud_linea = st.number_input("Longitud del circuito (m)", value=25.0, step=5.0)
+
+    btn_guardar_linea = st.form_submit_button("📥 Enclavar Línea en el Esquema")
+
+if btn_guardar_linea:
+    # Cálculo básico de corrientes para dimensionar calibres comerciales
+    pot_w = potencia_linea_kw * 1000
+    # Asumimos trifásico 400V para fuerza industrial estándar, cos_phi = 0.8
+    i_nominal = pot_w / (math.sqrt(3) * 400 * 0.8) if potencia_linea_kw > 0 else 0
+    
+    # Factor de seguridad por arranque en fuerza (ITC-BT-47)
+    i_diseno = i_nominal * 1.25 if "Motor" in tipo_arranque else i_nominal
+    
+    st.session_state['esquema_multifilar'].append({
+        "id": id_linea,
+        "config_fuerza": tipo_arranque,
+        "potencia_kw": potencia_linea_kw,
+        "i_nom": round(i_nominal, 2),
+        "i_diseno": round(i_diseno, 2),
+        "componentes_fuerza": comp_fuerza_sel,
+        "tension_mando": tension_mando,
+        "componentes_mando": comp_mando_sel,
+        "seccion": seccion_cable,
+        "longitud": longitud_linea
+    })
+    st.success(f"✔️ Línea '{id_linea}' añadida al árbol del esquema multifilar.")
+    # --- CÁLCULO DE CALIBRES, VISUALIZACIÓN Y AUDITORÍA DE ERRORES (PARTE 2) ---
 st.write("---")
-st.header("📊 Dimensionamiento de Calibres e Inspección de Seguridad")
+st.header("📋 Desglose Técnico del Esquema y Calibres de Aparamenta")
 
-if not st.session_state['cargas_industriales']:
-    st.info("Agrega receptores en la pestaña superior para auditar el Centro de Mando.")
+if not st.session_state['esquema_multifilar']:
+    st.info("El esquema está vacío. Configura y añade líneas desde el panel superior para generar el cableado y los calibres.")
 else:
-    errores = []
-    potencia_total_activa = 0
-    datos_receptores_tabla = []
+    errores_esquema = []
+    potencia_total_cuadro = 0.0
+    datos_esquema_tabla = []
     
-    # Tabla de calibres comerciales normalizados en España
-    calibres_comerciales = [6, 10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125]
+    # Series comerciales homologadas
+    calibres_pia = [6, 10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125]
     
-    for c in st.session_state['cargas_industriales']:
-        potencia_total_activa += c["potencia_kw"]
+    for linea in st.session_state['esquema_multifilar']:
+        potencia_total_cuadro += linea["potencia_kw"]
         
-        # 1. Asignación automática de calibre de protección individual (PIA)
-        pia_asignado = 125
-        for cal in calibres_comerciales:
-            if cal >= c["i_diseno"]:
-                pia_asignado = cal
+        # 1. Dimensionamiento de la protección de potencia (Fuerza)
+        calibre_fuerza = 125
+        for c_com in calibre_pia:
+            if c_com >= linea["i_diseno"]:
+                calibre_fuerza = c_com
                 break
                 
-        # 2. Verificar Caída de Tensión del ramal (Cobre, aislamiento termoestable)
-        gamma = 48.5 
-        v_base = 400 if c["sistema"] == "Trifásico" else 230
-        factor_dist = 1 if c["sistema"] == "Trifásico" else 2
-        
-        cdt_v = (factor_dist * c["longitud"] * (c["potencia_kw"]*1000)) / (gamma * c["seccion"] * v_base)
-        cdt_porcentaje = (cdt_v / v_base) * 100
-        
-        # --- Auditoría de Errores por Receptor ---
-        if cdt_porcentaje > 5.0:
-            errores.append(f"❌ **Línea [{c['nombre']}]:** Caída de tensión excesiva ({round(cdt_porcentaje, 2)}%). Supera el 5% máximo para receptores de fuerza según el REBT. **Solución:** Aumenta la sección del conductor.")
+        # 2. Dimensionamiento del Contactor (KM) según categoría AC-3 (Motores) o AC-1 (Resistivo)
+        if "Motor" in linea["config_fuerza"]:
+            cat_contactor = f"AC-3 (Servicio Motor) - Mínimo {calibre_fuerza}A"
+        else:
+            cat_contactor = f"AC-1 (Carga no inductiva) - Mínimo {calibre_fuerza}A"
             
-        datos_receptores_tabla.append({
-            "Receptor": c["nombre"],
-            "Potencia (kW)": c["potencia_kw"],
-            "I Nominal (A)": c["i_nom"],
-            "I Diseño (REBT)": c["i_diseno"],
-            "PIA Sugerido": f"{pia_asignado}A",
-            "Sección": f"{c['seccion']} mm2",
-            "CdT (%)": f"{round(cdt_porcentaje, 2)}%",
-            "Condensador (kVAr)": c["kvar_bateria"]
+        # 3. Verificación de Caída de Tensión (CdT) en Fuerza
+        gamma = 48.5  # Conductividad del cobre a temperatura de servicio
+        v_base = 400 if "Maniobra" not in linea["config_fuerza"] else 230
+        f_dist = 1 if "Maniobra" not in linea["config_fuerza"] else 2
+        
+        cdt_v = (f_dist * linea["longitud"] * (linea["potencia_kw"] * 1000)) / (gamma * linea["seccion"] * v_base)
+        cdt_porc = (cdt_v / v_base) * 100
+        
+        # --- ALERTAS INTELIGENTES DE LA LÍNEA ---
+        if cdt_porc > 5.0:
+            errores_esquema.append(f"❌ **Línea [{linea['id']}]:** Caída de tensión excesiva ({round(cdt_porc, 2)}%). Supera el 5% máximo reglamentario para fuerza en el REBT. **Solución:** Incrementa la sección del cable.")
+            
+        if "Motor" in linea["config_fuerza"]:
+            tiene_termico = any("Térmico" in x or "Guardamotor" in x for x in linea["componentes_fuerza"])
+            if not tiene_termico:
+                errores_esquema.append(f"❌ **Línea [{linea['id']}]:** Peligro crítico. Se ha configurado un motor asíncrono pero no se ha seleccionado Relé Térmico ni Disyuntor Guardamotor en el circuito de potencia.")
+                
+        if linea["tension_mando"] != "Sin circuito de mando" and not any("Transformador" in x or "Fuente" in x for x in linea["componentes_mando"]):
+            errores_esquema.append(f"⚠️ **Línea [{linea['id']}]:** El lazo de mando funciona a baja tensión ({linea['tension_mando']}) pero no has incluido un Transformador o Fuente de Alimentación de aislamiento en la aparamenta.")
+
+        # Añadir al listado visual del esquema
+        datos_esquema_tabla.append({
+            "Línea / Símbolo": linea["id"],
+            "Configuración": linea["config_fuerza"],
+            "Potencia (kW)": linea["potencia_kw"],
+            "Intensidad (A)": f"{linea['i_nom']} A",
+            "Protección Sugerida": f"{calibre_fuerza}A (Curva D/C)" if "Motor" in linea["config_fuerza"] else f"{calibre_fuerza}A (Curva C)",
+            "Contactor Asociado": cat_contactor,
+            "Sección": f"{linea['seccion']} mm2",
+            "CdT (%)": f"{round(cdt_porc, 2)}%",
+            "Elementos Mando": ", ".join(linea["componentes_mando"]) if linea["componentes_mando"] else "Ninguno (Mando directo)"
         })
 
-    # Mostrar matriz de cargas
-    df_ind = pd.DataFrame(datos_receptores_tabla)
-    st.dataframe(df_ind, use_container_width=True, hide_index=True)
+    # Renderizar la matriz del esquema multifilar
+    df_esquema = pd.DataFrame(datos_esquema_tabla)
+    st.dataframe(df_esquema, use_container_width=True, hide_index=True)
     
-    # Cálculo global del cuadro aplicando factor de simultaneidad (80%)
-    i_total_estimada = sum(item["i_nom"] for item in st.session_state['cargas_industriales']) * 0.8
+    # --- CÁLCULO DE CABECERA GENERAL DEL CUADRO ---
+    i_simultanea_cuadro = sum(l["i_nom"] for l in st.session_state['esquema_multifilar']) * 0.8
     
-    # --- Auditoría de Errores del Centro de Mando ---
-    if iga_elegido < i_total_estimada:
-        errores.append(f"❌ **Centro de Mando [{nombre_cuadro}]:** El calibre del IGA ({iga_elegido}A) es INFERIOR a la corriente simultánea estimada de la planta ({round(i_total_estimada, 2)}A). El interruptor saltará por sobrecarga térmica general. **Solución:** Selecciona un calibre de cabecera superior.")
-        
-    if "AC" in tipo_dif and any("Motor" in item["tipo"] for item in st.session_state['cargas_industriales']):
-        errores.append(f"⚠️ **Centro de Mando [{nombre_cuadro}]:** Se ha detectado un Diferencial Clase AC dando servicio a motores asíncronos. Riesgo de cegado del núcleo por armónicos. **Solución:** Sustituye por Clase A (Superinmunizado) o Clase B.")
+    col_inf1, col_inf2 = st.columns(2)
+    with col_inf1:
+        st.metric(label="Potencia Activa Total del Cuadro", value=f"{round(potencia_total_cuadro, 2)} kW")
+    with col_inf2:
+        st.metric(label="Intensidad General Simultánea Estimada (80%)", value=f"{round(i_simultanea_cuadro, 2)} A")
 
-    # --- PANEL EXCLUSIVO DE TELEMETRÍA DE ERRORES ---
+    # --- APARTADO EXCLUSIVO DE TELEMETRÍA DE ERRORES ---
     st.write("---")
-    st.subheader("🚨 Panel de Alertas y Errores Normativos")
+    st.subheader("🚨 Panel de Alertas y Errores de Diseño Eléctrico")
     
-    if errores:
-        for err in errores:
+    if errores_esquema:
+        for err in errores_esquema:
             if "❌" in err:
                 st.error(err)
             else:
                 st.warning(err)
     else:
-        st.success("🎉 ¡Instalación en regla! No se han detectado infracciones de calibre ni caídas de tensión fuera de rango legal.")
-        
-    # --- BOTONES DE CONTROL GENERAL ---
-    col_acc1, col_acc2 = st.columns(2)
-    with col_acc1:
-        if st.button("🗑️ Vaciar Elementos Industriales"):
-            st.session_state['cargas_industriales'] = []
+        st.success("🎉 ¡Esquema multifilar impecable! Toda la aparamenta está bien coordinada, protegida térmicamente y cumple los límites del REBT.")
+
+    # --- CONTROLES DE MEMORIA ---
+    st.write("---")
+    col_btn1, col_btn2 = st.columns(2)
+    with col_btn1:
+        if st.button("🗑️ Resetear Esquema Completo"):
+            st.session_state['esquema_multifilar'] = []
             st.rerun()
-    with col_acc2:
-        if st.button("💾 Consolidar Datos en Memoria Global"):
+            
+    with col_btn2:
+        if st.button("💾 Enviar Cuadro al Resumen General"):
             st.session_state['proyecto'][nombre_cuadro] = {
-                "tipo": "Cuadro Industrial Distribución",
-                "potencia_kw": round(potencia_total_activa, 2),
-                "intensidad": round(i_total_estimada, 2),
-                "kvar_bateria": round(sum(item["kvar_bateria"] for item in st.session_state['cargas_industriales']), 2)
+                "tipo": "Cuadro Multifilar de Fuerza y Maniobra",
+                "potencia_kw": round(potencia_total_cuadro, 2),
+                "intensidad_cabecera": round(i_simultanea_cuadro, 2),
+                "lineas_activas": len(st.session_state['esquema_multifilar'])
             }
-            st.success("✔️ Datos indexados con éxito en la memoria del proyecto.")
+            st.success("✔️ Arquitectura de cuadro volcada al buffer del proyecto.")
