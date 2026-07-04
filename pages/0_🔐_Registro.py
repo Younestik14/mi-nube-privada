@@ -1,23 +1,23 @@
-import streamlit as st
-from auth import init_db, registrar_usuario
-from utils.style import aplicar_estilo_global
+import sqlite3
 
-st.set_page_config(page_title="Acceso Oficina Técnica", layout="centered")
-aplicar_estilo_global()
-init_db()
+def init_db():
+    # Esto crea el archivo que guardará los nombres de tus alumnos
+    conn = sqlite3.connect('datos_estudiantes.db')
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS usuarios 
+                 (nombre TEXT, num_estudiante TEXT PRIMARY KEY, estado TEXT)''')
+    conn.commit()
+    conn.close()
 
-st.title("🔐 Acceso a la Oficina Técnica")
-
-with st.form("registro_form"):
-    nombre = st.text_input("Nombre Completo:")
-    num_reg = st.text_input("Número Regional de Estudiante:")
-    submit = st.form_submit_button("Solicitar Acceso")
-
-    if submit:
-        if nombre and num_reg:
-            if registrar_usuario(nombre, num_reg):
-                st.success("Solicitud enviada correctamente. Esperando validación.")
-            else:
-                st.error("Este número de estudiante ya tiene una solicitud.")
-        else:
-            st.warning("Por favor, rellena todos los campos.")
+def registrar_usuario(nombre, num_estudiante):
+    conn = sqlite3.connect('datos_estudiantes.db')
+    c = conn.cursor()
+    try:
+        # Se guarda como 'pendiente' hasta que tú lo apruebes
+        c.execute("INSERT INTO usuarios VALUES (?, ?, 'pendiente')", (nombre, num_estudiante))
+        conn.commit()
+        return True
+    except:
+        return False
+    finally:
+        conn.close()
