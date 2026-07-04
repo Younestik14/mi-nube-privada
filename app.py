@@ -1,30 +1,27 @@
+# 🏠_Inicio.py
 import streamlit as st
-from auth import verificar_acceso # Importamos tu lista blanca
+from auth import verificar_acceso # Importa la lista de aprobados
 
 st.set_page_config(page_title="Mi Nube Privada", layout="wide")
 
-# Inicializamos el estado de la sesión si no existe
 if 'autorizado' not in st.session_state:
     st.session_state.autorizado = False
 
-# Si no está autorizado, mostramos el login
 if not st.session_state.autorizado:
-    st.title("🔐 Acceso Restringido")
+    st.title("🔐 Acceso a la Oficina Técnica")
     id_input = st.text_input("Introduce tu Número Regional para entrar:", type="password")
     
     if st.button("Acceder"):
         if verificar_acceso(id_input):
             st.session_state.autorizado = True
-            st.rerun() # Recargamos la página para mostrar el contenido
+            st.rerun() 
         else:
-            st.error("Acceso denegado. Regístrate primero.")
-            st.link_button("Ir a Registro", "/0_🔐_Registro")
+            st.error("Acceso denegado. Si ya solicitaste acceso, espera a que el admin te acepte.")
     
-    st.stop() # ¡ESTO ES CLAVE! Detiene todo lo que sigue debajo
+    st.stop() # Bloquea el resto de la página
 
-# --- AQUÍ EMPIEZA TU CONTENIDO PRIVADO ---
-st.success("¡Bienvenido a la Nube Privada!")
-# Aquí va todo tu código de cálculos...
+# Si llega aquí, es porque está autorizado
+st.success("Acceso concedido.")
 
 # Título Principal
 st.title("⚡ CoreElec: Plataforma de Ingeniería Eléctrica")
