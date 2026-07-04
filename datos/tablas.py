@@ -22,4 +22,7 @@ def df_vacio(columnas: List[str]) -> pd.DataFrame:
     Returns:
         DataFrame vacio (sin filas) con esas columnas.
     """
-    return pd.DataFrame({c: [] for c in columnas})
+    # Se usa dtype "object" en vez de dejar que pandas infiera float64 por
+    # defecto en columnas vacias; con float64, los widgets de seleccion
+    # (SelectboxColumn) no podian guardar valores de texto en filas nuevas.
+    return pd.DataFrame({c: pd.Series(dtype="object") for c in columnas})
