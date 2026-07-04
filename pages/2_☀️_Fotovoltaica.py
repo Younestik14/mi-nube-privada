@@ -1,7 +1,23 @@
 import streamlit as st
 import math
 import pandas as pd
+import streamlit as st
+# 1. Importas tus funciones de estilo desde la carpeta utils
+from utils.style import aplicar_estilo_global, generar_banner
 
+# 2. Configuras la página de Streamlit
+st.set_page_config(page_title="Mi Apartado - IDEA", layout="wide", initial_sidebar_state="collapsed")
+
+# 3. Aplicas el diseño y generas el banner superior
+aplicar_estilo_global()
+generar_banner("⚡ Módulo Técnico", "Subtítulo explicativo del cálculo actual.")
+
+# 4. Metes tus componentes dentro de la tarjeta estilizada usando HTML simple
+st.markdown('<div class="premium-card"><h4>📋 Parámetros de Diseño</h4>', unsafe_allow_html=True)
+
+# ... AQUÍ VA TODO TU CÓDIGO NORMAL (st.text_input, st.selectbox, st.button, etc.) ...
+
+st.markdown('</div>', unsafe_allow_html=True) # <-- Cierras la tarjeta al final
 st.set_page_config(page_title="Módulo Fotovoltaica REBT", page_icon="☀️", layout="wide")
 
 st.title("☀️ Módulo 2: Dimensionamiento Fotovoltaico según Normativa Española")
