@@ -110,7 +110,7 @@ with tabs_p[0]:
             "Precio Venta Unitario (€)": round(p_venta, 3)
         })
     st.dataframe(pd.DataFrame(tabla_cat), use_container_width=True, hide_index=True)
-    # --- TAB 2: REGISTRO DE PARTIDAS POR NOMBRE REAL (PARTE 2) ---
+   # --- TAB 2: REGISTRO DE PARTIDAS CON REDONDEO A 2 DECIMALES (PARTE 2) ---
 with tabs_p[1]:
     st.subheader("📝 Gestión de Partidas e Mediciones")
     
@@ -119,12 +119,10 @@ with tabs_p[1]:
         
         with col_f1:
             capitulo_sel = st.selectbox("Selecciona el Capítulo:", list(st.session_state['capitulos_presupuesto'].keys()))
-            # Lista completa utilizando directamente las descripciones comerciales reales
             materiales_reales = list(st.session_state['catalogo_productos'].keys())
             material_sel = st.selectbox("Selección de Material / Equipo Comercial:", materiales_reales)
             
         with col_f2:
-            # Autogeneración de estructura de partida calcada al Excel (Ej: 1.1, 1.2, etc.)
             num_partidas_actuales = len(st.session_state['capitulos_presupuesto'][capitulo_sel])
             prefijo = capitulo_sel.split(":")[0].replace("CAPÍTULO ", "").strip()
             num_partida = st.text_input("Número de Partida", value=f"{prefijo}.{num_partidas_actuales + 1}")
@@ -133,16 +131,16 @@ with tabs_p[1]:
         with col_f3:
             st.markdown("**Desglose de Costes Unitarios:**")
             prod_info = st.session_state['catalogo_productos'][material_sel]
-            st.info(f"Unidad de Medida: {prod_info['unidad']}\n\nPrecio de Coste Base: {prod_info['precio_base']} €")
+            st.info(f"Unidad de Medida: {prod_info['unidad']}\n\nPrecio de Coste Base: {round(prod_info['precio_base'], 2)} €")
             
         btn_partida = st.form_submit_button("➕ Registrar Partida en el Presupuesto")
         
         if btn_partida:
-            base_p = prod_info['precio_base']
-            bi_p = base_p * st.session_state['coef_beneficio']
-            am_p = base_p * st.session_state['coef_amortizacion']
-            precio_venta_unitario = base_p + bi_p + am_p
-            importe_total_partida = precio_venta_unitario * medicion
+            base_p = round(prod_info['precio_base'], 2)
+            bi_p = round(base_p * st.session_state['coef_beneficio'], 2)
+            am_p = round(base_p * st.session_state['coef_amortizacion'], 2)
+            precio_venta_unitario = round(base_p + bi_p + am_p, 2)
+            importe_total_partida = round(precio_venta_unitario * medicion, 2)
             
             st.session_state['capitulos_presupuesto'][capitulo_sel].append({
                 "partida": num_partida,
@@ -157,14 +155,13 @@ with tabs_p[1]:
             })
             st.success(f"Partida {num_partida} guardada en {capitulo_sel}.")
 
-# --- TAB 3: DESGLOSE DE CAPÍTULOS Y HOJA DE CABECERA TOTAL ---
+# --- TAB 3: DESGLOSE DE CAPÍTULOS Y HOJA DE CABECERA TOTAL (2 DECIMALES) ---
 with tabs_p[2]:
     st.subheader("📊 Estructura de Capítulos del Proyecto")
     
     costes_parciales_capitulos = {}
     total_subtotal = 0.0
     
-    # Renderizado ordenado por capítulos sin columnas indexadas artificiales
     for cap, partidas in st.session_state['capitulos_presupuesto'].items():
         st.markdown(f"#### 📁 {cap}")
         if not partidas:
@@ -177,6 +174,11 @@ with tabs_p[2]:
                 "precio_base", "bi", "amortizacion", "precio_venta", "importe"
             ]].copy()
             
+            # Formatear visualmente las columnas numéricas a 2 decimales fijos
+            columnas_precio = ["precio_base", "bi", "amortizacion", "precio_venta", "importe"]
+            for col in columnas_precio:
+                df_visible[col] = df_visible[col].map("{:.2f}".format)
+            
             df_visible.columns = [
                 "Partida", "Designación Material Comercial", "Unidades", "Medición", 
                 "Precio Base (€)", "B.I. (€)", "Amort. (€)", "Precio Venta (€)", "Importe (€)"
@@ -184,10 +186,10 @@ with tabs_p[2]:
             
             st.dataframe(df_visible, use_container_width=True, hide_index=True)
             
-            coste_cap = df_partidas["importe"].sum()
+            coste_cap = round(df_partidas["importe"].sum(), 2)
             costes_parciales_capitulos[cap] = coste_cap
             total_subtotal += coste_cap
-            st.markdown(f"**Coste Parcial del Capítulo:** `{round(coste_cap, 3)} €`")
+            st.markdown(f"**Coste Parcial del Capítulo:** `{'{:.2f}'.format(coste_cap)} €`")
         st.write("---")
 
     # --- HOJA RESUMEN GENERAL DEL PRESUPUESTO ---
@@ -197,19 +199,19 @@ with tabs_p[2]:
     for cap, parcial in costes_parciales_capitulos.items():
         resumen_data.append({
             "Capítulo Eléctrico": cap,
-            "Coste Parcial Real (€)": round(parcial, 3)
+            "Coste Parcial Real (€)": "{:.2f}".format(parcial)
         })
         
     df_resumen = pd.DataFrame(resumen_data)
     st.dataframe(df_resumen, use_container_width=True, hide_index=True)
     
-    # Cierre de Liquidación y Presupuesto de Contrata
+    # Cierre de Liquidación con 2 decimales
+    total_subtotal = round(total_subtotal, 2)
     iva_porcentaje = 0.21
-    importe_iva = total_subtotal * iva_porcentaje
-    total_general = total_subtotal + importe_iva
+    importe_iva = round(total_subtotal * iva_porcentaje, 2)
+    total_general = round(total_subtotal + importe_iva, 2)
     
-    # Algoritmo de transcripción nativa a texto legal (Evita fallos de dependencias en la nube)
-    # --- FUNCIÓN NATIVA DE FORMATEO A LETRA CORREGIDA ---
+    # Algoritmo de transcripción nativa a texto legal (2 decimales estrictos)
     def numero_a_letras(numero):
         def _convertir_grupo(n):
             unidades = ["", "un", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve"]
@@ -238,8 +240,6 @@ with tabs_p[2]:
         partes = str(round(numero, 2)).split('.')
         enteros = int(partes[0])
         centimos = int(partes[1]) if len(partes) > 1 else 0
-        
-        # Corregido: Si los céntimos vienen como un solo dígito (ej: .7 en vez de .70), se multiplican por 10
         if len(partes) > 1 and len(partes[1]) == 1: 
             centimos *= 10
 
@@ -260,11 +260,11 @@ with tabs_p[2]:
     st.write("### 🧾 Resumen Económico del Presupuesto de Contrata")
     col_t1, col_t2, col_t3 = st.columns(3)
     with col_t1:
-        st.metric(label="SUBTOTAL (Ejecución Material)", value=f"{round(total_subtotal, 3)} €")
+        st.metric(label="SUBTOTAL (Ejecución Material)", value=f"{'{:.2f}'.format(total_subtotal)} €")
     with col_t2:
-        st.metric(label="I.V.A. Presupuestario (21%)", value=f"{round(importe_iva, 3)} €")
+        st.metric(label="I.V.A. Presupuestario (21%)", value=f"{'{:.2f}'.format(importe_iva)} €")
     with col_t3:
-        st.metric(label="TOTAL PRESUPUESTO CONTRATA", value=f"{round(total_general, 3)} €")
+        st.metric(label="TOTAL PRESUPUESTO CONTRATA", value=f"{'{:.2f}'.format(total_general)} €")
         
     st.markdown(f"> **Importe en letra oficial:** *{numero_a_letras(total_general)}*")
 
