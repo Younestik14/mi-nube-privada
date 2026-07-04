@@ -1,7 +1,7 @@
 import streamlit as st
 
 # Lista de estudiantes pre-aprobados (puedes añadir más aquí)
-lista_aprobados = ["12345", "67890", "1868628"]
+lista_aprobados = ["1868628"]
 
 def verificar_acceso(num_estudiante):
     return num_estudiante in lista_aprobados
