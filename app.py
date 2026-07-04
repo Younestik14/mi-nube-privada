@@ -1,5 +1,10 @@
 import streamlit as st
+import streamlit as st
 
+# Verificamos si la variable de sesión existe (esto lo harás cuando apruebes al usuario)
+if 'acceso_concedido' not in st.session_state:
+    st.error("🚫 Acceso restringido. Por favor, regístrate.")
+    st.stop() # Esto corta la página y no muestra el resto
 # Configuración de la página (Debe ser lo primero)
 st.set_page_config(
     page_title="CoreElec - Ingeniería Hub",
