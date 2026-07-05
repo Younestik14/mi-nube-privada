@@ -1,9 +1,0 @@
-[theme]
-primaryColor = "#3b82f6"            # Azul eléctrico para botones y acentos
-backgroundColor = "#0f172a"         # Fondo general de la web (Slate Oscuro / Azul Noche)
-secondaryBackgroundColor = "#1e293b" # Fondo de las tarjetas y formularios (Gris Azulado)
-textColor = "#f8fafc"               # Texto principal en blanco/crema de alta legibilidad
-font = "sans serif"
-
-[borderless]
-layout = "wide"
