@@ -301,32 +301,10 @@ CATALOGO_MATERIALES = {
 }
 
 # Estructura clásica de presupuesto de instalaciones en España: sobre el
-# Presupuesto de Ejecución Material (materiales + mano de obra) se aplican
-# estos dos porcentajes editables antes del total.
+# precio base de cada material/mano de obra se aplican estos dos porcentajes
+# para obtener el precio de venta (Precio_venta = Precio_base × (1 + %ben + %amort)).
 PORCENTAJE_BENEFICIO_DEFECTO = 15.0       # beneficio industrial
-PORCENTAJE_AMORTIZACION_DEFECTO = 3.0     # amortización de medios auxiliares / herramientas
-
-# ------------------------------------------------------------------------------
-# Catálogo de símbolos para el esquema unifilar (representación simplificada,
-# inspirada en IEC 60617). Cada símbolo define cómo dibujarse en el preview
-# SVG y qué entidades DXF generar; ver dibujar_simbolo_svg() y
-# _dxf_dibujar_simbolo().
-# ------------------------------------------------------------------------------
-SIMBOLOS_UNIFILAR = [
-    "Interruptor automático (magnetotérmico)",
-    "Interruptor diferencial",
-    "Interruptor general (IGA)",
-    "Seccionador",
-    "Fusible",
-    "Contactor",
-    "Guardamotor",
-    "Transformador",
-    "Motor",
-    "Contador de energía",
-    "Condensador",
-    "Puesta a tierra",
-    "Lámpara / receptor",
-]
+PORCENTAJE_AMORTIZACION_DEFECTO = 5.0     # amortización de medios auxiliares / herramientas
 
 
 # ==============================================================================
@@ -1084,208 +1062,667 @@ def _lineas_formulas_texto(inp: dict, res: dict) -> list:
     return L
 
 
+def _lineas_formulas_fv_texto(inp: dict, res: dict) -> list:
+    """Justificación de cálculo del módulo fotovoltaico en texto plano, para
+    el Anexo de cálculos (mismo espíritu que _lineas_formulas_texto)."""
+    L = []
+    L.append(f"Potencia pico = {res['p_pico_kwp']:.2f} kWp  ({res['n_paneles']} paneles de "
+              f"{inp['potencia_panel_wp']:g} Wp segun dimensionado)")
+    L.append(f"Produccion anual = Ppico x HSP x 365 x PR x (1 - perdidas) = {res['p_pico_kwp']:.2f} x "
+              f"{inp['hsp']:g} x 365 x {inp['pr']:.2f} x (1-{inp['perdidas_sombras']:g}/100) = "
+              f"{res['produccion_anual_kwh']:,.0f} kWh/anio".replace(",", "."))
+    L.append("")
+    L.append(f"Configuracion string: {res['n_serie']} paneles serie x {res['n_paralelo']} strings paralelo "
+              f"= {res['n_paneles_configurados']} paneles")
+    L.append(f"V string en frio = Nserie x Voc x (1 + coef x (25 - Tmin)) = {res['n_serie']} x {inp['voc']:g} "
+              f"x (1 + {inp['coef_temp_voc']/100:.4f} x (25-{inp['temp_min']:g})) = {res['v_string_frio']:.1f} V")
+    L.append(f"V string en caliente = Nserie x Vmp x (1 + coef x (Tcel-25)) = {res['v_string_caliente']:.1f} V")
+    L.append(f"Verificacion ventana MPPT: {inp['vmin_mppt']:g} V <= V string <= {inp['vmax_mppt']:g} V -> "
+              f"{'Cumple' if (res['cumple_vmpp_min'] and res['cumple_vmpp_max']) else 'No cumple'}")
+    L.append(f"Verificacion tension max. entrada inversor: V string frio ({res['v_string_frio']:.1f} V) <= "
+              f"{inp['vmax_entrada_inversor']:g} V -> {'Cumple' if res['cumple_vmax'] else 'No cumple'}")
+    L.append("")
+    L.append(f"Cableado CC (ITC-BT-40): I diseno = 1,25 x Isc = 1,25 x {inp['isc']:g} = {res['i_diseno_cc']:.2f} A")
+    L.append(f"Seccion CC adoptada = {res['s_cc_final']:g} mm2 Cu XLPE  ->  ΔU parcial CC = {res['du_cc_pct']:.2f} %")
+    L.append(f"Cableado CA inversor-cuadro: Ib = {res['ib_ca']:.2f} A ; I diseno (125%) = {res['i_diseno_ca']:.2f} A")
+    L.append(f"Seccion CA adoptada = {res['s_ca_final']:g} mm2 Cu XLPE  ->  ΔU parcial CA = {res['e_ca_pct']:.2f} %")
+    L.append(f"ΔU combinada CC+CA = {res['du_total_pct']:.2f} %  (limite ITC-BT-40: 1,5% entre generador y "
+              "punto de interconexion) -> " + ("Cumple" if res["du_total_pct"] <= 1.5 else "No cumple"))
+    L.append("")
+    if res.get("calibre_fusible_string"):
+        L.append(f"Fusible de string sugerido: {res['calibre_fusible_string']} A "
+                  f"(criterio orientativo ~1,8 x Isc, UNE-EN 62548)")
+    L.append(f"Magnetotermico CA sugerido: {res['calibre_magneto_ca']} A")
+    if res.get("ahorro_anual"):
+        L.append("")
+        L.append(f"Ahorro anual estimado = Produccion x precio_kWh x %autoconsumo = "
+                  f"{res['produccion_anual_kwh']:.0f} x {inp['precio_kwh']:.2f} x "
+                  f"{inp['pct_autoconsumo']/100:.2f} = {res['ahorro_anual']:.2f} EUR/anio")
+        if res.get("payback_anos"):
+            L.append(f"Retorno simple = Inversion / Ahorro anual = {inp['inversion_total']:.0f} / "
+                      f"{res['ahorro_anual']:.2f} = {res['payback_anos']:.1f} anios")
+    return L
+
+
+def _cajetin_generico(titulo: str, subtitulo: str, datos_proyecto: dict, margin, cajetin_h, AZUL, COBRE, GRIS):
+    """Factoría de función de cajetín reutilizable por los distintos documentos
+    (MTD, Anexo, Condiciones Generales), con el mismo estilo que la memoria de
+    cálculo de la Calculadora de cables."""
+    from reportlab.lib.units import cm
+    fecha_hoy = date.today().strftime("%d/%m/%Y")
+
+    def _cajetin(c, d):
+        from reportlab.lib.pagesizes import A4
+        c.saveState()
+        width, height = A4
+        top = height - margin
+        c.setStrokeColor(AZUL)
+        c.setLineWidth(1.1)
+        c.rect(margin, top - cajetin_h, width - 2 * margin, cajetin_h)
+        divisor_x = width - margin - 5.2 * cm
+        c.line(divisor_x, top - cajetin_h, divisor_x, top)
+        c.setFillColor(AZUL)
+        c.setFont("Helvetica-Bold", 12.5)
+        c.drawString(margin + 0.35 * cm, top - 0.85 * cm, _pdf_safe(titulo))
+        c.setFont("Helvetica", 8.3)
+        c.setFillColor(GRIS)
+        c.drawString(margin + 0.35 * cm, top - 1.35 * cm, _pdf_safe(subtitulo))
+        c.drawString(margin + 0.35 * cm, top - 1.85 * cm,
+                      _pdf_safe(f"Titular: {datos_proyecto.get('titular') or '-'}  |  "
+                                f"Emplazamiento: {datos_proyecto.get('emplazamiento') or '-'}"))
+        campos = [("NORMA", "REBT - ITC-BT"), ("FECHA", fecha_hoy), ("REVISION", "1.0")]
+        y = top - 0.55 * cm
+        for etiqueta, valor in campos:
+            c.setFont("Helvetica-Bold", 6.6)
+            c.setFillColor(GRIS)
+            c.drawString(divisor_x + 0.3 * cm, y, etiqueta)
+            c.setFont("Helvetica-Bold", 9)
+            c.setFillColor(AZUL)
+            c.drawString(divisor_x + 0.3 * cm, y - 0.34 * cm, valor)
+            y -= 0.72 * cm
+        c.setStrokeColor(COBRE)
+        c.setLineWidth(2.2)
+        c.line(margin, top - cajetin_h, width - margin, top - cajetin_h)
+        c.setFont("Helvetica-Oblique", 6.8)
+        c.setFillColor(GRIS)
+        c.drawCentredString(width / 2, margin * 0.45,
+                              "Documento generado con la Calculadora de Secciones de Cable. Revisar por un "
+                              "tecnico competente antes de su presentacion oficial.")
+        c.drawRightString(width - margin, margin * 0.45, f"Pag. {d.page}")
+        c.restoreState()
+
+    return _cajetin
+
+
+def _preparar_doc_pdf(titulo: str, subtitulo: str, datos_proyecto: dict):
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import cm as _cm
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+    AZUL = colors.HexColor("#122340")
+    COBRE = colors.HexColor("#b3711f")
+    GRIS = colors.HexColor("#5a6472")
+    buffer = io.BytesIO()
+    margin = 1.6 * _cm
+    cajetin_h = 2.6 * _cm
+    doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=margin, rightMargin=margin,
+                              topMargin=margin + cajetin_h + 0.3 * _cm, bottomMargin=margin + 0.6 * _cm)
+    cajetin = _cajetin_generico(titulo, subtitulo, datos_proyecto, margin, cajetin_h, AZUL, COBRE, GRIS)
+    styles = getSampleStyleSheet()
+    h2 = ParagraphStyle("h2doc", parent=styles["Heading2"], textColor=AZUL, fontSize=12, spaceBefore=10, spaceAfter=4)
+    h3 = ParagraphStyle("h3doc", parent=styles["Heading3"], textColor=COBRE, fontSize=10.5, spaceBefore=8, spaceAfter=3)
+    normal = ParagraphStyle("normaldoc", parent=styles["Normal"], fontSize=9.3, leading=13.5)
+    return buffer, doc, cajetin, AZUL, colors, h2, h3, normal
+
+
+def generar_pdf_mtd(datos_proyecto: dict, inputs_cable: dict, resultado_cable: dict,
+                     inputs_fv: dict, resultado_fv: dict, total_presupuesto: float) -> bytes:
+    from reportlab.platypus import Table, TableStyle, Paragraph, Spacer
+
+    buffer, doc, cajetin, AZUL, colors, h2, h3, normal = _preparar_doc_pdf(
+        "MEMORIA TECNICA DE DISENO (MTD)", "REBT - ITC-BT-04", datos_proyecto)
+
+    hay_cable = resultado_cable.get("seccion_final") is not None
+    hay_fv = bool(resultado_fv) and resultado_fv.get("p_pico_kwp") is not None
+
+    def tabla(datos, colw=(6.5, 9.5)):
+        from reportlab.lib.units import cm as _cm
+        t = Table(datos, colWidths=[colw[0] * _cm, colw[1] * _cm])
+        t.setStyle(TableStyle([
+            ("FONTSIZE", (0, 0), (-1, -1), 9), ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#c9ccd1")),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("BACKGROUND", (0, 0), (-1, 0), AZUL), ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ]))
+        return t
+
+    story = [Paragraph("1. Datos generales", h2)]
+    story.append(tabla([
+        ["Campo", "Valor"],
+        ["Titular de la instalación", datos_proyecto.get("titular") or "-"],
+        ["Emplazamiento", datos_proyecto.get("emplazamiento") or "-"],
+        ["Referencia catastral", datos_proyecto.get("referencia_catastral") or "-"],
+        ["Uso de la instalación", datos_proyecto.get("uso") or "-"],
+    ]))
+
+    story.append(Paragraph("2. Objeto", h2))
+    story.append(Paragraph(
+        "La presente Memoria Técnica de Diseño (MTD) tiene por objeto describir y justificar las "
+        "características técnicas de la instalación eléctrica de baja tensión reseñada, de acuerdo con el "
+        "Reglamento Electrotécnico para Baja Tensión (REBT, RD 842/2002) y sus Instrucciones Técnicas "
+        "Complementarias, en particular la ITC-BT-04 sobre documentación y puesta en servicio de las "
+        "instalaciones.", normal))
+
+    story.append(Paragraph("3. Descripción de la instalación", h2))
+    if hay_cable:
+        story.append(Paragraph(f"<b>Instalación de baja tensión — {inputs_cable['tipo_circuito']}</b>", h3))
+        story.append(tabla([
+            ["Concepto", "Valor"],
+            ["Sistema", f"{inputs_cable['sistema']} — {inputs_cable['tension']:g} V"],
+            ["Conductor / Aislamiento", f"{inputs_cable['conductor']} / {inputs_cable['aislamiento']}"],
+            ["Método de instalación", inputs_cable["metodo"]],
+            ["Sección de fase adoptada", f"{resultado_cable['seccion_final']:g} mm²"],
+            ["Protección (interruptor automático)", f"{resultado_cable['calibre_magnetotermico']} A"],
+        ]))
+    if hay_fv:
+        story.append(Paragraph("<b>Instalación generadora fotovoltaica (RD 244/2019, ITC-BT-40)</b>", h3))
+        story.append(tabla([
+            ["Concepto", "Valor"],
+            ["Modalidad de autoconsumo", inputs_fv["tipo_autoconsumo"]],
+            ["Potencia pico instalada", f"{resultado_fv['p_pico_kwp']:.2f} kWp"],
+            ["Nº de paneles", f"{resultado_fv['n_paneles_configurados']}"],
+            ["Potencia del inversor", f"{inputs_fv['potencia_inversor_kw']:g} kW"],
+            ["Producción anual estimada", f"{resultado_fv['produccion_anual_kwh']:,.0f} kWh/año".replace(",", ".")],
+        ]))
+        umbral = "≤10 kW → Certificado eléctrico" if resultado_fv["p_pico_kwp"] <= 10 else ">10 kW → Proyecto firmado por técnico competente"
+        story.append(Paragraph(f"Régimen documental según RD 244/2019: {umbral}.", normal))
+    if not hay_cable and not hay_fv:
+        story.append(Paragraph("No se ha completado ningún cálculo en las pestañas Calculadora o "
+                                "Fotovoltaica de la aplicación. Complétalos antes de generar la MTD "
+                                "definitiva.", normal))
+
+    story.append(Paragraph("4. Presupuesto", h2))
+    if total_presupuesto:
+        story.append(Paragraph(f"El presupuesto de la instalación asciende a la cantidad de "
+                                f"<b>{total_presupuesto:,.2f} €</b> ({numero_a_letras_euros(total_presupuesto)}), "
+                                "IVA incluido, según el desglose por capítulos que se adjunta en el documento "
+                                "de Presupuesto.".replace(",", "."), normal))
+    else:
+        story.append(Paragraph("No se ha generado presupuesto en la pestaña correspondiente.", normal))
+
+    story.append(Paragraph("5. Documentos que integran el proyecto", h2))
+    for linea in ["Memoria Técnica de Diseño (este documento)", "Anexo de cálculos y mediciones",
+                  "Condiciones generales de ejecución", "Presupuesto", "Planos (si procede)"]:
+        story.append(Paragraph("• " + linea, normal))
+
+    story.append(Spacer(1, 10))
+    story.append(Paragraph(
+        "Documento de apoyo generado automáticamente. Antes de su presentación ante el organismo competente, "
+        "debe ser revisado, completado y, en su caso, firmado por el instalador autorizado o técnico "
+        "competente responsable.", normal))
+
+    doc.build(story, onFirstPage=cajetin, onLaterPages=cajetin)
+    return buffer.getvalue()
+
+
+def generar_pdf_anexo_calculos(datos_proyecto: dict, inputs_cable: dict, resultado_cable: dict,
+                                 inputs_fv: dict, resultado_fv: dict, capitulos_presupuesto: list,
+                                 pct_beneficio: float, pct_amortizacion: float) -> bytes:
+    from reportlab.platypus import Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.units import cm as _cm
+
+    buffer, doc, cajetin, AZUL, colors, h2, h3, normal = _preparar_doc_pdf(
+        "ANEXO DE CALCULOS Y MEDICIONES", "Justificacion tecnica y mediciones", datos_proyecto)
+
+    story = []
+    hay_cable = resultado_cable.get("seccion_final") is not None
+    hay_fv = bool(resultado_fv) and resultado_fv.get("p_pico_kwp") is not None
+
+    story.append(Paragraph("1. Cálculos justificativos", h2))
+    if hay_cable:
+        story.append(Paragraph(f"1.1. Instalación de baja tensión — {inputs_cable['tipo_circuito']}", h3))
+        for linea in _lineas_formulas_texto(inputs_cable, resultado_cable):
+            if linea:
+                story.append(Paragraph(_pdf_safe(linea), normal))
+    if hay_fv:
+        story.append(Paragraph("1.2. Instalación fotovoltaica", h3))
+        for linea in _lineas_formulas_fv_texto(inputs_fv, resultado_fv):
+            if linea:
+                story.append(Paragraph(_pdf_safe(linea), normal))
+    if not hay_cable and not hay_fv:
+        story.append(Paragraph("No hay cálculos disponibles: completa la Calculadora de cables y/o el "
+                                "módulo Fotovoltaico antes de generar este anexo.", normal))
+
+    story.append(Paragraph("2. Mediciones", h2))
+    if capitulos_presupuesto:
+        for cap in capitulos_presupuesto:
+            if not cap["items"]:
+                continue
+            story.append(Paragraph(cap["nombre"], h3))
+            filas = [["Partida", "Designación", "Ud.", "Cantidad"]]
+            for it in cap["items"]:
+                filas.append([it.get("partida", "-"), it["designacion"][:70], it["unidades"], f"{it['cantidad']:g}"])
+            t = Table(filas, colWidths=[1.6 * _cm, 9.5 * _cm, 1.5 * _cm, 2.4 * _cm])
+            t.setStyle(TableStyle([
+                ("FONTSIZE", (0, 0), (-1, -1), 8), ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#c9ccd1")),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("BACKGROUND", (0, 0), (-1, 0), AZUL),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white), ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ]))
+            story.append(t)
+        story.append(Spacer(1, 6))
+        story.append(Paragraph(f"Porcentajes aplicados en el presupuesto: Beneficio industrial {pct_beneficio:g}%, "
+                                f"Amortización de medios auxiliares {pct_amortizacion:g}%. El desglose económico "
+                                "completo se encuentra en el documento de Presupuesto.", normal))
+    else:
+        story.append(Paragraph("No se han definido capítulos en la pestaña Presupuesto.", normal))
+
+    doc.build(story, onFirstPage=cajetin, onLaterPages=cajetin)
+    return buffer.getvalue()
+
+
+def generar_pdf_condiciones_generales(datos_proyecto: dict, hay_fv: bool) -> bytes:
+    from reportlab.platypus import Paragraph, Spacer
+
+    buffer, doc, cajetin, AZUL, colors, h2, h3, normal = _preparar_doc_pdf(
+        "CONDICIONES GENERALES DE EJECUCION", "Prescripciones técnicas generales", datos_proyecto)
+
+    story = [Paragraph("1. Normativa de aplicación", h2)]
+    story.append(Paragraph(
+        "La instalación se ejecutará de acuerdo con el Reglamento Electrotécnico para Baja Tensión (REBT, "
+        "RD 842/2002) y sus Instrucciones Técnicas Complementarias (ITC-BT), las normas UNE que le sean de "
+        "aplicación, y, en su caso, el Real Decreto 244/2019 de autoconsumo y el Código Técnico de la "
+        "Edificación.", normal))
+
+    story.append(Paragraph("2. Materiales", h2))
+    for linea in [
+        "Todos los materiales y equipos serán de primera calidad y dispondrán del marcado CE cuando "
+        "sea de aplicación, cumpliendo las normas UNE correspondientes a cada tipo de material.",
+        "Los conductores serán de cobre (salvo justificación expresa de aluminio) con la sección y el "
+        "aislamiento indicados en el Anexo de Cálculos.",
+        "Los aparatos de mando, maniobra y protección serán adecuados a la intensidad y tensión de la "
+        "instalación, y estarán homologados conforme a la normativa vigente.",
+    ]:
+        story.append(Paragraph("• " + linea, normal))
+
+    story.append(Paragraph("3. Ejecución", h2))
+    for linea in [
+        "La instalación será ejecutada por instalador autorizado, siguiendo las prescripciones de la "
+        "ITC-BT-19 (prescripciones generales), ITC-BT-17 (protección contra sobretensiones y "
+        "sobreintensidades) e ITC-BT-24 (protección contra contactos directos e indirectos).",
+        "Las canalizaciones se dispondrán de forma que permitan su identificación, mantenimiento e "
+        "inspección, evitando su proximidad a otras instalaciones (agua, gas, calefacción) según ITC-BT-20/21.",
+        "Se respetarán las distancias y radios de curvatura mínimos de los conductores y canalizaciones "
+        "indicados por el fabricante.",
+    ]:
+        story.append(Paragraph("• " + linea, normal))
+
+    story.append(Paragraph("4. Puesta a tierra y protecciones", h2))
+    story.append(Paragraph(
+        "La puesta a tierra se ejecutará conforme a la ITC-BT-18, garantizando una resistencia de tierra "
+        "compatible con las protecciones diferenciales instaladas (ITC-BT-24). Todas las masas metálicas "
+        "accesibles se conectarán al conductor de protección.", normal))
+
+    if hay_fv:
+        story.append(Paragraph("5. Condiciones específicas de la instalación fotovoltaica", h2))
+        for linea in [
+            "La instalación generadora cumplirá la ITC-BT-40 y el Real Decreto 244/2019 sobre condiciones "
+            "administrativas, técnicas y económicas del autoconsumo de energía eléctrica.",
+            "Los cables de conexión se dimensionarán para una intensidad no inferior al 125% de la intensidad "
+            "máxima del generador, con una caída de tensión conjunta (CC+CA) no superior al 1,5% entre el "
+            "generador y el punto de interconexión.",
+            "Las instalaciones de autoconsumo sin excedentes dispondrán de un mecanismo antivertido conforme "
+            "al Anexo I de la ITC-BT-40.",
+            "Se dispondrá de un cuadro de mando y protección específico con las protecciones diferenciales "
+            "necesarias, y de los dispositivos de desconexión requeridos para las labores de mantenimiento.",
+        ]:
+            story.append(Paragraph("• " + linea, normal))
+        story.append(Paragraph("6. Pruebas y puesta en servicio", h2))
+    else:
+        story.append(Paragraph("5. Pruebas y puesta en servicio", h2))
+    story.append(Paragraph(
+        "Antes de la puesta en servicio se realizarán las verificaciones e inspecciones indicadas en la "
+        "ITC-BT-05 (verificaciones e inspecciones) y se emitirá el correspondiente Certificado de "
+        "Instalación Eléctrica (CIE) o, en su caso, Boletín de instalación, incluyendo medida de resistencia "
+        "de aislamiento, continuidad de conductores de protección y resistencia de puesta a tierra.", normal))
+
+    story.append(Paragraph("7. Mantenimiento", h2))
+    story.append(Paragraph(
+        "El titular de la instalación velará por su correcto mantenimiento, revisando periódicamente el "
+        "estado de conductores, protecciones y puesta a tierra, y encargando las inspecciones periódicas "
+        "que, en su caso, sean obligatorias según la potencia y el uso de la instalación.", normal))
+
+    story.append(Spacer(1, 10))
+    story.append(Paragraph(
+        "Estas condiciones generales son un documento de apoyo estándar; adáptalas a las particularidades "
+        "de cada proyecto y a las ordenanzas municipales o autonómicas que puedan resultar de aplicación.",
+        normal))
+
+    doc.build(story, onFirstPage=cajetin, onLaterPages=cajetin)
+    return buffer.getvalue()
+
+
+
 # ==============================================================================
-# 7. PRESUPUESTO (mediciones x precios unitarios editables) + EXPORT EXCEL
+# 7. PRESUPUESTO POR CAPÍTULOS (mismo formato que el excel de referencia:
+# Partida/Designación/Unidades/Cantidad/Precio/Importe + panel de Precio
+# base/Beneficio/Amortización, y Resumen con IVA e importe en letra) — SIN la
+# columna de "Código" que traía el excel original.
 # ==============================================================================
 
-def tabla_precios_cable_defecto() -> pd.DataFrame:
-    filas = []
-    for s in SECCIONES_NORMALIZADAS:
-        filas.append({
-            "Sección (mm²)": s,
-            "€/m Cobre": PRECIOS_CABLE_COBRE_DEFECTO[s],
-            "€/m Aluminio": round(PRECIOS_CABLE_COBRE_DEFECTO[s] * RATIO_PRECIO_ALUMINIO, 2),
-        })
-    return pd.DataFrame(filas)
+def calcular_precio_venta(precio_base: float, pct_beneficio: float, pct_amortizacion: float) -> float:
+    """Precio_venta = Precio_base x (1 + %beneficio + %amortizacion), tal y como
+    lo calcula la 'Justificación de Precio' del excel de referencia."""
+    return round(precio_base * (1 + (pct_beneficio + pct_amortizacion) / 100.0), 4)
 
 
-def tabla_otros_conceptos_defecto(metodo: str) -> pd.DataFrame:
-    filas = [
-        {"Concepto": "Canalización (tubo / bandeja según método)", "Unidad": "€/m",
-         "Precio unitario (€)": PRECIOS_CANALIZACION_DEFECTO.get(metodo, 2.0)},
-        {"Concepto": "Mano de obra de instalación", "Unidad": "€/m",
-         "Precio unitario (€)": PRECIO_MANO_OBRA_POR_METRO},
-        {"Concepto": "Accesorios y pequeño material (cajas, terminales...)", "Unidad": "% s/materiales",
-         "Precio unitario (€)": PORCENTAJE_ACCESORIOS},
-    ]
-    return pd.DataFrame(filas)
+def calcular_totales_capitulo(items: list, pct_beneficio: float, pct_amortizacion: float) -> float:
+    total = 0.0
+    for it in items:
+        precio_venta = calcular_precio_venta(it["precio_base"], pct_beneficio, pct_amortizacion)
+        total += it["cantidad"] * precio_venta
+    return round(total, 2)
 
 
-def calcular_presupuesto(inp: dict, res: dict, precios_cable: pd.DataFrame,
-                          otros_conceptos: pd.DataFrame) -> tuple:
-    """Devuelve (df_mediciones, subtotal_materiales, subtotal_mo, total)."""
+# --- Conversión de importes a letras (estilo "Cuatro mil ochocientos treinta
+# y nueve euros y setenta céntimos", igual que en el excel de referencia) ---
+
+_UNIDADES_L = ["", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve"]
+_DIECI_L = ["diez", "once", "doce", "trece", "catorce", "quince", "dieciséis", "diecisiete",
+            "dieciocho", "diecinueve"]
+_VEINTI_L = ["veinte", "veintiuno", "veintidós", "veintitrés", "veinticuatro", "veinticinco",
+             "veintiséis", "veintisiete", "veintiocho", "veintinueve"]
+_DECENAS_L = ["", "", "", "treinta", "cuarenta", "cincuenta", "sesenta", "setenta", "ochenta", "noventa"]
+_CENTENAS_L = ["", "ciento", "doscientos", "trescientos", "cuatrocientos", "quinientos",
+               "seiscientos", "setecientos", "ochocientos", "novecientos"]
+
+
+def _dos_digitos_letras(n: int) -> str:
+    if n < 10:
+        return _UNIDADES_L[n]
+    if n < 20:
+        return _DIECI_L[n - 10]
+    if n < 30:
+        return _VEINTI_L[n - 20]
+    d, u = divmod(n, 10)
+    return _DECENAS_L[d] + (f" y {_UNIDADES_L[u]}" if u else "")
+
+
+def _tres_digitos_letras(n: int) -> str:
+    if n == 0:
+        return ""
+    if n == 100:
+        return "cien"
+    c, resto = divmod(n, 100)
+    partes = []
+    if c:
+        partes.append(_CENTENAS_L[c])
+    if resto:
+        partes.append(_dos_digitos_letras(resto))
+    return " ".join(partes)
+
+
+def _apocope_uno(texto: str) -> str:
+    if texto.endswith("veintiuno"):
+        return texto[:-3] + "ún"
+    if texto.endswith("uno"):
+        return texto[:-3] + "un"
+    return texto
+
+
+def numero_entero_a_letras(n: int) -> str:
+    if n == 0:
+        return "cero"
+    partes = []
+    millones, resto = divmod(n, 1_000_000)
+    miles, unidades = divmod(resto, 1000)
+    if millones:
+        texto_millones = "un millón" if millones == 1 else _tres_digitos_letras(millones) + " millones"
+        if miles == 0 and unidades == 0:
+            texto_millones += " de"
+        partes.append(texto_millones)
+    if miles:
+        partes.append("mil" if miles == 1 else _tres_digitos_letras(miles) + " mil")
+    if unidades:
+        partes.append(_tres_digitos_letras(unidades))
+    return " ".join(partes)
+
+
+def numero_a_letras_euros(importe: float) -> str:
+    importe = round(importe, 2)
+    euros = int(importe)
+    centimos = round((importe - euros) * 100)
+    texto_euros = _apocope_uno(numero_entero_a_letras(euros))
+    resultado = f"{texto_euros.capitalize()} {'euro' if euros == 1 else 'euros'}"
+    if centimos:
+        texto_cent = _apocope_uno(numero_entero_a_letras(centimos))
+        resultado += f" y {texto_cent} {'céntimo' if centimos == 1 else 'céntimos'}"
+    return resultado
+
+
+IVA_DEFECTO_PCT = 21.0
+
+
+def item_desde_calculo_cable(inp: dict, res: dict) -> list:
+    """Traduce el resultado de la Calculadora de cables en líneas de
+    presupuesto (acción explícita del usuario: 'importar', nunca automática)."""
+    if res.get("seccion_final") is None:
+        return []
     seccion = res["seccion_final"]
-    if seccion is None:
-        return pd.DataFrame(), 0.0, 0.0, 0.0
-
     n_paralelo = res["n_paralelo"] if res["necesita_paralelo"] else 1
-    longitud = inp["longitud"]
-    conductor = inp["conductor"]
-    columna_precio = "€/m Cobre" if conductor == "Cobre" else "€/m Aluminio"
-
-    def precio_cable(s):
-        fila = precios_cable.loc[precios_cable["Sección (mm²)"] == s]
-        if fila.empty:
-            return 0.0
-        return float(fila.iloc[0][columna_precio])
-
     n_fases = 3 if inp["sistema"] == SISTEMA_TRI else 1
-    filas = []
-
-    metros_fase = longitud * n_fases * n_paralelo
-    filas.append({
-        "Concepto": f"Cable {conductor} {seccion:g} mm² (fase)", "Unidad": "m",
-        "Cantidad": metros_fase, "Precio unitario (€)": precio_cable(seccion),
-        "Importe (€)": round(metros_fase * precio_cable(seccion), 2),
-    })
-
+    precio_cable = PRECIOS_CABLE_COBRE_DEFECTO.get(seccion, 5.0) if inp["conductor"] == "Cobre" else \
+        round(PRECIOS_CABLE_COBRE_DEFECTO.get(seccion, 5.0) * RATIO_PRECIO_ALUMINIO, 2)
+    items = [{
+        "designacion": f"Cable {inp['conductor']} {seccion:g} mm² ({inp['aislamiento']}) — fase",
+        "unidades": "m", "cantidad": round(inp["longitud"] * n_fases * n_paralelo, 2),
+        "precio_base": precio_cable,
+    }]
     if res.get("seccion_neutro"):
-        s_n = res["seccion_neutro"]
-        metros_n = longitud * n_paralelo
-        filas.append({
-            "Concepto": f"Cable {conductor} {s_n:g} mm² (neutro)", "Unidad": "m",
-            "Cantidad": metros_n, "Precio unitario (€)": precio_cable(s_n),
-            "Importe (€)": round(metros_n * precio_cable(s_n), 2),
+        items.append({
+            "designacion": f"Cable {inp['conductor']} {res['seccion_neutro']:g} mm² — neutro",
+            "unidades": "m", "cantidad": round(inp["longitud"] * n_paralelo, 2),
+            "precio_base": PRECIOS_CABLE_COBRE_DEFECTO.get(res["seccion_neutro"], 5.0),
         })
-
     if res.get("seccion_proteccion"):
-        s_p = res["seccion_proteccion"]
-        metros_p = longitud * n_paralelo
-        filas.append({
-            "Concepto": f"Cable {conductor} {s_p:g} mm² (protección PE)", "Unidad": "m",
-            "Cantidad": metros_p, "Precio unitario (€)": precio_cable(s_p),
-            "Importe (€)": round(metros_p * precio_cable(s_p), 2),
+        items.append({
+            "designacion": f"Cable {inp['conductor']} {res['seccion_proteccion']:g} mm² — protección (PE)",
+            "unidades": "m", "cantidad": round(inp["longitud"] * n_paralelo, 2),
+            "precio_base": PRECIOS_CABLE_COBRE_DEFECTO.get(res["seccion_proteccion"], 5.0),
         })
-
-    fila_canal = otros_conceptos.loc[otros_conceptos["Concepto"].str.startswith("Canalización")]
-    precio_canal = float(fila_canal.iloc[0]["Precio unitario (€)"]) if not fila_canal.empty else 0.0
-    filas.append({
-        "Concepto": "Canalización (tubo / bandeja)", "Unidad": "m",
-        "Cantidad": longitud, "Precio unitario (€)": precio_canal,
-        "Importe (€)": round(longitud * precio_canal, 2),
+    items.append({
+        "designacion": f"Interruptor automático {res['calibre_magnetotermico']} A",
+        "unidades": "ud", "cantidad": 1,
+        "precio_base": PRECIOS_MAGNETOTERMICO_DEFECTO.get(res["calibre_magnetotermico"], 30.0),
     })
-
-    calibre = res["calibre_magnetotermico"]
-    precio_mt = PRECIOS_MAGNETOTERMICO_DEFECTO.get(calibre, 30)
-    filas.append({
-        "Concepto": f"Interruptor automático {calibre} A", "Unidad": "ud",
-        "Cantidad": 1, "Precio unitario (€)": precio_mt, "Importe (€)": precio_mt,
+    items.append({
+        "designacion": "Mano de obra de instalación (oficial 1ª electricista)",
+        "unidades": "horas", "cantidad": round(max(inp["longitud"] / 10.0, 1.0), 1),
+        "precio_base": 33.0,
     })
-    calibre_dif = min((c for c in PRECIOS_DIFERENCIAL_DEFECTO if c >= calibre),
-                       default=max(PRECIOS_DIFERENCIAL_DEFECTO))
-    precio_dif = PRECIOS_DIFERENCIAL_DEFECTO[calibre_dif]
-    filas.append({
-        "Concepto": f"Interruptor diferencial {calibre_dif} A", "Unidad": "ud",
-        "Cantidad": 1, "Precio unitario (€)": precio_dif, "Importe (€)": precio_dif,
-    })
-
-    subtotal_materiales = sum(f["Importe (€)"] for f in filas)
-
-    fila_acc = otros_conceptos.loc[otros_conceptos["Concepto"].str.startswith("Accesorios")]
-    pct_acc = float(fila_acc.iloc[0]["Precio unitario (€)"]) if not fila_acc.empty else 0.0
-    importe_acc = round(subtotal_materiales * pct_acc / 100.0, 2)
-    filas.append({
-        "Concepto": "Accesorios y pequeño material", "Unidad": f"{pct_acc:g}% s/materiales",
-        "Cantidad": 1, "Precio unitario (€)": importe_acc, "Importe (€)": importe_acc,
-    })
-
-    fila_mo = otros_conceptos.loc[otros_conceptos["Concepto"].str.startswith("Mano de obra")]
-    precio_mo = float(fila_mo.iloc[0]["Precio unitario (€)"]) if not fila_mo.empty else 0.0
-    importe_mo = round(longitud * precio_mo, 2)
-    filas.append({
-        "Concepto": "Mano de obra de instalación", "Unidad": "m",
-        "Cantidad": longitud, "Precio unitario (€)": precio_mo, "Importe (€)": importe_mo,
-    })
-
-    df = pd.DataFrame(filas)
-    subtotal_mo = importe_mo
-    total = round(df["Importe (€)"].sum(), 2)
-    return df, round(subtotal_materiales + importe_acc, 2), subtotal_mo, total
+    return items
 
 
-def generar_excel_presupuesto(df_presupuesto: pd.DataFrame, inp: dict, res: dict, total: float,
-                                desglose: dict = None) -> bytes:
+def items_desde_calculo_fv(inp: dict, res: dict) -> list:
+    """Traduce el resultado del módulo Fotovoltaico en líneas de presupuesto
+    (también una acción explícita del usuario, no automática)."""
+    items = [
+        {"designacion": f"Panel fotovoltaico {inp['potencia_panel_wp']:g} Wp", "unidades": "ud",
+         "cantidad": res["n_paneles_configurados"], "precio_base": PRECIOS_FV_DEFECTO["Panel fotovoltaico (según Wp introducido)"][1]},
+        {"designacion": f"Inversor {inp['potencia_inversor_kw']:g} kW", "unidades": "ud", "cantidad": 1,
+         "precio_base": PRECIOS_FV_DEFECTO["Inversor (según kW introducido)"][1]},
+        {"designacion": "Estructura soporte por panel", "unidades": "ud",
+         "cantidad": res["n_paneles_configurados"],
+         "precio_base": PRECIOS_FV_DEFECTO["Estructura soporte por panel (cubierta inclinada)"][1]},
+        {"designacion": f"Cable solar H1Z2Z2-K — tramo CC ({res['s_cc_final']:g} mm²)", "unidades": "m",
+         "cantidad": round(inp["longitud_cc"] * 2 * inp["n_strings_paralelo"], 1),
+         "precio_base": PRECIOS_FV_DEFECTO["Cable solar H1Z2Z2-K (CC)"][1]},
+        {"designacion": f"Cable CA inversor-cuadro ({res['s_ca_final']:g} mm²)", "unidades": "m",
+         "cantidad": round(inp["longitud_ca"] * (3 if inp["sistema_ca"] == SISTEMA_TRI else 2), 1),
+         "precio_base": PRECIOS_FV_DEFECTO["Cable CA inversor-cuadro (según sección calculada)"][1]},
+        {"designacion": "Caja de conexión / string box con fusibles", "unidades": "ud", "cantidad": 1,
+         "precio_base": PRECIOS_FV_DEFECTO["Caja de conexión / string box con fusibles"][1]},
+        {"designacion": "Protector de sobretensiones DC (DPS tipo 2)", "unidades": "ud", "cantidad": 1,
+         "precio_base": PRECIOS_FV_DEFECTO["Protector de sobretensiones DC (DPS tipo 2)"][1]},
+        {"designacion": "Interruptor-seccionador CC", "unidades": "ud", "cantidad": 1,
+         "precio_base": PRECIOS_FV_DEFECTO["Interruptor-seccionador CC"][1]},
+        {"designacion": f"Magnetotérmico CA {res['calibre_magneto_ca']} A (salida inversor)", "unidades": "ud",
+         "cantidad": 1, "precio_base": PRECIOS_FV_DEFECTO["Magnetotérmico CA salida inversor"][1]},
+        {"designacion": "Diferencial tipo A (salida inversor)", "unidades": "ud", "cantidad": 1,
+         "precio_base": PRECIOS_FV_DEFECTO["Diferencial tipo A (salida inversor)"][1]},
+        {"designacion": "Mano de obra instalador FV", "unidades": "kWp",
+         "cantidad": round(res["p_pico_kwp"], 2),
+         "precio_base": PRECIOS_FV_DEFECTO["Mano de obra instalador FV (por kWp)"][1]},
+        {"designacion": "Legalización y tramitación (notificación/certificado)", "unidades": "ud",
+         "cantidad": 1, "precio_base": PRECIOS_FV_DEFECTO["Legalización y tramitación (notificación/certificado)"][1]},
+    ]
+    if res.get("calibre_fusible_string"):
+        items.append({"designacion": f"Fusible de string {res['calibre_fusible_string']} A (par)", "unidades": "ud",
+                       "cantidad": inp["n_strings_paralelo"], "precio_base": 8.0})
+    return items
+
+
+def _sanear_nombre_hoja_excel(nombre: str, existentes: set = None) -> str:
+    """Los nombres de hoja de Excel no admiten \\ / ? * [ ] : y tienen un
+    límite de 31 caracteres; además deben ser únicos dentro del libro."""
+    caracteres_invalidos = '\\/?*[]:'
+    limpio = "".join(c for c in nombre if c not in caracteres_invalidos).strip()
+    limpio = limpio[:31] if limpio else "Capitulo"
+    if existentes is not None:
+        base = limpio[:28]
+        sufijo = 1
+        while limpio in existentes:
+            sufijo += 1
+            limpio = f"{base} ({sufijo})"
+        existentes.add(limpio)
+    return limpio
+
+
+def generar_excel_presupuesto_capitulos(capitulos: list, pct_beneficio: float, pct_amortizacion: float,
+                                          pct_iva: float, nombre_proyecto: str = "") -> bytes:
+    """Genera un excel con la misma estructura que el de referencia: una hoja
+    'Presupuesto' con todos los capítulos seguidos, una hoja por capítulo con
+    el desglose de precio (Precio base/Beneficio/Amortización), y una hoja
+    'Resumen del presupuesto' con el IVA y el importe final en letra."""
     from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.styles import Font, PatternFill, Border, Side
     from openpyxl.utils import get_column_letter
-
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Presupuesto"
 
     azul = "122340"
     cobre = "E8A33D"
-
-    ws.merge_cells("A1:E1")
-    ws["A1"] = "PRESUPUESTO — SECCIÓN DE CONDUCTORES (REBT)"
-    ws["A1"].font = Font(bold=True, size=14, color="FFFFFF")
-    ws["A1"].fill = PatternFill("solid", fgColor=azul)
-    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
-    ws.row_dimensions[1].height = 26
-
-    ws["A2"] = "Circuito:"
-    ws["B2"] = inp["tipo_circuito"]
-    ws["A3"] = "Sistema:"
-    ws["B3"] = f"{inp['sistema']} — {inp['tension']:g} V"
-    ws["A4"] = "Sección adoptada:"
-    ws["B4"] = f"{res['seccion_final']:g} mm² ({inp['conductor']} / {inp['aislamiento']})"
-    ws["A5"] = "Fecha:"
-    ws["B5"] = date.today().strftime("%d/%m/%Y")
-    for r in range(2, 6):
-        ws[f"A{r}"].font = Font(bold=True, color=azul)
-
-    header_row = 7
-    columnas = list(df_presupuesto.columns)
-    for j, col in enumerate(columnas, start=1):
-        c = ws.cell(row=header_row, column=j, value=col)
-        c.font = Font(bold=True, color="FFFFFF")
-        c.fill = PatternFill("solid", fgColor=azul)
-        c.alignment = Alignment(horizontal="center")
-
     thin = Side(style="thin", color="C9CCD1")
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    cols_principales = ["Partida", "Designación", "Unidades", "Cantidad", "Precio", "Importe"]
 
-    for i, row in enumerate(df_presupuesto.itertuples(index=False), start=header_row + 1):
-        for j, val in enumerate(row, start=1):
-            c = ws.cell(row=i, column=j, value=val)
-            c.border = border
-            if columnas[j - 1] in ("Precio unitario (€)", "Importe (€)"):
-                c.number_format = '#,##0.00 €'
-            if columnas[j - 1] == "Cantidad":
-                c.number_format = '#,##0.00'
+    wb = Workbook()
 
-    fila = header_row + len(df_presupuesto) + 1
-    n_col = len(columnas)
-
-    def _fila_resumen(etiqueta, valor, negrita=True, relleno=None):
-        nonlocal fila
-        c1 = ws.cell(row=fila, column=n_col - 1, value=etiqueta)
-        c2 = ws.cell(row=fila, column=n_col, value=valor)
-        c2.number_format = '#,##0.00 €'
-        if negrita:
-            c1.font = Font(bold=True)
-            c2.font = Font(bold=True, color=azul)
-        if relleno:
-            c2.fill = PatternFill("solid", fgColor=relleno)
+    ws_presu = wb.active
+    ws_presu.title = "Presupuesto"
+    ws_presu.append(["PRESUPUESTO" + (f" — {nombre_proyecto}" if nombre_proyecto else "")])
+    ws_presu["A1"].font = Font(bold=True, size=14)
+    fila = 3
+    for cap in capitulos:
+        ws_presu.cell(row=fila, column=1, value=cap["nombre"]).font = Font(bold=True, color=azul)
         fila += 1
+        for j, col in enumerate(cols_principales, start=1):
+            c = ws_presu.cell(row=fila, column=j, value=col)
+            c.font = Font(bold=True, color="FFFFFF")
+            c.fill = PatternFill("solid", fgColor=azul)
+        fila += 1
+        for it in cap["items"]:
+            precio_venta = calcular_precio_venta(it["precio_base"], pct_beneficio, pct_amortizacion)
+            importe = round(it["cantidad"] * precio_venta, 2)
+            valores = [it.get("partida", "-"), it["designacion"], it["unidades"], it["cantidad"], precio_venta, importe]
+            for j, val in enumerate(valores, start=1):
+                c = ws_presu.cell(row=fila, column=j, value=val)
+                c.border = border
+                if j in (5, 6):
+                    c.number_format = '#,##0.00 €'
+            fila += 1
+        ws_presu.cell(row=fila, column=4, value="TOTAL").font = Font(bold=True)
+        tc = ws_presu.cell(row=fila, column=6, value=calcular_totales_capitulo(cap["items"], pct_beneficio, pct_amortizacion))
+        tc.font = Font(bold=True, color=azul)
+        tc.number_format = '#,##0.00 €'
+        fila += 2
+    widths = [10, 55, 10, 11, 13, 13]
+    for j, w in enumerate(widths, start=1):
+        ws_presu.column_dimensions[get_column_letter(j)].width = w
 
-    if desglose:
-        _fila_resumen("PEM (materiales + M.O.)", desglose["pem"], negrita=False)
-        _fila_resumen(f"Amortización ({desglose['pct_amortizacion']:g}%)", desglose["amortizacion"], negrita=False)
-        _fila_resumen(f"Beneficio industrial ({desglose['pct_beneficio']:g}%)", desglose["beneficio"], negrita=False)
-    _fila_resumen("TOTAL", total, negrita=True, relleno=cobre)
+    nombres_hojas_usados = {"Presupuesto", "Resumen del presupuesto"}
+    for cap in capitulos:
+        nombre_hoja = _sanear_nombre_hoja_excel(cap["nombre"], nombres_hojas_usados)
+        ws = wb.create_sheet(nombre_hoja)
+        ws.append([cap["nombre"]])
+        ws["A1"].font = Font(bold=True, size=12)
+        cabecera = cols_principales + ["", "Precio base", "Beneficio", "Amortización", "Precio"]
+        for j, col in enumerate(cabecera, start=1):
+            if not col:
+                continue
+            c = ws.cell(row=3, column=j, value=col)
+            c.font = Font(bold=True, color="FFFFFF")
+            c.fill = PatternFill("solid", fgColor=azul)
+        r = 4
+        for it in cap["items"]:
+            precio_venta = calcular_precio_venta(it["precio_base"], pct_beneficio, pct_amortizacion)
+            importe = round(it["cantidad"] * precio_venta, 2)
+            beneficio_importe = round(it["precio_base"] * pct_beneficio / 100.0, 4)
+            amortizacion_importe = round(it["precio_base"] * pct_amortizacion / 100.0, 4)
+            fila_vals = [it.get("partida", "-"), it["designacion"], it["unidades"], it["cantidad"], precio_venta, importe]
+            for j, val in enumerate(fila_vals, start=1):
+                c = ws.cell(row=r, column=j, value=val)
+                c.border = border
+                if j in (5, 6):
+                    c.number_format = '#,##0.00 €'
+            ws.cell(row=r, column=8, value=it["precio_base"]).number_format = '#,##0.0000 €'
+            ws.cell(row=r, column=9, value=beneficio_importe).number_format = '#,##0.0000 €'
+            ws.cell(row=r, column=10, value=amortizacion_importe).number_format = '#,##0.0000 €'
+            ws.cell(row=r, column=11, value=precio_venta).number_format = '#,##0.0000 €'
+            r += 1
+        ws.cell(row=r, column=4, value="TOTAL").font = Font(bold=True)
+        ws.cell(row=r, column=6, value=calcular_totales_capitulo(cap["items"], pct_beneficio, pct_amortizacion)).number_format = '#,##0.00 €'
+        r += 2
+        ws.cell(row=r, column=8, value="% Beneficio").font = Font(italic=True)
+        ws.cell(row=r, column=9, value="% Amortización").font = Font(italic=True)
+        ws.cell(row=r + 1, column=8, value=pct_beneficio / 100.0).number_format = '0%'
+        ws.cell(row=r + 1, column=9, value=pct_amortizacion / 100.0).number_format = '0%'
+        widths_cap = [10, 55, 10, 11, 13, 13, 3, 13, 12, 13, 13]
+        for j, w in enumerate(widths_cap, start=1):
+            ws.column_dimensions[get_column_letter(j)].width = w
 
-    widths = [42, 14, 12, 16, 14]
-    for j, w in enumerate(widths[:len(columnas)], start=1):
-        ws.column_dimensions[get_column_letter(j)].width = w
-
-    ws_aviso = wb.create_sheet("Notas")
-    ws_aviso["A1"] = ("Los precios unitarios son orientativos (punto de partida editable), no precios de "
-                       "mercado en tiempo real. Sustitúyelos por los de tu proveedor antes de presupuestar "
-                       "en firme. El precio del cobre fluctúa con su cotización en el LME.")
-    ws_aviso["A1"].alignment = Alignment(wrap_text=True)
-    ws_aviso.column_dimensions["A"].width = 90
-    ws_aviso.row_dimensions[1].height = 60
+    ws_r = wb.create_sheet("Resumen del presupuesto")
+    ws_r.merge_cells("A1:F1")
+    ws_r["A1"] = "RESUMEN DEL PRESUPUESTO"
+    ws_r["A1"].font = Font(bold=True, size=14, color="FFFFFF")
+    ws_r["A1"].fill = PatternFill("solid", fgColor=azul)
+    ws_r.append([])
+    ws_r.append(["Capítulo", "", "", "", "", "Coste parcial"])
+    for c in ws_r[3]:
+        c.font = Font(bold=True)
+    subtotal = 0.0
+    for cap in capitulos:
+        parcial = calcular_totales_capitulo(cap["items"], pct_beneficio, pct_amortizacion)
+        subtotal += parcial
+        ws_r.append([cap["nombre"], "", "", "", "", parcial])
+        ws_r.cell(row=ws_r.max_row, column=6).number_format = '#,##0.00 €'
+    ws_r.append([])
+    ws_r.append(["", "", "", "", "Subtotal", round(subtotal, 2)])
+    importe_iva = round(subtotal * pct_iva / 100.0, 2)
+    ws_r.append(["", "", "", "", f"IVA ({pct_iva:g}%)", importe_iva])
+    total = round(subtotal + importe_iva, 2)
+    ws_r.append(["", "", "", "", "TOTAL", total])
+    fila_total = ws_r.max_row
+    for col in (5, 6):
+        ws_r.cell(row=fila_total, column=col).font = Font(bold=True, color=azul)
+        ws_r.cell(row=fila_total, column=col).fill = PatternFill("solid", fgColor=cobre)
+    ws_r.cell(row=fila_total, column=6).number_format = '#,##0.00 €'
+    ws_r.append([numero_a_letras_euros(total)])
+    ws_r.cell(row=ws_r.max_row, column=1).font = Font(italic=True)
+    ws_r.column_dimensions["A"].width = 55
+    for col in "BCDE":
+        ws_r.column_dimensions[col].width = 13
+    ws_r.column_dimensions["F"].width = 15
 
     buffer = io.BytesIO()
     wb.save(buffer)
@@ -1293,245 +1730,183 @@ def generar_excel_presupuesto(df_presupuesto: pd.DataFrame, inp: dict, res: dict
 
 
 # ==============================================================================
-# 8. ESQUEMA UNIFILAR — vista previa SVG + exportación DXF + cálculo integrado
+# 8. INSTALACIONES FOTOVOLTAICAS — módulo de cálculo independiente
 # ==============================================================================
-# No es "arrastrar con el ratón": Streamlit no soporta de forma fiable drag&drop
-# libre sin un componente JS compilado aparte. En su lugar, cada circuito es
-# una secuencia ordenada de símbolos que se construye con botones (añadir /
-# subir / bajar / quitar). Al estilo Caneco/DMELECT: cada circuito lleva su
-# potencia, y la app calcula Ib, sección y calibre con el mismo motor que la
-# pestaña Calculadora, y los etiqueta sobre el propio esquema.
-#
-# Los símbolos se definen UNA sola vez como geometría abstracta (líneas,
-# puntos de contacto, círculos, rectángulos) inspirada en UNE-EN 60617/IEC
-# 60617 — el símbolo base "seccionador" es la cuchilla de corte con sus dos
-# puntos de contacto; el "interruptor automático" añade el cuadrado del
-# disparador; el "diferencial" añade el toroide; el "contactor" añade la
-# bobina de accionamiento. Esa misma geometría se traduce a SVG (preview) y a
-# DXF (exportación), así que ambos son siempre coherentes entre sí. No son
-# bloques certificados pixel a pixel contra la norma, pero sí la construcción
-# gráfica estándar que se usa en cualquier esquema unifilar español.
+# Independiente del todo de la Calculadora de cables: entradas, sesión y motor
+# de cálculo propios. Solo comparten las funciones puras de sección de cable
+# (iz_tabla, seccion_por_criterio_termico, caida_tension_voltios...) porque son
+# la misma física, no porque haya un acoplamiento de datos entre apartados.
 
-_CODIGOS_SIMBOLO = {
-    "Interruptor automático (magnetotérmico)": "IA",
-    "Interruptor diferencial": "ID",
-    "Interruptor general (IGA)": "IGA",
-    "Seccionador": "SEC",
-    "Fusible": "F",
-    "Contactor": "KM",
-    "Guardamotor": "GM",
-    "Transformador": "T",
-    "Motor": "M",
-    "Contador de energía": "Wh",
-    "Condensador": "C",
-    "Puesta a tierra": "PAT",
-    "Lámpara / receptor": "REC",
+ZONAS_CLIMATICAS_HSP = {
+    "Norte (Galicia, Asturias, Cantabria, País Vasco)": 3.7,
+    "Centro / Meseta (Madrid, Castilla)": 4.4,
+    "Mediterráneo / Levante (Cataluña, C. Valenciana, Baleares)": 4.8,
+    "Sur (Andalucía, Murcia, Extremadura)": 5.3,
+    "Canarias": 5.4,
+    "Personalizado (introducir HSP manualmente)": None,
 }
 
-_FAMILIA_RUPTOR = {"Interruptor automático (magnetotérmico)", "Interruptor general (IGA)", "Guardamotor"}
+TIPO_AUTOCONSUMO_FV = [
+    "Sin excedentes",
+    "Con excedentes acogido a compensación",
+    "Con excedentes no acogido a compensación",
+    "Instalación aislada (con batería)",
+]
+
+PR_DEFECTO_FV = 0.80
+
+# Módulo y catálogo de referencia orientativos (editables en la propia app).
+PANEL_DEFECTO = dict(potencia_wp=450, voc=41.8, isc=13.9, vmp=34.6, imp=13.0, coef_temp_voc=-0.27)
+INVERSOR_DEFECTO = dict(potencia_kw=5.0, vmin_mppt=80, vmax_mppt=550, vmax_entrada=600, n_mppt=2)
+
+# Calibres de fusible de string normalizados (A) — criterio orientativo del
+# fabricante: In entre 1,5 y 2,4 veces Isc del string (UNE-EN 62548 / IEC 60269-6).
+CALIBRES_FUSIBLE_STRING = [2, 4, 6, 8, 10, 12, 15, 16, 20, 25, 32]
+
+PRECIOS_FV_DEFECTO = {
+    "Panel fotovoltaico (según Wp introducido)": ("ud", 110.0),
+    "Inversor (según kW introducido)": ("ud", 850.0),
+    "Estructura soporte por panel (cubierta inclinada)": ("ud", 35.0),
+    "Cable solar H1Z2Z2-K (CC)": ("m", 0.95),
+    "Cable CA inversor-cuadro (según sección calculada)": ("m", 2.5),
+    "Caja de conexión / string box con fusibles": ("ud", 85.0),
+    "Protector de sobretensiones DC (DPS tipo 2)": ("ud", 55.0),
+    "Interruptor-seccionador CC": ("ud", 45.0),
+    "Magnetotérmico CA salida inversor": ("ud", 28.0),
+    "Diferencial tipo A (salida inversor)": ("ud", 65.0),
+    "Conectores MC4 (par)": ("ud", 3.5),
+    "Mano de obra instalador FV (por kWp)": ("kWp", 180.0),
+    "Legalización y tramitación (notificación/certificado)": ("ud", 250.0),
+}
 
 
-def _geometria_simbolo(simbolo: str):
-    """Primitivas abstractas centradas en (0,0), línea horizontal en y=0.
-    ('L',x1,y1,x2,y2) línea | ('D',x1,y1,x2,y2) línea discontinua |
-    ('C',cx,cy,r,relleno) círculo | ('R',x,y,w,h) rectángulo (esquina inf-izq) |
-    ('P',x,y) punto de contacto (círculo pequeño relleno) |
-    ('T',x,y,texto,tam,ancla) texto."""
-    codigo = _CODIGOS_SIMBOLO.get(simbolo, "?")
-    g = []
-    if simbolo == "Seccionador":
-        g += [("P", -11, 0), ("P", 11, 0), ("L", -11, 0, 5, -13)]
-    elif simbolo in _FAMILIA_RUPTOR:
-        g += [("P", -11, 0), ("P", 11, 0), ("L", -11, 0, 5, -13), ("R", -7, -10, 7, 7)]
-    elif simbolo == "Interruptor diferencial":
-        g += [("P", -11, 0), ("P", 11, 0), ("L", -11, 0, 5, -13), ("R", -7, -10, 7, 7),
-              ("C", -20, 0, 6, False)]
-    elif simbolo == "Fusible":
-        g += [("R", -4, -8, 8, 16)]
-    elif simbolo == "Contactor":
-        g += [("P", -11, 0), ("P", 11, 0), ("L", -11, 0, 5, -13),
-              ("D", -3, -6, -3, 9), ("C", -3, 13, 4, False)]
-    elif simbolo == "Transformador":
-        g += [("C", -5, 0, 8, False), ("C", 5, 0, 8, False)]
-    elif simbolo == "Motor":
-        g += [("C", 0, 0, 12, False), ("T", 0, 0, "M", 10, "middle")]
-    elif simbolo == "Contador de energía":
-        g += [("C", 0, 0, 12, False), ("T", 0, 0, "Wh", 7.5, "middle")]
-    elif simbolo == "Condensador":
-        g += [("L", -3, -9, -3, 9), ("L", 3, -9, 3, 9)]
-    elif simbolo == "Puesta a tierra":
-        g += [("L", 0, 0, 0, 8)]
-        for i, w in enumerate([16, 10, 5]):
-            yy = 8 + i * 5
-            g.append(("L", -w / 2, yy, w / 2, yy))
-    elif simbolo == "Lámpara / receptor":
-        g += [("C", 0, 0, 11, False), ("L", -7.5, -7.5, 7.5, 7.5), ("L", -7.5, 7.5, 7.5, -7.5)]
-    else:
-        g += [("R", -14, -9, 28, 18), ("T", 0, 0, codigo, 8, "middle")]
-    return g
+def calcular_fv(inp: dict) -> dict:
+    """Motor de cálculo puro de la instalación fotovoltaica. No depende de la
+    Calculadora de cables ni comparte estado con ella."""
+    avisos = []
 
+    hsp = inp["hsp"]
+    pr = inp["pr"]
 
-def _svg_desde_geometria(geo, cx, cy, trazo="#e8edf4", acento="#e8a33d"):
-    p = []
-    for prim in geo:
-        if prim[0] == "L":
-            _, x1, y1, x2, y2 = prim
-            p.append(f'<line x1="{cx+x1}" y1="{cy+y1}" x2="{cx+x2}" y2="{cy+y2}" stroke="{trazo}" '
-                     f'stroke-width="1.4"/>')
-        elif prim[0] == "D":
-            _, x1, y1, x2, y2 = prim
-            p.append(f'<line x1="{cx+x1}" y1="{cy+y1}" x2="{cx+x2}" y2="{cy+y2}" stroke="{trazo}" '
-                     f'stroke-width="1.1" stroke-dasharray="2,2"/>')
-        elif prim[0] == "C":
-            _, ccx, ccy, r, relleno = prim
-            fill = trazo if relleno else "none"
-            p.append(f'<circle cx="{cx+ccx}" cy="{cy+ccy}" r="{r}" fill="{fill}" stroke="{trazo}" '
-                     f'stroke-width="1.4"/>')
-        elif prim[0] == "R":
-            _, x, y, w, h = prim
-            p.append(f'<rect x="{cx+x}" y="{cy+y}" width="{w}" height="{h}" fill="#121b2e" '
-                     f'stroke="{trazo}" stroke-width="1.4" rx="1.5"/>')
-        elif prim[0] == "P":
-            _, x, y = prim
-            p.append(f'<circle cx="{cx+x}" cy="{cy+y}" r="1.6" fill="{trazo}"/>')
-        elif prim[0] == "T":
-            _, x, y, texto, tam, _ancla = prim
-            p.append(f'<text x="{cx+x}" y="{cy+y+tam*0.35}" text-anchor="middle" font-size="{tam}" '
-                     f'fill="{acento}" font-family="monospace">{texto}</text>')
-    return "\n".join(p)
+    if inp["modo_dimensionado"] == "Por consumo anual (kWh)":
+        p_pico_kwp = inp["consumo_anual_kwh"] / max(hsp * 365 * pr, 1e-6)
+        n_paneles = math.ceil(p_pico_kwp * 1000 / inp["potencia_panel_wp"])
+    elif inp["modo_dimensionado"] == "Por potencia pico deseada (kWp)":
+        p_pico_kwp = inp["potencia_pico_deseada"]
+        n_paneles = math.ceil(p_pico_kwp * 1000 / inp["potencia_panel_wp"])
+    else:  # Por número de paneles
+        n_paneles = inp["n_paneles_manual"]
+        p_pico_kwp = n_paneles * inp["potencia_panel_wp"] / 1000
 
+    produccion_anual_kwh = p_pico_kwp * hsp * 365 * pr
+    perdidas_sombra_pct = inp.get("perdidas_sombras", 0.0)
+    produccion_anual_kwh *= (1 - perdidas_sombra_pct / 100.0)
 
-_ESCALA_DXF = 0.34  # convierte las unidades "SVG" de la geometría a mm razonables en DXF
+    # --- Configuración del generador (strings) ---
+    n_serie = inp["n_paneles_serie"]
+    n_paralelo = inp["n_strings_paralelo"]
+    n_paneles_configurados = n_serie * n_paralelo
 
+    voc, isc, vmp = inp["voc"], inp["isc"], inp["vmp"]
+    coef_v = inp["coef_temp_voc"] / 100.0
 
-def _dxf_desde_geometria(msp, geo, cx, cy):
-    e = _ESCALA_DXF
-    for prim in geo:
-        if prim[0] in ("L", "D"):
-            _, x1, y1, x2, y2 = prim
-            msp.add_line((cx + x1 * e, cy - y1 * e), (cx + x2 * e, cy - y2 * e))
-        elif prim[0] == "C":
-            _, ccx, ccy, r, _relleno = prim
-            msp.add_circle((cx + ccx * e, cy - ccy * e), radius=r * e)
-        elif prim[0] == "R":
-            _, x, y, w, h = prim
-            x0, y0 = cx + x * e, cy - y * e
-            msp.add_lwpolyline(
-                [(x0, y0), (x0 + w * e, y0), (x0 + w * e, y0 - h * e), (x0, y0 - h * e)], close=True)
-        elif prim[0] == "P":
-            _, x, y = prim
-            msp.add_circle((cx + x * e, cy - y * e), radius=0.5 * e)
-        elif prim[0] == "T":
-            _, x, y, texto, tam, _ancla = prim
-            altura = max(tam * e * 0.9, 1.6)
-            msp.add_text(texto, dxfattribs={"height": altura}).set_placement(
-                (cx + x * e - altura * 0.3 * len(texto), cy - y * e - altura * 0.3))
+    v_string_frio = n_serie * voc * (1 + coef_v * (25 - inp["temp_min"]))
+    v_string_caliente = n_serie * vmp * (1 + coef_v * (inp["temp_max_celula"] - 25))
+    i_generador = n_paralelo * isc
 
+    cumple_vmax = v_string_frio <= inp["vmax_entrada_inversor"]
+    cumple_vmpp_min = v_string_caliente >= inp["vmin_mppt"]
+    cumple_vmpp_max = v_string_frio <= inp["vmax_mppt"]
+    if not cumple_vmax:
+        avisos.append(f"La tensión de string en frío ({v_string_frio:.0f} V) supera la tensión máxima de "
+                       f"entrada del inversor ({inp['vmax_entrada_inversor']:.0f} V): reduce paneles en serie.")
+    if not cumple_vmpp_min:
+        avisos.append(f"La tensión de string en caliente ({v_string_caliente:.0f} V) queda por debajo del "
+                       f"mínimo MPPT ({inp['vmin_mppt']:.0f} V): añade paneles en serie o revisa el inversor.")
+    if not cumple_vmpp_max:
+        avisos.append(f"La tensión de string en frío ({v_string_frio:.0f} V) supera el máximo de la ventana "
+                       f"MPPT ({inp['vmax_mppt']:.0f} V).")
 
-def calculo_rapido_circuito(potencia_kw: float, cos_phi: float, longitud: float, sistema: str) -> dict:
-    """Cálculo simplificado por circuito para el esquema unifilar: reutiliza el
-    MISMO motor de cálculo que la pestaña Calculadora, con hipótesis de
-    instalación estándar (Cu, PVC, B1, interior-otros usos) para no tener que
-    repetir el formulario completo por cada circuito del esquema."""
-    inp_mini = dict(
-        tipo_circuito="Instalación interior — Otros usos / fuerza", sistema=sistema,
-        tension=(230.0 if sistema == SISTEMA_MONO else 400.0),
-        modo_entrada="Potencia activa", potencia_kw=potencia_kw, cos_phi=cos_phi, intensidad_directa=None,
-        conductor="Cobre", metodo=METODO_B1, aislamiento="PVC", longitud=longitud, delta_u_max=3.0,
-        es_motor=False, corrientes_motores=[], ascensor_grua=False,
-        alumbrado_descarga=False, armonicos=False,
-        temp_ambiente=40.0, usar_kappa_20c=False, disposicion="Empotrados o embutidos",
-        n_circuitos=1, n_capas=1, enterrado=False, resistividad=1.5,
-        verificar_cc=False, icc_ka=None, tiempo_s=None,
+    ratio_dc_ac = (p_pico_kwp / inp["potencia_inversor_kw"]) if inp["potencia_inversor_kw"] else None
+    if ratio_dc_ac and (ratio_dc_ac < 0.9 or ratio_dc_ac > 1.3):
+        avisos.append(f"Ratio DC/AC = {ratio_dc_ac:.2f} fuera del rango habitual (0,9-1,3); revisa la potencia "
+                       "del inversor frente a la del generador.")
+
+    # --- Cableado CC (ITC-BT-40: 125% Imax; DeltaU <= 1,5% ENTRE GENERADOR Y
+    # PUNTO DE INTERCONEXIÓN, es decir CC+CA combinados, no 1,5% en cada tramo).
+    # Se dimensiona cada tramo con un objetivo individual del 1% como margen de
+    # trabajo habitual, y se verifica el conjunto contra el 1,5% real. ---
+    i_diseno_cc = 1.25 * isc
+    kappa_cc = kappa_servicio("Cobre", "XLPE/EPR", usar_20c=False)
+    objetivo_parcial_pct = 0.6
+    s_cc_termica = None
+    for s in SECCIONES_NORMALIZADAS:
+        base = iz_tabla(s, METODO_B1, "XLPE/EPR", "Cobre", 2)
+        if base is not None and base >= i_diseno_cc:
+            s_cc_termica = s
+            break
+    s_cc_termica = s_cc_termica or max(SECCIONES_NORMALIZADAS)
+    s_cc_du = None
+    for s in SECCIONES_NORMALIZADAS:
+        e = 2 * inp["longitud_cc"] * i_diseno_cc / (kappa_cc * s)
+        if e / inp["tension_cc_ref"] * 100 <= objetivo_parcial_pct:
+            s_cc_du = s
+            break
+    s_cc_du = s_cc_du or max(SECCIONES_NORMALIZADAS)
+    s_cc_final = max(s_cc_termica, s_cc_du)
+    du_cc_pct = (2 * inp["longitud_cc"] * i_diseno_cc / (kappa_cc * s_cc_final)) / inp["tension_cc_ref"] * 100
+
+    # --- Cableado CA (inversor -> cuadro), mismas funciones que la Calculadora
+    # de cables pero con datos 100% propios de este módulo. ---
+    ib_ca = calcular_intensidad_empleo(inp["sistema_ca"], inp["potencia_inversor_kw"] * 1000.0,
+                                        inp["tension_ca"], 1.0)
+    i_diseno_ca = 1.25 * ib_ca
+    n_cargados_ca = 2 if inp["sistema_ca"] == SISTEMA_MONO else 3
+    s_ca_termica, iz_ca, _, _ = seccion_por_criterio_termico(
+        i_diseno_ca, METODO_B1, "XLPE/EPR", "Cobre", n_cargados_ca, 1.0)
+    kappa_ca = kappa_servicio("Cobre", "XLPE/EPR")
+    s_ca_du, e_ca, e_ca_pct = seccion_por_caida_tension(
+        inp["sistema_ca"], i_diseno_ca, inp["longitud_ca"], inp["tension_ca"], 1.0, kappa_ca,
+        objetivo_parcial_pct, "Cobre")
+    candidatos_ca = [s for s in (s_ca_termica, s_ca_du) if s is not None]
+    s_ca_final = max(candidatos_ca) if candidatos_ca else None
+    if s_ca_final is not None:
+        e_ca_real = caida_tension_voltios(inp["sistema_ca"], i_diseno_ca, inp["longitud_ca"], s_ca_final,
+                                            1.0, kappa_ca)
+        e_ca_pct = e_ca_real / inp["tension_ca"] * 100
+
+    du_total_pct = du_cc_pct + (e_ca_pct if s_ca_final is not None else 0.0)
+    if du_total_pct > 1.5:
+        avisos.append(f"Caída de tensión combinada CC+CA = {du_total_pct:.2f}% > 1,5% (ITC-BT-40, entre el "
+                       "generador y el punto de interconexión): aumenta la sección de algún tramo o reduce "
+                       "la longitud.")
+
+    # --- Protecciones ---
+    calibre_fusible_string = None
+    if n_paralelo >= 2:
+        objetivo = 1.8 * isc
+        for c in CALIBRES_FUSIBLE_STRING:
+            if c >= objetivo:
+                calibre_fusible_string = c
+                break
+        calibre_fusible_string = calibre_fusible_string or CALIBRES_FUSIBLE_STRING[-1]
+    calibre_magneto_ca = calibre_magnetotermico_sugerido(i_diseno_ca)
+
+    # --- Económico simplificado ---
+    ahorro_anual = produccion_anual_kwh * inp["precio_kwh"] * (inp["pct_autoconsumo"] / 100.0)
+    payback_anos = (inp["inversion_total"] / ahorro_anual) if ahorro_anual > 0 and inp["inversion_total"] else None
+
+    return dict(
+        p_pico_kwp=p_pico_kwp, n_paneles=n_paneles, produccion_anual_kwh=produccion_anual_kwh,
+        n_serie=n_serie, n_paralelo=n_paralelo, n_paneles_configurados=n_paneles_configurados,
+        v_string_frio=v_string_frio, v_string_caliente=v_string_caliente, i_generador=i_generador,
+        cumple_vmax=cumple_vmax, cumple_vmpp_min=cumple_vmpp_min, cumple_vmpp_max=cumple_vmpp_max,
+        ratio_dc_ac=ratio_dc_ac, i_diseno_cc=i_diseno_cc, s_cc_final=s_cc_final, du_cc_pct=du_cc_pct,
+        ib_ca=ib_ca, i_diseno_ca=i_diseno_ca, s_ca_final=s_ca_final, iz_ca=iz_ca, e_ca_pct=e_ca_pct,
+        du_total_pct=du_total_pct,
+        calibre_fusible_string=calibre_fusible_string, calibre_magneto_ca=calibre_magneto_ca,
+        ahorro_anual=ahorro_anual, payback_anos=payback_anos, avisos=avisos,
     )
-    return calcular(inp_mini)
-
-
-def _etiqueta_calculo_circuito(circuito: dict) -> str:
-    r = calculo_rapido_circuito(circuito["potencia_kw"], circuito["cos_phi"], circuito["longitud"],
-                                 circuito["sistema"])
-    designacion = "3G" if circuito["sistema"] == SISTEMA_TRI else "2x"
-    return (f"{circuito['potencia_kw']:g} kW · Ib={r['ib_calculo']:.1f} A · "
-            f"{designacion}{r['seccion_final']:g} Cu · PIA {r['calibre_magnetotermico']} A · "
-            f"ΔU={r['e_final_pct']:.1f}%")
-
-
-def construir_svg_unifilar(circuitos: list, iga_calibre: int = None) -> str:
-    margen_izq, paso, fila_alto, y0 = 100, 100, 86, 60
-    n = max(len(circuitos), 1)
-    max_elems = max((len(c["elementos"]) for c in circuitos), default=0)
-    ancho = max(620, margen_izq + paso * (max_elems + 1) + 90)
-    alto = y0 + fila_alto * n + 40
-
-    partes = [f'<svg viewBox="0 0 {ancho} {alto}" xmlns="http://www.w3.org/2000/svg" '
-              f'style="background:#0b1220;border-radius:6px;width:100%;">']
-
-    y_top = y0 - 30
-    y_bottom = y0 + fila_alto * (n - 1) + 18
-    if iga_calibre:
-        partes.append(_svg_desde_geometria(
-            _geometria_simbolo("Interruptor general (IGA)"), margen_izq, y_top - 16))
-        partes.append(f'<text x="{margen_izq+20}" y="{y_top-13}" font-size="9" fill="#e8a33d" '
-                      f'font-family="monospace">IGA {iga_calibre} A</text>')
-        y_top -= 2
-    partes.append(f'<line x1="{margen_izq}" y1="{y_top}" x2="{margen_izq}" y2="{y_bottom}" '
-                  f'stroke="#e8a33d" stroke-width="3"/>')
-    partes.append(f'<text x="{margen_izq}" y="{y_top-8}" text-anchor="middle" font-size="8" fill="#e8a33d" '
-                  f'font-family="monospace">EMBARRADO</text>')
-
-    for i, circuito in enumerate(circuitos):
-        y = y0 + i * fila_alto
-        x_fin = margen_izq + paso * (len(circuito["elementos"]) + 1)
-        partes.append(f'<text x="{margen_izq+8}" y="{y-16}" font-size="10.5" fill="#e8edf4" '
-                      f'font-family="monospace">{circuito["nombre"]}</text>')
-        partes.append(f'<line x1="{margen_izq}" y1="{y}" x2="{x_fin}" y2="{y}" stroke="#8b96a8" '
-                      f'stroke-width="1.5"/>')
-        for j, simbolo in enumerate(circuito["elementos"]):
-            cx = margen_izq + paso * (j + 1)
-            partes.append(_svg_desde_geometria(_geometria_simbolo(simbolo), cx, y))
-            partes.append(f'<text x="{cx}" y="{y+24}" text-anchor="middle" font-size="7.5" fill="#8b96a8" '
-                          f'font-family="monospace">{_CODIGOS_SIMBOLO.get(simbolo, "?")}</text>')
-        if circuito.get("potencia_kw"):
-            partes.append(f'<text x="{margen_izq+8}" y="{y+38}" font-size="8.5" fill="#4fd1c5" '
-                          f'font-family="monospace">{_etiqueta_calculo_circuito(circuito)}</text>')
-    partes.append("</svg>")
-    return "\n".join(partes)
-
-
-def generar_dxf_unifilar(circuitos: list, iga_calibre: int = None) -> bytes:
-    import ezdxf
-    doc = ezdxf.new("R2010")
-    msp = doc.modelspace()
-    margen_izq, paso, fila_alto, y0 = 0.0, 30.0, 22.0, 0.0
-    n = max(len(circuitos), 1)
-
-    y_top = y0 + 8
-    if iga_calibre:
-        _dxf_desde_geometria(msp, _geometria_simbolo("Interruptor general (IGA)"), margen_izq, y_top + 6)
-        msp.add_text(f"IGA {iga_calibre} A", dxfattribs={"height": 1.8}).set_placement(
-            (margen_izq + 3, y_top + 5))
-        y_top += 3
-    y_bottom = y0 - fila_alto * (n - 1) - 8
-    msp.add_line((margen_izq, y_top), (margen_izq, y_bottom))
-    msp.add_text("EMBARRADO", dxfattribs={"height": 2}).set_placement((margen_izq - 2, y_top + 2))
-
-    for i, circuito in enumerate(circuitos):
-        y = y0 - i * fila_alto
-        x_fin = margen_izq + paso * (len(circuito["elementos"]) + 1)
-        msp.add_line((margen_izq, y), (x_fin, y))
-        msp.add_text(circuito["nombre"], dxfattribs={"height": 2.2}).set_placement((margen_izq + 1, y + 3))
-        for j, simbolo in enumerate(circuito["elementos"]):
-            cx = margen_izq + paso * (j + 1)
-            _dxf_desde_geometria(msp, _geometria_simbolo(simbolo), cx, y)
-            msp.add_text(_CODIGOS_SIMBOLO.get(simbolo, "?"), dxfattribs={"height": 1.6}).set_placement(
-                (cx - 2, y - 6))
-        if circuito.get("potencia_kw"):
-            msp.add_text(_etiqueta_calculo_circuito(circuito), dxfattribs={"height": 1.8}).set_placement(
-                (margen_izq + 1, y - 9))
-
-    buffer = io.StringIO()
-    doc.write(buffer, fmt="asc")
-    return buffer.getvalue().encode("utf-8")
 
 
 # ==============================================================================
@@ -1761,6 +2136,179 @@ def _render_resultados(inp: dict, res: dict):
                         file_name="memoria_calculo_cable.pdf", mime="application/pdf")
 
 
+def _render_inputs_fv() -> dict:
+    st.markdown('<p class="section-label">1 · Dimensionado</p>', unsafe_allow_html=True)
+    d1, d2, d3 = st.columns(3)
+    with d1:
+        modo_dimensionado = st.selectbox(
+            "Punto de partida", ["Por consumo anual (kWh)", "Por potencia pico deseada (kWp)",
+                                  "Por número de paneles"])
+    consumo_anual_kwh = potencia_pico_deseada = n_paneles_manual = None
+    with d2:
+        if modo_dimensionado == "Por consumo anual (kWh)":
+            consumo_anual_kwh = st.number_input("Consumo anual estimado (kWh)", min_value=1.0, value=4000.0, step=100.0)
+        elif modo_dimensionado == "Por potencia pico deseada (kWp)":
+            potencia_pico_deseada = st.number_input("Potencia pico deseada (kWp)", min_value=0.1, value=5.0, step=0.5)
+        else:
+            n_paneles_manual = st.number_input("Número de paneles", min_value=1, value=12, step=1)
+    with d3:
+        potencia_panel_wp = st.number_input("Potencia unitaria del panel (Wp)", min_value=50.0, value=450.0, step=5.0)
+
+    st.markdown('<p class="section-label">2 · Ubicación y producción</p>', unsafe_allow_html=True)
+    u1, u2, u3 = st.columns(3)
+    with u1:
+        zona = st.selectbox("Zona climática", list(ZONAS_CLIMATICAS_HSP.keys()), index=2,
+                             help="HSP orientativo por zona (fuente: IDAE/PVGIS). Para el cálculo definitivo, "
+                                  "usa el HSP exacto de PVGIS para tu ubicación.")
+        hsp_defecto = ZONAS_CLIMATICAS_HSP[zona] or 4.5
+        hsp = st.number_input("HSP (horas de sol pico, h/día)", min_value=1.0, max_value=8.0,
+                               value=float(hsp_defecto), step=0.1)
+    with u2:
+        pr = st.number_input("Performance Ratio (PR)", min_value=0.5, max_value=0.95, value=PR_DEFECTO_FV,
+                              step=0.01, help="Típico 0,75-0,85 en instalaciones bien diseñadas.")
+        perdidas_sombras = st.number_input("Pérdidas adicionales por sombras/suciedad (%)", min_value=0.0,
+                                            max_value=30.0, value=3.0, step=0.5)
+    with u3:
+        tipo_autoconsumo = st.selectbox("Modalidad (RD 244/2019)", TIPO_AUTOCONSUMO_FV)
+        precio_kwh = st.number_input("Precio kWh evitado (€/kWh)", min_value=0.01, value=0.18, step=0.01)
+
+    st.markdown('<p class="section-label">3 · Módulo fotovoltaico (valores de ficha técnica STC)</p>',
+                unsafe_allow_html=True)
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        voc = st.number_input("Voc (V)", min_value=1.0, value=PANEL_DEFECTO["voc"], step=0.1)
+        isc = st.number_input("Isc (A)", min_value=0.1, value=PANEL_DEFECTO["isc"], step=0.1)
+    with m2:
+        vmp = st.number_input("Vmp (V)", min_value=1.0, value=PANEL_DEFECTO["vmp"], step=0.1)
+        st.number_input("Imp (A)", min_value=0.1, value=PANEL_DEFECTO["imp"], step=0.1, key="imp_fv_display",
+                         disabled=True)
+    with m3:
+        coef_temp_voc = st.number_input("Coef. temperatura Voc (%/°C)", value=PANEL_DEFECTO["coef_temp_voc"],
+                                         step=0.01, format="%.2f",
+                                         help="Negativo: la tensión SUBE al bajar la temperatura.")
+    with m4:
+        n_paneles_serie = st.number_input("Paneles en serie por string", min_value=1, value=11, step=1)
+        n_strings_paralelo = st.number_input("Strings en paralelo", min_value=1, value=1, step=1)
+
+    st.markdown('<p class="section-label">4 · Inversor y condiciones ambientales</p>', unsafe_allow_html=True)
+    i1, i2, i3, i4 = st.columns(4)
+    with i1:
+        potencia_inversor_kw = st.number_input("Potencia nominal inversor (kW)", min_value=0.1,
+                                                value=INVERSOR_DEFECTO["potencia_kw"], step=0.5)
+        sistema_ca = st.selectbox("Sistema CA de salida", [SISTEMA_MONO, SISTEMA_TRI])
+    with i2:
+        vmin_mppt = st.number_input("Tensión mínima MPPT (V)", min_value=1.0,
+                                     value=float(INVERSOR_DEFECTO["vmin_mppt"]), step=5.0)
+        vmax_mppt = st.number_input("Tensión máxima MPPT (V)", min_value=1.0,
+                                     value=float(INVERSOR_DEFECTO["vmax_mppt"]), step=5.0)
+    with i3:
+        vmax_entrada_inversor = st.number_input("Tensión máxima de entrada (V)", min_value=1.0,
+                                                 value=float(INVERSOR_DEFECTO["vmax_entrada"]), step=5.0)
+        tension_ca = st.number_input("Tensión de salida CA (V)", min_value=100.0,
+                                      value=230.0 if sistema_ca == SISTEMA_MONO else 400.0, step=1.0)
+    with i4:
+        temp_min = st.number_input("Temperatura mínima histórica (°C)", value=-5.0, step=1.0,
+                                    help="Para verificar la tensión de string en frío.")
+        temp_max_celula = st.number_input("Temperatura máx. célula en servicio (°C)", value=70.0, step=1.0,
+                                           help="Orientativa: temperatura ambiente máxima + 25-30°C.")
+
+    st.markdown('<p class="section-label">5 · Cableado</p>', unsafe_allow_html=True)
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        longitud_cc = st.number_input("Longitud de cada string CC (m, ida)", min_value=0.1, value=15.0, step=1.0)
+    with c2:
+        tension_cc_ref = st.number_input("Tensión CC de referencia para ΔU (V)", min_value=1.0, value=400.0,
+                                          step=10.0, help="Orientativa: tensión de string en el punto de máxima potencia.")
+    with c3:
+        longitud_ca = st.number_input("Longitud CA inversor→cuadro (m)", min_value=0.1, value=10.0, step=1.0)
+
+    with st.expander("💶 Estimación económica (opcional)"):
+        e1, e2 = st.columns(2)
+        with e1:
+            pct_autoconsumo = st.number_input("% de la producción autoconsumida", min_value=0.0, max_value=100.0,
+                                               value=65.0, step=5.0)
+        with e2:
+            inversion_total = st.number_input("Inversión total estimada (€)", min_value=0.0, value=6000.0, step=100.0)
+
+    return dict(
+        modo_dimensionado=modo_dimensionado, consumo_anual_kwh=consumo_anual_kwh,
+        potencia_pico_deseada=potencia_pico_deseada, n_paneles_manual=n_paneles_manual,
+        potencia_panel_wp=potencia_panel_wp, zona=zona, hsp=hsp, pr=pr, perdidas_sombras=perdidas_sombras,
+        tipo_autoconsumo=tipo_autoconsumo, precio_kwh=precio_kwh, voc=voc, isc=isc, vmp=vmp,
+        coef_temp_voc=coef_temp_voc, n_paneles_serie=n_paneles_serie, n_strings_paralelo=n_strings_paralelo,
+        potencia_inversor_kw=potencia_inversor_kw, sistema_ca=sistema_ca, vmin_mppt=vmin_mppt,
+        vmax_mppt=vmax_mppt, vmax_entrada_inversor=vmax_entrada_inversor, tension_ca=tension_ca,
+        temp_min=temp_min, temp_max_celula=temp_max_celula, longitud_cc=longitud_cc,
+        tension_cc_ref=tension_cc_ref, longitud_ca=longitud_ca, pct_autoconsumo=pct_autoconsumo,
+        inversion_total=inversion_total,
+    )
+
+
+def _render_resultados_fv(inp: dict, res: dict):
+    st.markdown('<p class="section-label">Resultado</p>', unsafe_allow_html=True)
+
+    r1, r2, r3, r4 = st.columns(4)
+    with r1:
+        st.markdown(f'''<div class="result-card hero">
+            <div class="result-label">Potencia pico</div>
+            <div class="result-value">{res['p_pico_kwp']:.2f} kWp</div>
+            <div class="result-sub">{res['n_paneles']} paneles según dimensionado</div>
+        </div>''', unsafe_allow_html=True)
+    with r2:
+        st.markdown(f'''<div class="result-card">
+            <div class="result-label">Producción anual estimada</div>
+            <div class="result-value small">{res['produccion_anual_kwh']:,.0f} kWh/año</div>
+            <div class="result-sub">HSP={inp['hsp']:g} h · PR={inp['pr']:.2f}</div>
+        </div>'''.replace(",", "."), unsafe_allow_html=True)
+    with r3:
+        badge_v = "badge-ok" if (res["cumple_vmax"] and res["cumple_vmpp_min"] and res["cumple_vmpp_max"]) else "badge-fail"
+        texto_v = "Compatible" if badge_v == "badge-ok" else "Revisar"
+        st.markdown(f'''<div class="result-card">
+            <div class="result-label">String {res['n_serie']}S{res['n_paralelo']}P</div>
+            <div class="result-value small">{res['v_string_frio']:.0f} V (frío)</div>
+            <div class="result-sub"><span class="{badge_v}">{texto_v}</span> con el inversor</div>
+        </div>''', unsafe_allow_html=True)
+    with r4:
+        badge_du = "badge-ok" if res["du_total_pct"] <= 1.5 else "badge-fail"
+        st.markdown(f'''<div class="result-card">
+            <div class="result-label">ΔU CC+CA combinada</div>
+            <div class="result-value small">{res['du_total_pct']:.2f} %</div>
+            <div class="result-sub"><span class="{badge_du}">{"Cumple" if res["du_total_pct"]<=1.5 else "No cumple"}</span> · máx 1,5% (ITC-BT-40)</div>
+        </div>''', unsafe_allow_html=True)
+
+    for aviso in res["avisos"]:
+        (st.error if "supera" in aviso or "combinada" in aviso else st.warning)(aviso)
+
+    st.markdown('<p class="section-label">Generador y string</p>', unsafe_allow_html=True)
+    g1, g2, g3, g4 = st.columns(4)
+    g1.metric("Paneles configurados", f"{res['n_paneles_configurados']}")
+    g2.metric("V string en caliente", f"{res['v_string_caliente']:.0f} V")
+    g3.metric("I generador (Icc total)", f"{res['i_generador']:.1f} A")
+    g4.metric("Ratio DC/AC", f"{res['ratio_dc_ac']:.2f}" if res["ratio_dc_ac"] else "—")
+
+    st.markdown('<p class="section-label">Cableado y protecciones</p>', unsafe_allow_html=True)
+    cbl = pd.DataFrame([
+        {"Tramo": "CC (string → caja de conexión)", "I diseño (125%)": f"{res['i_diseno_cc']:.2f} A",
+         "Sección": f"{res['s_cc_final']:g} mm² Cu XLPE", "ΔU parcial": f"{res['du_cc_pct']:.2f} %"},
+        {"Tramo": "CA (inversor → cuadro)", "I diseño (125%)": f"{res['i_diseno_ca']:.2f} A",
+         "Sección": f"{res['s_ca_final']:g} mm² Cu XLPE" if res["s_ca_final"] else "—",
+         "ΔU parcial": f"{res['e_ca_pct']:.2f} %"},
+    ])
+    st.dataframe(cbl, width='stretch', hide_index=True)
+
+    p1, p2 = st.columns(2)
+    p1.metric("Fusible de string sugerido", f"{res['calibre_fusible_string']} A" if res["calibre_fusible_string"] else "No requerido (1 string)")
+    p2.metric("Magnetotérmico CA sugerido", f"{res['calibre_magneto_ca']} A")
+
+    if res["ahorro_anual"]:
+        st.markdown('<p class="section-label">Estimación económica</p>', unsafe_allow_html=True)
+        e1, e2 = st.columns(2)
+        e1.metric("Ahorro anual estimado", _fmt_eur(res["ahorro_anual"]))
+        e2.metric("Retorno simple (payback)", f"{res['payback_anos']:.1f} años" if res["payback_anos"] else "—")
+        st.caption("Estimación simplificada (no considera IPC de la electricidad, degradación del panel ni "
+                   "financiación). Para un estudio de viabilidad usa PVGIS y un análisis de flujo de caja.")
+
+
 def _fila_formula(latex_str: str, calculo_md: str):
     """Muestra una fórmula en LaTeX junto a su cálculo con valores sustituidos."""
     col_formula, col_calculo = st.columns([1, 1])
@@ -1858,247 +2406,226 @@ def _render_formulas(inp: dict, res: dict):
             f"{'✅ Cumple' if res['cumple_cc'] else '❌ No cumple'} con S={S:g} mm²")
 
 
-def _render_presupuesto(inp: dict, res: dict):
+
+def _numero_romano(n: int) -> str:
+    valores = [(10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I")]
+    resultado = ""
+    for valor, letra in valores:
+        while n >= valor:
+            resultado += letra
+            n -= valor
+    return resultado
+
+
+def _render_presupuesto(inputs_cable: dict, resultado_cable: dict, inputs_fv: dict, resultado_fv: dict):
     st.markdown('<p class="section-label">Presupuesto</p>', unsafe_allow_html=True)
-    st.caption("Base de precios orientativa y totalmente editable — no son precios de mercado en tiempo "
-               "real. Ajusta las tablas a los precios de tu proveedor antes de presupuestar en firme.")
+    st.caption("Formato por capítulos (Partida / Designación / Unidades / Cantidad / Precio / Importe), con "
+               "desglose de Precio base + Beneficio + Amortización, igual que un presupuesto de instalación "
+               "al uso. Los precios son un punto de partida editable, no precios de mercado en tiempo real.")
 
-    if res["seccion_final"] is None:
-        st.warning("Ajusta los datos en la pestaña Calculadora para poder generar el presupuesto.")
-        return
-
-    st.session_state.setdefault("presupuesto_manual", [])
-    st.session_state.setdefault("precios_catalogo", {
-        cat: {item: precio for item, (unidad, precio) in items.items()}
-        for cat, items in CATALOGO_MATERIALES.items()
+    st.session_state.setdefault("presupuesto_capitulos", [])
+    st.session_state.setdefault("presupuesto_config", {
+        "nombre_proyecto": "", "pct_beneficio": PORCENTAJE_BENEFICIO_DEFECTO,
+        "pct_amortizacion": PORCENTAJE_AMORTIZACION_DEFECTO, "pct_iva": IVA_DEFECTO_PCT,
     })
+    capitulos = st.session_state["presupuesto_capitulos"]
+    cfg = st.session_state["presupuesto_config"]
 
-    with st.expander("💶 Precios unitarios — cable y conceptos ligados al cálculo"):
-        st.markdown("**Cable por sección (€/m)**")
-        precios_cable = st.data_editor(
-            tabla_precios_cable_defecto(), key="precios_cable_editor",
-            width='stretch', hide_index=True, num_rows="fixed",
-        )
-        st.markdown("**Canalización / mano de obra / accesorios**")
-        otros_conceptos = st.data_editor(
-            tabla_otros_conceptos_defecto(inp["metodo"]), key="otros_conceptos_editor",
-            width='stretch', hide_index=True, num_rows="fixed",
-        )
-
-    with st.expander("🧰 Catálogo de materiales de instalación (editable) y partidas manuales"):
-        st.caption("Añade aquí lo que no sale directamente del cálculo del circuito: mecanismos, cuadros, "
-                   "puesta a tierra, luminarias... Edita los precios por categoría y añade partidas con la "
-                   "cantidad que necesites.")
-        categoria = st.selectbox("Categoría", list(CATALOGO_MATERIALES.keys()), key="cat_manual")
-        tabla_cat = pd.DataFrame([
-            {"Concepto": item, "Unidad": unidad, "Precio unitario (€)":
-                st.session_state["precios_catalogo"][categoria].get(item, precio_defecto)}
-            for item, (unidad, precio_defecto) in CATALOGO_MATERIALES[categoria].items()
-        ])
-        tabla_editada = st.data_editor(tabla_cat, key=f"editor_{categoria}", width='stretch',
-                                        hide_index=True, num_rows="fixed")
-        for _, fila in tabla_editada.iterrows():
-            st.session_state["precios_catalogo"][categoria][fila["Concepto"]] = fila["Precio unitario (€)"]
-
-        ca1, ca2, ca3 = st.columns([2, 1, 1])
-        with ca1:
-            concepto_sel = st.selectbox("Concepto a añadir", tabla_editada["Concepto"].tolist(), key="concepto_manual")
-        with ca2:
-            cantidad_sel = st.number_input("Cantidad", min_value=0.1, value=1.0, step=1.0, key="cantidad_manual")
-        with ca3:
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("➕ Añadir partida"):
-                fila_sel = tabla_editada.loc[tabla_editada["Concepto"] == concepto_sel].iloc[0]
-                st.session_state["presupuesto_manual"].append({
-                    "Concepto": concepto_sel, "Unidad": fila_sel["Unidad"], "Cantidad": cantidad_sel,
-                    "Precio unitario (€)": float(fila_sel["Precio unitario (€)"]),
-                    "Importe (€)": round(cantidad_sel * float(fila_sel["Precio unitario (€)"]), 2),
-                })
-
-        if st.session_state["presupuesto_manual"]:
-            st.markdown("**Partidas manuales añadidas**")
-            for i, item in enumerate(st.session_state["presupuesto_manual"]):
-                fc1, fc2, fc3 = st.columns([3, 1, 0.4])
-                fc1.write(f"{item['Concepto']} — {item['Cantidad']:g} {item['Unidad']}")
-                fc2.write(_fmt_eur(item["Importe (€)"]))
-                if fc3.button("🗑️", key=f"del_manual_{i}"):
-                    st.session_state["presupuesto_manual"].pop(i)
-                    st.rerun()
-
-    with st.expander("📈 Beneficio y amortización", expanded=True):
-        pb1, pb2 = st.columns(2)
-        with pb1:
-            porcentaje_beneficio = st.number_input(
-                "Beneficio industrial (%)", min_value=0.0, max_value=50.0,
-                value=PORCENTAJE_BENEFICIO_DEFECTO, step=0.5)
-        with pb2:
-            porcentaje_amortizacion = st.number_input(
-                "Amortización de medios auxiliares (%)", min_value=0.0, max_value=20.0,
-                value=PORCENTAJE_AMORTIZACION_DEFECTO, step=0.5,
-                help="Herramientas, equipos de medida, andamios/escaleras... como % sobre el PEM.")
-
-    df_auto, subtotal_mat, subtotal_mo, _ = calcular_presupuesto(inp, res, precios_cable, otros_conceptos)
-    if df_auto.empty:
-        st.warning("No se ha podido calcular el presupuesto.")
-        return
-
-    df_manual = pd.DataFrame(st.session_state["presupuesto_manual"])
-    df_completo = pd.concat([df_auto, df_manual], ignore_index=True) if not df_manual.empty else df_auto
-
-    st.markdown("**Mediciones y precios**")
-    st.dataframe(df_completo, width='stretch', hide_index=True)
-
-    pem = round(df_completo["Importe (€)"].sum(), 2)
-    importe_amortizacion = round(pem * porcentaje_amortizacion / 100.0, 2)
-    importe_beneficio = round((pem + importe_amortizacion) * porcentaje_beneficio / 100.0, 2)
-    total = round(pem + importe_amortizacion + importe_beneficio, 2)
-
-    p1, p2, p3, p4 = st.columns(4)
-    with p1:
-        st.markdown(f'''<div class="result-card">
-            <div class="result-label">PEM (materiales+M.O.)</div>
-            <div class="result-value small">{_fmt_eur(pem)}</div>
-        </div>''', unsafe_allow_html=True)
-    with p2:
-        st.markdown(f'''<div class="result-card">
-            <div class="result-label">Amortización ({porcentaje_amortizacion:g}%)</div>
-            <div class="result-value small">{_fmt_eur(importe_amortizacion)}</div>
-        </div>''', unsafe_allow_html=True)
-    with p3:
-        st.markdown(f'''<div class="result-card">
-            <div class="result-label">Beneficio industrial ({porcentaje_beneficio:g}%)</div>
-            <div class="result-value small">{_fmt_eur(importe_beneficio)}</div>
-        </div>''', unsafe_allow_html=True)
-    with p4:
-        st.markdown(f'''<div class="result-card hero">
-            <div class="result-label">Total presupuesto</div>
-            <div class="result-value">{_fmt_eur(total)}</div>
-        </div>''', unsafe_allow_html=True)
-
-    st.caption("No incluye IVA. Cantidades de cable/canalización/protecciones calculadas automáticamente "
-               "sobre el resultado de la Calculadora; el resto son las partidas manuales que hayas añadido.")
-
-    desglose = dict(pem=pem, amortizacion=importe_amortizacion, beneficio=importe_beneficio,
-                     pct_amortizacion=porcentaje_amortizacion, pct_beneficio=porcentaje_beneficio)
-    excel_bytes = generar_excel_presupuesto(df_completo, inp, res, total, desglose)
-    st.download_button("⬇️ Descargar presupuesto (Excel)", data=excel_bytes,
-                        file_name="presupuesto_cable.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-
-def _render_esquema_unifilar():
-    st.markdown('<p class="section-label">Esquema unifilar</p>', unsafe_allow_html=True)
-    st.caption(
-        "Constructor por bloques con cálculo integrado (al estilo Caneco/DMELECT): defines la potencia de "
-        "cada circuito y la app calcula Ib, sección y calibre con el mismo motor que la pestaña Calculadora, "
-        "y los etiqueta sobre el esquema. Símbolos con la construcción normativa UNE-EN 60617 (cuchilla de "
-        "seccionamiento + disparador para los interruptores automáticos, toroide para el diferencial, bobina "
-        "para el contactor...). No hay arrastre libre con el ratón — Streamlit no lo soporta de forma fiable "
-        "sin un componente JS aparte — se añade por botones, pero el resultado de diseño es el mismo. La "
-        "vista previa es exactamente lo que se exporta a DXF."
-    )
-
-    st.session_state.setdefault("circuitos_unifilar", [
-        {"nombre": "C1 - Alumbrado", "elementos": ["Interruptor automático (magnetotérmico)",
-                                                     "Interruptor diferencial", "Lámpara / receptor"],
-         "potencia_kw": 2.0, "cos_phi": 0.95, "longitud": 25.0, "sistema": SISTEMA_MONO},
-    ])
-    circuitos = st.session_state["circuitos_unifilar"]
-
-    with st.expander("⚡ Origen del cuadro (IGA)", expanded=True):
-        oc1, oc2 = st.columns(2)
-        potencia_total_defecto = round(sum(c.get("potencia_kw", 0) for c in circuitos), 2)
-        with oc1:
-            potencia_total = st.number_input(
-                "Potencia total prevista (kW)", min_value=0.0, value=potencia_total_defecto, step=0.5,
-                help="Por defecto, suma de la potencia de todos los circuitos del esquema.")
-        with oc2:
-            sistema_origen = st.selectbox("Sistema en cabecera", [SISTEMA_MONO, SISTEMA_TRI],
-                                           index=1, key="sistema_origen_iga")
-        iga_calibre = None
-        if potencia_total > 0:
-            r_iga = calculo_rapido_circuito(potencia_total, 0.9, 1.0, sistema_origen)
-            iga_calibre = r_iga["calibre_magnetotermico"]
-            st.markdown(f"**IGA sugerido: {iga_calibre} A**  (Ib ≈ {r_iga['ib_calculo']:.1f} A, cos φ=0,9 orientativo)")
+    with st.expander("⚙️ Configuración general", expanded=not capitulos):
+        cf1, cf2, cf3, cf4 = st.columns(4)
+        with cf1:
+            cfg["nombre_proyecto"] = st.text_input("Nombre del proyecto/instalación", cfg["nombre_proyecto"])
+        with cf2:
+            cfg["pct_beneficio"] = st.number_input("Beneficio industrial (%)", min_value=0.0, max_value=50.0,
+                                                    value=cfg["pct_beneficio"], step=0.5)
+        with cf3:
+            cfg["pct_amortizacion"] = st.number_input("Amortización medios auxiliares (%)", min_value=0.0,
+                                                       max_value=20.0, value=cfg["pct_amortizacion"], step=0.5)
+        with cf4:
+            cfg["pct_iva"] = st.number_input("IVA (%)", min_value=0.0, max_value=25.0, value=cfg["pct_iva"], step=1.0)
 
     nc1, nc2 = st.columns([3, 1])
     with nc1:
-        nuevo_nombre = st.text_input("Nombre del nuevo circuito", f"C{len(circuitos)+1} - ",
-                                      key="nombre_nuevo_circuito")
+        nombre_defecto = f"CAPÍTULO {_numero_romano(len(capitulos) + 1)}: "
+        nuevo_nombre = st.text_input("Nombre del nuevo capítulo", nombre_defecto, key="nuevo_cap_nombre")
     with nc2:
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("➕ Nuevo circuito"):
-            circuitos.append({"nombre": nuevo_nombre, "elementos": [], "potencia_kw": 1.0,
-                               "cos_phi": 0.9, "longitud": 15.0, "sistema": SISTEMA_MONO})
+        if st.button("➕ Nuevo capítulo"):
+            capitulos.append({"nombre": nuevo_nombre, "items": []})
             st.rerun()
 
-    for idx, circuito in enumerate(circuitos):
+    hay_cable = resultado_cable.get("seccion_final") is not None
+    hay_fv = bool(resultado_fv) and resultado_fv.get("p_pico_kwp") is not None
+
+    for idx, cap in enumerate(capitulos):
         with st.container(border=True):
-            tc1, tc2 = st.columns([4, 0.6])
-            tc1.markdown(f"**{circuito['nombre']}**")
-            if tc2.button("🗑️", key=f"del_circuito_{idx}", help="Eliminar circuito"):
-                circuitos.pop(idx)
+            tc1, tc2 = st.columns([5, 0.6])
+            tc1.markdown(f"**{cap['nombre']}**")
+            if tc2.button("🗑️ Eliminar capítulo", key=f"del_cap_{idx}"):
+                capitulos.pop(idx)
                 st.rerun()
 
-            cc1, cc2, cc3, cc4 = st.columns(4)
-            with cc1:
-                circuito["potencia_kw"] = st.number_input(
-                    "Potencia (kW)", min_value=0.0, value=float(circuito.get("potencia_kw", 1.0)),
-                    step=0.1, key=f"pot_{idx}")
-            with cc2:
-                circuito["cos_phi"] = st.number_input(
-                    "cos φ", min_value=0.1, max_value=1.0, value=float(circuito.get("cos_phi", 0.9)),
-                    step=0.01, key=f"cosphi_{idx}")
-            with cc3:
-                circuito["longitud"] = st.number_input(
-                    "Longitud (m)", min_value=0.1, value=float(circuito.get("longitud", 15.0)),
-                    step=1.0, key=f"long_{idx}")
-            with cc4:
-                circuito["sistema"] = st.selectbox(
-                    "Sistema", [SISTEMA_MONO, SISTEMA_TRI],
-                    index=0 if circuito.get("sistema", SISTEMA_MONO) == SISTEMA_MONO else 1,
-                    key=f"sist_{idx}")
-
-            if circuito["potencia_kw"] > 0:
-                st.caption(f"→ {_etiqueta_calculo_circuito(circuito)}")
-
-            ac1, ac2 = st.columns([3, 1])
-            with ac1:
-                simbolo_sel = st.selectbox("Símbolo", SIMBOLOS_UNIFILAR, key=f"simbolo_sel_{idx}")
-            with ac2:
-                st.markdown("<br>", unsafe_allow_html=True)
-                if st.button("➕ Añadir a la línea", key=f"add_simbolo_{idx}"):
-                    circuito["elementos"].append(simbolo_sel)
+            ib1, ib2 = st.columns(2)
+            with ib1:
+                if hay_cable and st.button("📥 Importar de Calculadora de cables", key=f"imp_cable_{idx}"):
+                    nuevos = item_desde_calculo_cable(inputs_cable, resultado_cable)
+                    for j, it in enumerate(nuevos):
+                        it["partida"] = f"{idx + 1}.{len(cap['items']) + j + 1}"
+                    cap["items"].extend(nuevos)
+                    st.rerun()
+            with ib2:
+                if hay_fv and st.button("📥 Importar de Fotovoltaica", key=f"imp_fv_{idx}"):
+                    nuevos = items_desde_calculo_fv(inputs_fv, resultado_fv)
+                    for j, it in enumerate(nuevos):
+                        it["partida"] = f"{idx + 1}.{len(cap['items']) + j + 1}"
+                    cap["items"].extend(nuevos)
                     st.rerun()
 
-            if circuito["elementos"]:
-                for j, elem in enumerate(circuito["elementos"]):
-                    ec1, ec2, ec3, ec4 = st.columns([3, 0.5, 0.5, 0.5])
-                    ec1.write(f"{j+1}. {elem}")
-                    if ec2.button("⬆️", key=f"up_{idx}_{j}") and j > 0:
-                        circuito["elementos"][j - 1], circuito["elementos"][j] = \
-                            circuito["elementos"][j], circuito["elementos"][j - 1]
-                        st.rerun()
-                    if ec3.button("⬇️", key=f"down_{idx}_{j}") and j < len(circuito["elementos"]) - 1:
-                        circuito["elementos"][j + 1], circuito["elementos"][j] = \
-                            circuito["elementos"][j], circuito["elementos"][j + 1]
-                        st.rerun()
-                    if ec4.button("✖️", key=f"rm_{idx}_{j}"):
-                        circuito["elementos"].pop(j)
-                        st.rerun()
+            df_items = pd.DataFrame([
+                {"Partida": it.get("partida", "-"), "Designación": it["designacion"], "Unidades": it["unidades"],
+                 "Cantidad": it["cantidad"], "Precio base": it["precio_base"]}
+                for it in cap["items"]
+            ]) if cap["items"] else pd.DataFrame(columns=["Partida", "Designación", "Unidades", "Cantidad", "Precio base"])
 
-    st.markdown('<p class="section-label">Vista previa</p>', unsafe_allow_html=True)
-    if circuitos:
-        st.markdown(construir_svg_unifilar(circuitos, iga_calibre), unsafe_allow_html=True)
-        dxf_bytes = generar_dxf_unifilar(circuitos, iga_calibre)
-        st.download_button("⬇️ Descargar esquema (DXF)", data=dxf_bytes, file_name="esquema_unifilar.dxf",
-                            mime="application/dxf")
-        st.caption("DXF con líneas, símbolos y etiquetas de cálculo — abre en AutoCAD/ZWCAD para escalar, "
-                   "sustituir por los bloques normalizados de tu biblioteca y maquetar el plano definitivo. "
-                   "El cálculo de cada circuito usa hipótesis estándar (Cu, PVC, tubo empotrado B1); para el "
-                   "cálculo definitivo de cada línea usa la pestaña Calculadora.")
-    else:
-        st.info("Añade al menos un circuito para ver la vista previa.")
+            st.caption("Edita, añade o borra filas directamente en la tabla (icono ➕/🗑️ al pasar el ratón).")
+            df_editada = st.data_editor(
+                df_items, key=f"items_editor_{idx}", num_rows="dynamic", width='stretch', hide_index=True,
+                column_config={
+                    "Cantidad": st.column_config.NumberColumn(min_value=0.0, step=0.1),
+                    "Precio base": st.column_config.NumberColumn(min_value=0.0, step=0.01, format="%.4f €"),
+                },
+            )
+
+            nuevos_items = []
+            for i, row in df_editada.iterrows():
+                designacion = row.get("Designación")
+                if not designacion or pd.isna(designacion):
+                    continue
+                cantidad = row.get("Cantidad")
+                precio_base = row.get("Precio base")
+                nuevos_items.append({
+                    "partida": row.get("Partida") or f"{idx + 1}.{i + 1}",
+                    "designacion": designacion,
+                    "unidades": row.get("Unidades") or "ud",
+                    "cantidad": float(cantidad) if pd.notna(cantidad) else 0.0,
+                    "precio_base": float(precio_base) if pd.notna(precio_base) else 0.0,
+                })
+            cap["items"] = nuevos_items
+
+            if cap["items"]:
+                filas_venta = []
+                for it in cap["items"]:
+                    pv = calcular_precio_venta(it["precio_base"], cfg["pct_beneficio"], cfg["pct_amortizacion"])
+                    filas_venta.append({
+                        "Partida": it.get("partida", "-"), "Designación": it["designacion"], "Unidades": it["unidades"],
+                        "Cantidad": it["cantidad"], "Precio": pv, "Importe": round(it["cantidad"] * pv, 2),
+                    })
+                st.dataframe(pd.DataFrame(filas_venta), width='stretch', hide_index=True)
+                total_cap = calcular_totales_capitulo(cap["items"], cfg["pct_beneficio"], cfg["pct_amortizacion"])
+                st.markdown(f"**TOTAL {cap['nombre']}: {_fmt_eur(total_cap)}**")
+
+    if not capitulos:
+        st.info("Añade al menos un capítulo para empezar a presupuestar (por ejemplo, uno por cada circuito "
+                "o instalación: derivación individual, cuadro de protección, iluminación, fotovoltaica...).")
+        return
+
+    st.markdown('<p class="section-label">Resumen del presupuesto</p>', unsafe_allow_html=True)
+    filas_resumen = []
+    subtotal = 0.0
+    for cap in capitulos:
+        parcial = calcular_totales_capitulo(cap["items"], cfg["pct_beneficio"], cfg["pct_amortizacion"])
+        subtotal += parcial
+        filas_resumen.append({"Capítulo": cap["nombre"], "Coste parcial": _fmt_eur(parcial)})
+    st.dataframe(pd.DataFrame(filas_resumen), width='stretch', hide_index=True)
+
+    importe_iva = round(subtotal * cfg["pct_iva"] / 100.0, 2)
+    total = round(subtotal + importe_iva, 2)
+
+    s1, s2, s3 = st.columns(3)
+    s1.markdown(f'''<div class="result-card"><div class="result-label">Subtotal</div>
+        <div class="result-value small">{_fmt_eur(subtotal)}</div></div>''', unsafe_allow_html=True)
+    s2.markdown(f'''<div class="result-card"><div class="result-label">IVA ({cfg["pct_iva"]:g}%)</div>
+        <div class="result-value small">{_fmt_eur(importe_iva)}</div></div>''', unsafe_allow_html=True)
+    s3.markdown(f'''<div class="result-card hero"><div class="result-label">TOTAL</div>
+        <div class="result-value">{_fmt_eur(total)}</div></div>''', unsafe_allow_html=True)
+    st.caption(numero_a_letras_euros(total).capitalize() + ".")
+
+    excel_bytes = generar_excel_presupuesto_capitulos(
+        capitulos, cfg["pct_beneficio"], cfg["pct_amortizacion"], cfg["pct_iva"], cfg["nombre_proyecto"])
+    st.download_button("⬇️ Descargar presupuesto (Excel, por capítulos)", data=excel_bytes,
+                        file_name="presupuesto.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+def _render_documentacion(inputs_cable: dict, resultado_cable: dict, inputs_fv: dict, resultado_fv: dict):
+    st.markdown('<p class="section-label">Documentación</p>', unsafe_allow_html=True)
+    st.caption("Genera la Memoria Técnica de Diseño (MTD, ITC-BT-04), el Anexo de Cálculos y Mediciones, y "
+               "las Condiciones Generales de ejecución, reuniendo lo que ya tengas calculado en las demás "
+               "pestañas. A diferencia de la Calculadora y el módulo Fotovoltaico (independientes entre sí), "
+               "estos tres documentos SÍ están pensados para juntar toda la información del proyecto.")
+
+    st.session_state.setdefault("datos_proyecto", {
+        "titular": "", "emplazamiento": "", "referencia_catastral": "", "uso": "",
+    })
+    datos = st.session_state["datos_proyecto"]
+
+    d1, d2 = st.columns(2)
+    with d1:
+        datos["titular"] = st.text_input("Titular de la instalación", datos["titular"])
+        datos["emplazamiento"] = st.text_input("Emplazamiento", datos["emplazamiento"])
+    with d2:
+        datos["referencia_catastral"] = st.text_input("Referencia catastral (opcional)",
+                                                        datos["referencia_catastral"])
+        datos["uso"] = st.text_input("Uso de la instalación", datos["uso"],
+                                      placeholder="Vivienda unifamiliar, local comercial...")
+
+    hay_cable = resultado_cable.get("seccion_final") is not None
+    hay_fv = bool(resultado_fv) and resultado_fv.get("p_pico_kwp") is not None
+    capitulos = st.session_state.get("presupuesto_capitulos", [])
+    cfg_presu = st.session_state.get("presupuesto_config", {
+        "pct_beneficio": PORCENTAJE_BENEFICIO_DEFECTO, "pct_amortizacion": PORCENTAJE_AMORTIZACION_DEFECTO,
+        "pct_iva": IVA_DEFECTO_PCT,
+    })
+
+    st.markdown('<p class="section-label">Disponible para incluir</p>', unsafe_allow_html=True)
+    e1, e2, e3 = st.columns(3)
+    e1.metric("Cálculo de cable", "Sí" if hay_cable else "No calculado")
+    e2.metric("Cálculo fotovoltaico", "Sí" if hay_fv else "No calculado")
+    e3.metric("Capítulos de presupuesto", f"{len(capitulos)}")
+
+    subtotal_presupuesto = sum(
+        calcular_totales_capitulo(cap["items"], cfg_presu["pct_beneficio"], cfg_presu["pct_amortizacion"])
+        for cap in capitulos
+    )
+    total_presupuesto = subtotal_presupuesto * (1 + cfg_presu["pct_iva"] / 100.0) if capitulos else 0.0
+
+    st.divider()
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown("**Memoria Técnica de Diseño**")
+        st.caption("Descripción, características técnicas y presupuesto (ITC-BT-04).")
+        pdf_mtd = generar_pdf_mtd(datos, inputs_cable, resultado_cable, inputs_fv, resultado_fv,
+                                   total_presupuesto)
+        st.download_button("⬇️ Descargar MTD (PDF)", data=pdf_mtd, file_name="MTD.pdf",
+                            mime="application/pdf")
+    with c2:
+        st.markdown("**Anexo de Cálculos y Mediciones**")
+        st.caption("Justificación técnica completa + mediciones por capítulo.")
+        pdf_anexo = generar_pdf_anexo_calculos(datos, inputs_cable, resultado_cable, inputs_fv, resultado_fv,
+                                                capitulos, cfg_presu["pct_beneficio"], cfg_presu["pct_amortizacion"])
+        st.download_button("⬇️ Descargar Anexo (PDF)", data=pdf_anexo, file_name="anexo_calculos.pdf",
+                            mime="application/pdf")
+    with c3:
+        st.markdown("**Condiciones Generales**")
+        st.caption("Prescripciones de ejecución, materiales y puesta en servicio.")
+        pdf_cond = generar_pdf_condiciones_generales(datos, hay_fv)
+        st.download_button("⬇️ Descargar Condiciones (PDF)", data=pdf_cond, file_name="condiciones_generales.pdf",
+                            mime="application/pdf")
+
+    if not hay_cable and not hay_fv:
+        st.info("Todavía no hay ningún cálculo hecho: los documentos se generarán igualmente, pero con las "
+                "secciones de cálculo vacías. Completa la Calculadora y/o la Fotovoltaica para un contenido "
+                "completo.")
 
 
 def _render_tablas():
@@ -2234,44 +2761,49 @@ normativa aplicable antes de firmar un proyecto.
 # ==============================================================================
 
 def main():
-    st.set_page_config(page_title="Secciones de Cable · REBT", page_icon="⚡", layout="wide")
+    st.set_page_config(page_title="Instalaciones Eléctricas · REBT", page_icon="⚡", layout="wide")
     st.markdown(CSS, unsafe_allow_html=True)
 
     st.markdown(
         """
         <div class="titleblock">
             <div class="titleblock-main">
-                <span class="titleblock-eyebrow">Cálculo de secciones · Baja tensión</span>
-                <h1>Calculadora de Secciones de Cable</h1>
+                <span class="titleblock-eyebrow">Cálculo de instalaciones · Baja tensión</span>
+                <h1>Calculadora de Instalaciones Eléctricas</h1>
             </div>
             <div class="titleblock-meta">
-                <div><span>Norma</span><strong>REBT · ITC-BT-19</strong></div>
-                <div><span>Criterios</span><strong>Térmico · ΔU · Icc</strong></div>
-                <div><span>Rev.</span><strong>2.0</strong></div>
+                <div><span>Norma</span><strong>REBT · ITC-BT</strong></div>
+                <div><span>Módulos</span><strong>Cable · FV · Doc.</strong></div>
+                <div><span>Rev.</span><strong>3.0</strong></div>
             </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    tab_calc, tab_formulas, tab_presu, tab_esquema, tab_tablas, tab_metodo = st.tabs(
-        ["🔌 Calculadora", "🧮 Fórmulas", "💰 Presupuesto", "📐 Esquema unifilar",
-         "📊 Tablas normativas", "📖 Metodología"]
+    tab_calc, tab_formulas, tab_fv, tab_presu, tab_doc, tab_tablas, tab_metodo = st.tabs(
+        ["🔌 Calculadora", "🧮 Fórmulas", "☀️ Fotovoltaica", "💰 Presupuesto",
+         "📄 Documentación", "📊 Tablas normativas", "📖 Metodología"]
     )
 
     with tab_calc:
-        inputs = _render_inputs()
-        resultado = calcular(inputs)
-        _render_resultados(inputs, resultado)
+        inputs_cable = _render_inputs()
+        resultado_cable = calcular(inputs_cable)
+        _render_resultados(inputs_cable, resultado_cable)
 
     with tab_formulas:
-        _render_formulas(inputs, resultado)
+        _render_formulas(inputs_cable, resultado_cable)
+
+    with tab_fv:
+        inputs_fv = _render_inputs_fv()
+        resultado_fv = calcular_fv(inputs_fv)
+        _render_resultados_fv(inputs_fv, resultado_fv)
 
     with tab_presu:
-        _render_presupuesto(inputs, resultado)
+        _render_presupuesto(inputs_cable, resultado_cable, inputs_fv, resultado_fv)
 
-    with tab_esquema:
-        _render_esquema_unifilar()
+    with tab_doc:
+        _render_documentacion(inputs_cable, resultado_cable, inputs_fv, resultado_fv)
 
     with tab_tablas:
         _render_tablas()
