@@ -224,6 +224,110 @@ PRECIOS_DIFERENCIAL_DEFECTO = {
     25: 55, 40: 65, 63: 90, 80: 210, 100: 260, 125: 320, 160: 420, 200: 520, 250: 650,
 }
 
+# ------------------------------------------------------------------------------
+# Catálogo ampliado de materiales típicos de una instalación eléctrica de BT.
+# Precios orientativos (€), punto de partida editable en la pestaña Presupuesto
+# — no son precios de mercado en tiempo real. Organizado por categorías para
+# que el desplegable de "añadir partida" sea manejable.
+# ------------------------------------------------------------------------------
+CATALOGO_MATERIALES = {
+    "Canalizaciones": {
+        "Tubo corrugado empotrar Ø16mm": ("m", 0.55),
+        "Tubo corrugado empotrar Ø20mm": ("m", 0.65),
+        "Tubo corrugado empotrar Ø25mm": ("m", 0.85),
+        "Tubo corrugado empotrar Ø32mm": ("m", 1.10),
+        "Tubo rígido superficie Ø20mm": ("m", 1.60),
+        "Tubo rígido superficie Ø32mm": ("m", 2.40),
+        "Bandeja perforada 100mm": ("m", 6.50),
+        "Bandeja perforada 200mm": ("m", 9.80),
+        "Bandeja perforada 300mm": ("m", 13.50),
+        "Bandeja no perforada (rejiband) 200mm": ("m", 8.20),
+        "Canaleta PVC 20x12mm": ("m", 2.10),
+        "Canaleta PVC 40x25mm": ("m", 4.30),
+    },
+    "Cajas y mecanismos": {
+        "Caja de derivación empotrar 100x100": ("ud", 1.80),
+        "Caja de derivación estanca IP65 150x110": ("ud", 6.50),
+        "Caja de mecanismo universal": ("ud", 0.60),
+        "Interruptor simple (mecanismo + tecla)": ("ud", 8.50),
+        "Conmutador": ("ud", 9.50),
+        "Pulsador timbre": ("ud", 7.50),
+        "Base de enchufe Schuko 16A": ("ud", 8.90),
+        "Base industrial CETAC 16A 3P+N+T": ("ud", 22.00),
+        "Base industrial CETAC 32A 3P+N+T": ("ud", 35.00),
+        "Marco embellecedor": ("ud", 3.20),
+    },
+    "Protección y maniobra": {
+        "Interruptor general automático (IGA)": ("ud", 65.00),
+        "Contactor 25A": ("ud", 38.00),
+        "Contactor 40A": ("ud", 58.00),
+        "Guardamotor 0,4-40A (según ajuste)": ("ud", 75.00),
+        "Relé térmico": ("ud", 42.00),
+        "Seccionador bajo carga 40A": ("ud", 48.00),
+        "Base + fusible cilíndrico 10x38": ("ud", 6.50),
+        "Fusible NH tamaño 00": ("ud", 12.00),
+    },
+    "Cuadros eléctricos": {
+        "Cuadro superficie 12 módulos": ("ud", 28.00),
+        "Cuadro superficie 24 módulos": ("ud", 42.00),
+        "Cuadro superficie 36 módulos": ("ud", 58.00),
+        "Cuadro empotrar 24 módulos": ("ud", 48.00),
+        "Cuadro empotrar 48 módulos": ("ud", 78.00),
+        "Embarrado de peine 12 módulos": ("ud", 9.50),
+    },
+    "Puesta a tierra": {
+        "Pica de acero cobreado 2m Ø14mm": ("ud", 14.00),
+        "Cable desnudo Cu 35mm² (tierra)": ("m", 4.80),
+        "Grapa de conexión pica-cable": ("ud", 3.50),
+        "Soldadura aluminotérmica": ("ud", 9.00),
+        "Arqueta de registro de tierra": ("ud", 32.00),
+        "Punto de puesta a tierra (caja + borne)": ("ud", 15.00),
+    },
+    "Luminarias": {
+        "Downlight LED 12W empotrar": ("ud", 11.50),
+        "Pantalla LED 60x60 40W": ("ud", 28.00),
+        "Luminaria estanca IP65 1x36W LED": ("ud", 24.00),
+        "Aparato autónomo de emergencia LED": ("ud", 26.00),
+        "Proyector LED exterior 50W": ("ud", 45.00),
+    },
+    "Varios / accesorios": {
+        "Prensaestopas M20": ("ud", 0.90),
+        "Prensaestopas M32": ("ud", 1.60),
+        "Terminal/puntera tubular (según sección)": ("ud", 0.35),
+        "Brida de nylon": ("ud", 0.08),
+        "Etiqueta de señalización normalizada": ("ud", 1.20),
+        "Regleta de conexión": ("ud", 2.50),
+    },
+}
+
+# Estructura clásica de presupuesto de instalaciones en España: sobre el
+# Presupuesto de Ejecución Material (materiales + mano de obra) se aplican
+# estos dos porcentajes editables antes del total.
+PORCENTAJE_BENEFICIO_DEFECTO = 15.0       # beneficio industrial
+PORCENTAJE_AMORTIZACION_DEFECTO = 3.0     # amortización de medios auxiliares / herramientas
+
+# ------------------------------------------------------------------------------
+# Catálogo de símbolos para el esquema unifilar (representación simplificada,
+# inspirada en IEC 60617). Cada símbolo define cómo dibujarse en el preview
+# SVG y qué entidades DXF generar; ver dibujar_simbolo_svg() y
+# _dxf_dibujar_simbolo().
+# ------------------------------------------------------------------------------
+SIMBOLOS_UNIFILAR = [
+    "Interruptor automático (magnetotérmico)",
+    "Interruptor diferencial",
+    "Interruptor general (IGA)",
+    "Seccionador",
+    "Fusible",
+    "Contactor",
+    "Guardamotor",
+    "Transformador",
+    "Motor",
+    "Contador de energía",
+    "Condensador",
+    "Puesta a tierra",
+    "Lámpara / receptor",
+]
+
 
 # ==============================================================================
 # 2. FUNCIONES DE CALCULO (logica pura, sin dependencias de Streamlit)
@@ -1099,7 +1203,8 @@ def calcular_presupuesto(inp: dict, res: dict, precios_cable: pd.DataFrame,
     return df, round(subtotal_materiales + importe_acc, 2), subtotal_mo, total
 
 
-def generar_excel_presupuesto(df_presupuesto: pd.DataFrame, inp: dict, res: dict, total: float) -> bytes:
+def generar_excel_presupuesto(df_presupuesto: pd.DataFrame, inp: dict, res: dict, total: float,
+                                desglose: dict = None) -> bytes:
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
@@ -1149,12 +1254,26 @@ def generar_excel_presupuesto(df_presupuesto: pd.DataFrame, inp: dict, res: dict
             if columnas[j - 1] == "Cantidad":
                 c.number_format = '#,##0.00'
 
-    total_row = header_row + len(df_presupuesto) + 1
-    ws.cell(row=total_row, column=len(columnas) - 1, value="TOTAL").font = Font(bold=True)
-    total_cell = ws.cell(row=total_row, column=len(columnas), value=total)
-    total_cell.font = Font(bold=True, color=azul)
-    total_cell.number_format = '#,##0.00 €'
-    total_cell.fill = PatternFill("solid", fgColor=cobre)
+    fila = header_row + len(df_presupuesto) + 1
+    n_col = len(columnas)
+
+    def _fila_resumen(etiqueta, valor, negrita=True, relleno=None):
+        nonlocal fila
+        c1 = ws.cell(row=fila, column=n_col - 1, value=etiqueta)
+        c2 = ws.cell(row=fila, column=n_col, value=valor)
+        c2.number_format = '#,##0.00 €'
+        if negrita:
+            c1.font = Font(bold=True)
+            c2.font = Font(bold=True, color=azul)
+        if relleno:
+            c2.fill = PatternFill("solid", fgColor=relleno)
+        fila += 1
+
+    if desglose:
+        _fila_resumen("PEM (materiales + M.O.)", desglose["pem"], negrita=False)
+        _fila_resumen(f"Amortización ({desglose['pct_amortizacion']:g}%)", desglose["amortizacion"], negrita=False)
+        _fila_resumen(f"Beneficio industrial ({desglose['pct_beneficio']:g}%)", desglose["beneficio"], negrita=False)
+    _fila_resumen("TOTAL", total, negrita=True, relleno=cobre)
 
     widths = [42, 14, 12, 16, 14]
     for j, w in enumerate(widths[:len(columnas)], start=1):
@@ -1174,7 +1293,157 @@ def generar_excel_presupuesto(df_presupuesto: pd.DataFrame, inp: dict, res: dict
 
 
 # ==============================================================================
-# 8. INTERFAZ STREAMLIT
+# 8. ESQUEMA UNIFILAR — vista previa SVG + exportación DXF
+# ==============================================================================
+# No es "arrastrar con el ratón": Streamlit no soporta de forma fiable drag&drop
+# libre sin un componente JS compilado aparte. En su lugar, cada circuito es
+# una secuencia ordenada de símbolos que se construye con botones (añadir /
+# subir / bajar / quitar), y se previsualiza igual que quedaría el DXF. Es el
+# mismo flujo de trabajo que un editor de bloques, sin necesitar un build JS.
+
+_CODIGOS_SIMBOLO = {
+    "Interruptor automático (magnetotérmico)": "IA",
+    "Interruptor diferencial": "ID",
+    "Interruptor general (IGA)": "IGA",
+    "Seccionador": "SEC",
+    "Fusible": "FUS",
+    "Contactor": "KM",
+    "Guardamotor": "GM",
+    "Transformador": "TRAFO",
+    "Motor": "M",
+    "Contador de energía": "kWh",
+    "Condensador": "C",
+    "Puesta a tierra": "PAT",
+    "Lámpara / receptor": "REC",
+}
+
+
+def _svg_simbolo(simbolo: str, cx: float, cy: float) -> str:
+    codigo = _CODIGOS_SIMBOLO.get(simbolo, "?")
+    trazo = "#e8edf4"
+    relleno = "#121b2e"
+    acento = "#e8a33d"
+    p = []
+    if simbolo == "Motor":
+        p.append(f'<circle cx="{cx}" cy="{cy}" r="14" fill="{relleno}" stroke="{trazo}" stroke-width="1.5"/>')
+        p.append(f'<text x="{cx}" y="{cy+4}" text-anchor="middle" font-size="11" fill="{acento}" '
+                 f'font-family="monospace">M</text>')
+    elif simbolo == "Contador de energía":
+        p.append(f'<circle cx="{cx}" cy="{cy}" r="14" fill="{relleno}" stroke="{trazo}" stroke-width="1.5"/>')
+        p.append(f'<text x="{cx}" y="{cy+3}" text-anchor="middle" font-size="7.5" fill="{acento}" '
+                 f'font-family="monospace">kWh</text>')
+    elif simbolo == "Transformador":
+        p.append(f'<circle cx="{cx-6}" cy="{cy}" r="10" fill="none" stroke="{trazo}" stroke-width="1.5"/>')
+        p.append(f'<circle cx="{cx+6}" cy="{cy}" r="10" fill="none" stroke="{trazo}" stroke-width="1.5"/>')
+    elif simbolo == "Condensador":
+        p.append(f'<line x1="{cx-4}" y1="{cy-10}" x2="{cx-4}" y2="{cy+10}" stroke="{trazo}" stroke-width="2.2"/>')
+        p.append(f'<line x1="{cx+4}" y1="{cy-10}" x2="{cx+4}" y2="{cy+10}" stroke="{trazo}" stroke-width="2.2"/>')
+    elif simbolo == "Puesta a tierra":
+        p.append(f'<line x1="{cx}" y1="{cy}" x2="{cx}" y2="{cy+9}" stroke="{trazo}" stroke-width="1.5"/>')
+        for i, w in enumerate([16, 10, 5]):
+            yy = cy + 9 + i * 5
+            p.append(f'<line x1="{cx-w/2}" y1="{yy}" x2="{cx+w/2}" y2="{yy}" stroke="{trazo}" stroke-width="1.5"/>')
+    elif simbolo == "Lámpara / receptor":
+        p.append(f'<circle cx="{cx}" cy="{cy}" r="12" fill="none" stroke="{trazo}" stroke-width="1.5"/>')
+        p.append(f'<line x1="{cx-8}" y1="{cy-8}" x2="{cx+8}" y2="{cy+8}" stroke="{trazo}" stroke-width="1.2"/>')
+        p.append(f'<line x1="{cx-8}" y1="{cy+8}" x2="{cx+8}" y2="{cy-8}" stroke="{trazo}" stroke-width="1.2"/>')
+    else:
+        p.append(f'<rect x="{cx-15}" y="{cy-10}" width="30" height="20" fill="{relleno}" stroke="{trazo}" '
+                  f'stroke-width="1.5" rx="2"/>')
+        p.append(f'<text x="{cx}" y="{cy+4}" text-anchor="middle" font-size="8" fill="{acento}" '
+                 f'font-family="monospace">{codigo}</text>')
+    return "\n".join(p)
+
+
+def construir_svg_unifilar(circuitos: list) -> str:
+    margen_izq, paso, fila_alto, y0 = 90, 95, 78, 46
+    n = max(len(circuitos), 1)
+    max_elems = max((len(c["elementos"]) for c in circuitos), default=0)
+    ancho = max(560, margen_izq + paso * (max_elems + 1) + 60)
+    alto = y0 + fila_alto * n + 30
+
+    partes = [f'<svg viewBox="0 0 {ancho} {alto}" xmlns="http://www.w3.org/2000/svg" '
+              f'style="background:#0b1220;border-radius:6px;width:100%;">']
+    y_top = y0 - 18
+    y_bottom = y0 + fila_alto * (n - 1) + 18
+    partes.append(f'<line x1="{margen_izq}" y1="{y_top}" x2="{margen_izq}" y2="{y_bottom}" '
+                  f'stroke="#e8a33d" stroke-width="3"/>')
+    partes.append(f'<text x="{margen_izq}" y="{y_top-8}" text-anchor="middle" font-size="8" fill="#e8a33d" '
+                  f'font-family="monospace">EMBARRADO</text>')
+
+    for i, circuito in enumerate(circuitos):
+        y = y0 + i * fila_alto
+        x_fin = margen_izq + paso * (len(circuito["elementos"]) + 1)
+        partes.append(f'<text x="{margen_izq+8}" y="{y-14}" font-size="10" fill="#e8edf4" '
+                      f'font-family="monospace">{circuito["nombre"]}</text>')
+        partes.append(f'<line x1="{margen_izq}" y1="{y}" x2="{x_fin}" y2="{y}" stroke="#8b96a8" '
+                      f'stroke-width="1.5"/>')
+        for j, simbolo in enumerate(circuito["elementos"]):
+            cx = margen_izq + paso * (j + 1)
+            partes.append(_svg_simbolo(simbolo, cx, y))
+            partes.append(f'<text x="{cx}" y="{y+26}" text-anchor="middle" font-size="7.5" fill="#8b96a8" '
+                          f'font-family="monospace">{_CODIGOS_SIMBOLO.get(simbolo, "?")}</text>')
+    partes.append("</svg>")
+    return "\n".join(partes)
+
+
+def _dxf_simbolo(msp, simbolo: str, cx: float, cy: float):
+    codigo = _CODIGOS_SIMBOLO.get(simbolo, "?")
+    if simbolo == "Motor":
+        msp.add_circle((cx, cy), radius=7)
+        msp.add_text("M", dxfattribs={"height": 4}).set_placement((cx - 2, cy - 2))
+    elif simbolo == "Contador de energía":
+        msp.add_circle((cx, cy), radius=7)
+        msp.add_text("kWh", dxfattribs={"height": 2.5}).set_placement((cx - 4, cy - 1.2))
+    elif simbolo == "Transformador":
+        msp.add_circle((cx - 3, cy), radius=5)
+        msp.add_circle((cx + 3, cy), radius=5)
+    elif simbolo == "Condensador":
+        msp.add_line((cx - 2, cy - 5), (cx - 2, cy + 5))
+        msp.add_line((cx + 2, cy - 5), (cx + 2, cy + 5))
+    elif simbolo == "Puesta a tierra":
+        msp.add_line((cx, cy), (cx, cy + 4.5))
+        for i, w in enumerate([8, 5, 2.5]):
+            yy = cy + 4.5 + i * 2.5
+            msp.add_line((cx - w / 2, yy), (cx + w / 2, yy))
+    elif simbolo == "Lámpara / receptor":
+        msp.add_circle((cx, cy), radius=6)
+        msp.add_line((cx - 4, cy - 4), (cx + 4, cy + 4))
+        msp.add_line((cx - 4, cy + 4), (cx + 4, cy - 4))
+    else:
+        msp.add_lwpolyline(
+            [(cx - 7, cy - 5), (cx + 7, cy - 5), (cx + 7, cy + 5), (cx - 7, cy + 5)], close=True)
+        msp.add_text(codigo, dxfattribs={"height": 2.2}).set_placement((cx - 5, cy - 1))
+
+
+def generar_dxf_unifilar(circuitos: list) -> bytes:
+    import ezdxf
+    doc = ezdxf.new("R2010")
+    msp = doc.modelspace()
+    margen_izq, paso, fila_alto, y0 = 0.0, 25.0, 20.0, 0.0
+    n = max(len(circuitos), 1)
+
+    y_top = y0 + 6
+    y_bottom = y0 - fila_alto * (n - 1) - 6
+    msp.add_line((margen_izq, y_top), (margen_izq, y_bottom))
+    msp.add_text("EMBARRADO", dxfattribs={"height": 2}).set_placement((margen_izq - 2, y_top + 2))
+
+    for i, circuito in enumerate(circuitos):
+        y = y0 - i * fila_alto
+        x_fin = margen_izq + paso * (len(circuito["elementos"]) + 1)
+        msp.add_line((margen_izq, y), (x_fin, y))
+        msp.add_text(circuito["nombre"], dxfattribs={"height": 2.2}).set_placement((margen_izq + 1, y + 3))
+        for j, simbolo in enumerate(circuito["elementos"]):
+            cx = margen_izq + paso * (j + 1)
+            _dxf_simbolo(msp, simbolo, cx, y)
+
+    buffer = io.StringIO()
+    doc.write(buffer, fmt="asc")
+    return buffer.getvalue().encode("utf-8")
+
+
+# ==============================================================================
+# 9. INTERFAZ STREAMLIT
 # ==============================================================================
 
 def _fmt_eur(valor: float) -> str:
@@ -1400,47 +1669,101 @@ def _render_resultados(inp: dict, res: dict):
                         file_name="memoria_calculo_cable.pdf", mime="application/pdf")
 
 
+def _fila_formula(latex_str: str, calculo_md: str):
+    """Muestra una fórmula en LaTeX junto a su cálculo con valores sustituidos."""
+    col_formula, col_calculo = st.columns([1, 1])
+    with col_formula:
+        st.latex(latex_str)
+    with col_calculo:
+        st.markdown(calculo_md)
+    st.markdown("<hr style='margin:0.3rem 0;'>", unsafe_allow_html=True)
+
+
 def _render_formulas(inp: dict, res: dict):
     st.markdown('<p class="section-label">Justificación del cálculo</p>', unsafe_allow_html=True)
-    st.caption("Mismas fórmulas que en la memoria PDF, con los valores de la pestaña Calculadora ya "
-               "sustituidos. Sirve para auditar de dónde sale cada cifra.")
+    st.caption("Cada fórmula, con el cálculo de este circuito justo al lado. Mismo contenido que incluye "
+               "la memoria en PDF.")
 
     if res["seccion_final"] is None:
         st.warning("Ajusta los datos en la pestaña Calculadora para poder mostrar la justificación.")
         return
 
+    sistema = inp["sistema"]
+    cos_phi = inp["cos_phi"]
+
     st.markdown("##### 1 · Corriente de empleo")
-    if inp["sistema"] == SISTEMA_MONO:
-        st.latex(r"I_b = \dfrac{P}{V \cdot \cos\varphi}")
+    if inp["modo_entrada"] == "Potencia activa":
+        p_w = inp["potencia_kw"] * 1000.0
+        if sistema == SISTEMA_MONO:
+            _fila_formula(
+                r"I_b = \dfrac{P}{V \cdot \cos\varphi}",
+                f"`Ib = {p_w:.0f} / ({inp['tension']:g} × {cos_phi:.2f})`  \n**Ib = {res['ib']:.2f} A**")
+        else:
+            _fila_formula(
+                r"I_b = \dfrac{P}{\sqrt{3} \cdot V \cdot \cos\varphi}",
+                f"`Ib = {p_w:.0f} / (1,732 × {inp['tension']:g} × {cos_phi:.2f})`  \n**Ib = {res['ib']:.2f} A**")
     else:
-        st.latex(r"I_b = \dfrac{P}{\sqrt{3} \cdot V \cdot \cos\varphi}")
-    if inp["es_motor"] and inp["corrientes_motores"]:
-        st.latex(r"I_{b,\,motor} = 1{,}25 \cdot I_{n,\,mayor} + \sum I_{n,\,resto}")
+        _fila_formula(r"I_b = \text{dato directo}", f"**Ib = {res['ib']:.2f} A** (introducida)")
+
+    if res.get("ib_motor") is not None:
+        if len(inp["corrientes_motores"]) == 1:
+            _fila_formula(
+                r"I_{b,\,motor} = 1{,}25 \cdot I_n",
+                f"`Ib = 1,25 × {inp['corrientes_motores'][0]:.2f}`  \n**Ib,motor = {res['ib_motor']:.2f} A**")
+        else:
+            ordenados = sorted(inp["corrientes_motores"], reverse=True)
+            resto = " + ".join(f"{x:.1f}" for x in ordenados[1:])
+            _fila_formula(
+                r"I_{b,\,motor} = 1{,}25 \cdot I_{n,\,mayor} + \textstyle\sum I_{n,\,resto}",
+                f"`Ib = 1,25 × {ordenados[0]:.2f} + ({resto})`  \n**Ib,motor = {res['ib_motor']:.2f} A**")
     if inp["alumbrado_descarga"]:
-        st.latex(r"I_{b,\,cálculo} = I_b \times 1{,}8 \quad \text{(descarga sin corregir f.d.p.)}")
+        _fila_formula(r"I_{b,\,cálculo} = I_b \times 1{,}8",
+                       f"Alumbrado de descarga sin corregir f.d.p.  \n**Ib,cálculo = {res['ib_calculo']:.2f} A**")
 
     st.markdown("##### 2 · Criterio térmico (ITC-BT-19 art. 19)")
-    st.latex(r"I_b \leq I_n \leq I_z \qquad I_z = I_{z,\,tabla} \cdot f_{temp} \cdot f_{agrup} \cdot f_{capas} \cdot f_{resist}")
+    _fila_formula(
+        r"I_z = I_{z,\,tabla} \cdot f_{temp} \cdot f_{agrup} \cdot f_{capas} \cdot f_{resist}",
+        f"`Iz = {res['iz_termica']/max(res['factor_total'],1e-9):.1f} × {res['f_temp']:.3f} × "
+        f"{res['f_agrup']:.3f} × {res['f_capas']:.3f} × {res['f_resist']:.3f}`  \n"
+        f"**Iz = {res['iz_termica']:.2f} A**")
+    cumple_termico = res["iz_termica"] >= (res["ib_calculo"] / (res["n_paralelo"] if res["necesita_paralelo"] else 1))
+    _fila_formula(
+        r"I_b \leq I_n \leq I_z",
+        f"`{res['ib_calculo']:.2f} A <= Iz={res['iz_termica']:.2f} A`  \n"
+        f"**{'✅ Cumple' if cumple_termico else '❌ No cumple'} con S = {res['s_termica']:g} mm²**")
 
     st.markdown("##### 3 · Criterio de caída de tensión")
-    if inp["sistema"] == SISTEMA_MONO:
-        st.latex(r"\Delta U = 2 \cdot L \cdot I_b \cdot (R\cos\varphi + X\sin\varphi), \quad R = \dfrac{1}{\kappa \cdot S}")
-    else:
-        st.latex(r"\Delta U = \sqrt{3} \cdot L \cdot I_b \cdot (R\cos\varphi + X\sin\varphi), \quad R = \dfrac{1}{\kappa \cdot S}")
-    st.latex(r"\kappa(T) = \dfrac{\kappa_{20°C}}{1 + \alpha \cdot (T_{servicio} - 20)}")
+    kappa = res["kappa"]
+    _fila_formula(
+        r"\kappa(T) = \dfrac{\kappa_{20°C}}{1 + \alpha \cdot (T_{servicio} - 20)}",
+        f"`kappa = {CONDUCTIVIDAD_20C[inp['conductor']]:g} / (1 + {COEF_TEMP_RESIST[inp['conductor']]:g} × "
+        f"({TEMP_SERVICIO[inp['aislamiento']]:g} - 20))`  \n**κ = {kappa:.2f} m/(Ω·mm²)**")
+    S = res["seccion_final"]
+    r_metro = 1.0 / (kappa * S)
+    k_sist_txt = "2" if sistema == SISTEMA_MONO else r"\sqrt{3}"
+    _fila_formula(
+        rf"\Delta U = {k_sist_txt} \cdot L \cdot I_b \cdot (R\cos\varphi + X\sin\varphi), \; R = \dfrac{{1}}{{\kappa S}}",
+        f"`R = 1/({kappa:.2f}×{S:g}) = {r_metro:.5f} Ω/m`  \n`ΔU = {res['e_final']:.2f} V`  \n"
+        f"**ΔU = {res['e_final_pct']:.2f} %** (máx {inp['delta_u_max']:g} %)")
 
-    if res.get("seccion_neutro") or res.get("seccion_proteccion"):
-        st.markdown("##### 4 · Neutro y conductor de protección")
-        st.latex(r"S_n = S_f \;\; (S_f \leq 16\,mm^2) \qquad S_n \geq S_f/2 \;\; (S_f > 16\,mm^2,\ \text{sin armónicos})")
-        st.latex(r"S_p = S_f \;(S_f\leq16) \quad S_p=16\,mm^2\;(16<S_f\leq35) \quad S_p=S_f/2\;(S_f>35)")
+    if res.get("seccion_neutro"):
+        st.markdown("##### 4 · Sección de neutro y conductor de protección")
+        _fila_formula(
+            r"S_n = S_f \;(S_f\leq16) \qquad S_n \geq S_f/2 \;(S_f>16,\text{ sin armónicos})",
+            f"`Sf = {S:g} mm²` → **Sn = {res['seccion_neutro']:g} mm²**")
+    if res.get("seccion_proteccion"):
+        _fila_formula(
+            r"S_p{=}S_f (S_f{\leq}16) \;\; S_p{=}16 (16{<}S_f{\leq}35) \;\; S_p{=}S_f/2 (S_f{>}35)",
+            f"`Sf = {S:g} mm²` → **Sp = {res['seccion_proteccion']:g} mm²**")
 
     if res.get("cumple_cc") is not None:
         st.markdown("##### 5 · Verificación de cortocircuito")
-        st.latex(r"S_{min} = \dfrac{I_{cc} \cdot \sqrt{t}}{k}")
-
-    st.markdown("##### Con los valores de este cálculo")
-    texto = "\n".join(_lineas_formulas_texto(inp, res))
-    st.code(texto, language=None)
+        k_cc = K_CORTOCIRCUITO[(inp["conductor"], inp["aislamiento"])]
+        _fila_formula(
+            r"S_{min} = \dfrac{I_{cc} \cdot \sqrt{t}}{k}",
+            f"`Smin = ({inp['icc_ka']:g}×1000 × √{inp['tiempo_s']:g}) / {k_cc}`  \n"
+            f"**Smin = {res['s_min_cc']:g} mm²** → "
+            f"{'✅ Cumple' if res['cumple_cc'] else '❌ No cumple'} con S={S:g} mm²")
 
 
 def _render_presupuesto(inp: dict, res: dict):
@@ -1452,51 +1775,192 @@ def _render_presupuesto(inp: dict, res: dict):
         st.warning("Ajusta los datos en la pestaña Calculadora para poder generar el presupuesto.")
         return
 
-    with st.expander("💶 Precios unitarios (editables)", expanded=False):
+    st.session_state.setdefault("presupuesto_manual", [])
+    st.session_state.setdefault("precios_catalogo", {
+        cat: {item: precio for item, (unidad, precio) in items.items()}
+        for cat, items in CATALOGO_MATERIALES.items()
+    })
+
+    with st.expander("💶 Precios unitarios — cable y conceptos ligados al cálculo"):
         st.markdown("**Cable por sección (€/m)**")
         precios_cable = st.data_editor(
             tabla_precios_cable_defecto(), key="precios_cable_editor",
             width='stretch', hide_index=True, num_rows="fixed",
         )
-        st.markdown("**Otros conceptos**")
+        st.markdown("**Canalización / mano de obra / accesorios**")
         otros_conceptos = st.data_editor(
             tabla_otros_conceptos_defecto(inp["metodo"]), key="otros_conceptos_editor",
             width='stretch', hide_index=True, num_rows="fixed",
         )
 
-    df_presupuesto, subtotal_mat, subtotal_mo, total = calcular_presupuesto(
-        inp, res, precios_cable, otros_conceptos)
+    with st.expander("🧰 Catálogo de materiales de instalación (editable) y partidas manuales"):
+        st.caption("Añade aquí lo que no sale directamente del cálculo del circuito: mecanismos, cuadros, "
+                   "puesta a tierra, luminarias... Edita los precios por categoría y añade partidas con la "
+                   "cantidad que necesites.")
+        categoria = st.selectbox("Categoría", list(CATALOGO_MATERIALES.keys()), key="cat_manual")
+        tabla_cat = pd.DataFrame([
+            {"Concepto": item, "Unidad": unidad, "Precio unitario (€)":
+                st.session_state["precios_catalogo"][categoria].get(item, precio_defecto)}
+            for item, (unidad, precio_defecto) in CATALOGO_MATERIALES[categoria].items()
+        ])
+        tabla_editada = st.data_editor(tabla_cat, key=f"editor_{categoria}", width='stretch',
+                                        hide_index=True, num_rows="fixed")
+        for _, fila in tabla_editada.iterrows():
+            st.session_state["precios_catalogo"][categoria][fila["Concepto"]] = fila["Precio unitario (€)"]
 
-    if df_presupuesto.empty:
+        ca1, ca2, ca3 = st.columns([2, 1, 1])
+        with ca1:
+            concepto_sel = st.selectbox("Concepto a añadir", tabla_editada["Concepto"].tolist(), key="concepto_manual")
+        with ca2:
+            cantidad_sel = st.number_input("Cantidad", min_value=0.1, value=1.0, step=1.0, key="cantidad_manual")
+        with ca3:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("➕ Añadir partida"):
+                fila_sel = tabla_editada.loc[tabla_editada["Concepto"] == concepto_sel].iloc[0]
+                st.session_state["presupuesto_manual"].append({
+                    "Concepto": concepto_sel, "Unidad": fila_sel["Unidad"], "Cantidad": cantidad_sel,
+                    "Precio unitario (€)": float(fila_sel["Precio unitario (€)"]),
+                    "Importe (€)": round(cantidad_sel * float(fila_sel["Precio unitario (€)"]), 2),
+                })
+
+        if st.session_state["presupuesto_manual"]:
+            st.markdown("**Partidas manuales añadidas**")
+            for i, item in enumerate(st.session_state["presupuesto_manual"]):
+                fc1, fc2, fc3 = st.columns([3, 1, 0.4])
+                fc1.write(f"{item['Concepto']} — {item['Cantidad']:g} {item['Unidad']}")
+                fc2.write(_fmt_eur(item["Importe (€)"]))
+                if fc3.button("🗑️", key=f"del_manual_{i}"):
+                    st.session_state["presupuesto_manual"].pop(i)
+                    st.rerun()
+
+    with st.expander("📈 Beneficio y amortización", expanded=True):
+        pb1, pb2 = st.columns(2)
+        with pb1:
+            porcentaje_beneficio = st.number_input(
+                "Beneficio industrial (%)", min_value=0.0, max_value=50.0,
+                value=PORCENTAJE_BENEFICIO_DEFECTO, step=0.5)
+        with pb2:
+            porcentaje_amortizacion = st.number_input(
+                "Amortización de medios auxiliares (%)", min_value=0.0, max_value=20.0,
+                value=PORCENTAJE_AMORTIZACION_DEFECTO, step=0.5,
+                help="Herramientas, equipos de medida, andamios/escaleras... como % sobre el PEM.")
+
+    df_auto, subtotal_mat, subtotal_mo, _ = calcular_presupuesto(inp, res, precios_cable, otros_conceptos)
+    if df_auto.empty:
         st.warning("No se ha podido calcular el presupuesto.")
         return
 
-    st.dataframe(df_presupuesto, width='stretch', hide_index=True)
+    df_manual = pd.DataFrame(st.session_state["presupuesto_manual"])
+    df_completo = pd.concat([df_auto, df_manual], ignore_index=True) if not df_manual.empty else df_auto
 
-    p1, p2, p3 = st.columns(3)
+    st.markdown("**Mediciones y precios**")
+    st.dataframe(df_completo, width='stretch', hide_index=True)
+
+    pem = round(df_completo["Importe (€)"].sum(), 2)
+    importe_amortizacion = round(pem * porcentaje_amortizacion / 100.0, 2)
+    importe_beneficio = round((pem + importe_amortizacion) * porcentaje_beneficio / 100.0, 2)
+    total = round(pem + importe_amortizacion + importe_beneficio, 2)
+
+    p1, p2, p3, p4 = st.columns(4)
     with p1:
         st.markdown(f'''<div class="result-card">
-            <div class="result-label">Subtotal materiales</div>
-            <div class="result-value small">{_fmt_eur(subtotal_mat)}</div>
+            <div class="result-label">PEM (materiales+M.O.)</div>
+            <div class="result-value small">{_fmt_eur(pem)}</div>
         </div>''', unsafe_allow_html=True)
     with p2:
         st.markdown(f'''<div class="result-card">
-            <div class="result-label">Mano de obra</div>
-            <div class="result-value small">{_fmt_eur(subtotal_mo)}</div>
+            <div class="result-label">Amortización ({porcentaje_amortizacion:g}%)</div>
+            <div class="result-value small">{_fmt_eur(importe_amortizacion)}</div>
         </div>''', unsafe_allow_html=True)
     with p3:
+        st.markdown(f'''<div class="result-card">
+            <div class="result-label">Beneficio industrial ({porcentaje_beneficio:g}%)</div>
+            <div class="result-value small">{_fmt_eur(importe_beneficio)}</div>
+        </div>''', unsafe_allow_html=True)
+    with p4:
         st.markdown(f'''<div class="result-card hero">
             <div class="result-label">Total presupuesto</div>
             <div class="result-value">{_fmt_eur(total)}</div>
         </div>''', unsafe_allow_html=True)
 
-    st.caption("No incluye IVA. Cantidades de cable calculadas sobre la longitud, el nº de conductores del "
-               "sistema y, si aplica, el nº de conductores en paralelo determinados en la Calculadora.")
+    st.caption("No incluye IVA. Cantidades de cable/canalización/protecciones calculadas automáticamente "
+               "sobre el resultado de la Calculadora; el resto son las partidas manuales que hayas añadido.")
 
-    excel_bytes = generar_excel_presupuesto(df_presupuesto, inp, res, total)
+    desglose = dict(pem=pem, amortizacion=importe_amortizacion, beneficio=importe_beneficio,
+                     pct_amortizacion=porcentaje_amortizacion, pct_beneficio=porcentaje_beneficio)
+    excel_bytes = generar_excel_presupuesto(df_completo, inp, res, total, desglose)
     st.download_button("⬇️ Descargar presupuesto (Excel)", data=excel_bytes,
                         file_name="presupuesto_cable.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+def _render_esquema_unifilar():
+    st.markdown('<p class="section-label">Esquema unifilar</p>', unsafe_allow_html=True)
+    st.caption(
+        "Constructor por bloques: añade símbolos a cada circuito con los botones (no hay arrastre libre "
+        "con el ratón — Streamlit no soporta eso de forma fiable sin un componente JS aparte — pero el "
+        "resultado de diseño es el mismo). La vista previa es exactamente lo que se exporta a DXF."
+    )
+
+    st.session_state.setdefault("circuitos_unifilar", [
+        {"nombre": "C1 - Alumbrado", "elementos": ["Interruptor automático (magnetotérmico)",
+                                                     "Interruptor diferencial", "Lámpara / receptor"]},
+    ])
+    circuitos = st.session_state["circuitos_unifilar"]
+
+    nc1, nc2 = st.columns([3, 1])
+    with nc1:
+        nuevo_nombre = st.text_input("Nombre del nuevo circuito", f"C{len(circuitos)+1} - ",
+                                      key="nombre_nuevo_circuito")
+    with nc2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("➕ Nuevo circuito"):
+            circuitos.append({"nombre": nuevo_nombre, "elementos": []})
+            st.rerun()
+
+    for idx, circuito in enumerate(circuitos):
+        with st.container(border=True):
+            tc1, tc2 = st.columns([4, 0.6])
+            tc1.markdown(f"**{circuito['nombre']}**")
+            if tc2.button("🗑️", key=f"del_circuito_{idx}", help="Eliminar circuito"):
+                circuitos.pop(idx)
+                st.rerun()
+
+            ac1, ac2 = st.columns([3, 1])
+            with ac1:
+                simbolo_sel = st.selectbox("Símbolo", SIMBOLOS_UNIFILAR, key=f"simbolo_sel_{idx}")
+            with ac2:
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button("➕ Añadir a la línea", key=f"add_simbolo_{idx}"):
+                    circuito["elementos"].append(simbolo_sel)
+                    st.rerun()
+
+            if circuito["elementos"]:
+                for j, elem in enumerate(circuito["elementos"]):
+                    ec1, ec2, ec3, ec4 = st.columns([3, 0.5, 0.5, 0.5])
+                    ec1.write(f"{j+1}. {elem}")
+                    if ec2.button("⬆️", key=f"up_{idx}_{j}") and j > 0:
+                        circuito["elementos"][j - 1], circuito["elementos"][j] = \
+                            circuito["elementos"][j], circuito["elementos"][j - 1]
+                        st.rerun()
+                    if ec3.button("⬇️", key=f"down_{idx}_{j}") and j < len(circuito["elementos"]) - 1:
+                        circuito["elementos"][j + 1], circuito["elementos"][j] = \
+                            circuito["elementos"][j], circuito["elementos"][j + 1]
+                        st.rerun()
+                    if ec4.button("✖️", key=f"rm_{idx}_{j}"):
+                        circuito["elementos"].pop(j)
+                        st.rerun()
+
+    st.markdown('<p class="section-label">Vista previa</p>', unsafe_allow_html=True)
+    if circuitos:
+        st.markdown(construir_svg_unifilar(circuitos), unsafe_allow_html=True)
+        dxf_bytes = generar_dxf_unifilar(circuitos)
+        st.download_button("⬇️ Descargar esquema (DXF)", data=dxf_bytes, file_name="esquema_unifilar.dxf",
+                            mime="application/dxf")
+        st.caption("DXF con líneas, símbolos simplificados y etiquetas de texto — abre en AutoCAD/ZWCAD "
+                   "para escalar, sustituir por bloques normalizados de tu biblioteca y maquetar el plano.")
+    else:
+        st.info("Añade al menos un circuito para ver la vista previa.")
 
 
 def _render_tablas():
@@ -1652,8 +2116,9 @@ def main():
         unsafe_allow_html=True,
     )
 
-    tab_calc, tab_formulas, tab_presu, tab_tablas, tab_metodo = st.tabs(
-        ["🔌 Calculadora", "🧮 Fórmulas", "💰 Presupuesto", "📊 Tablas normativas", "📖 Metodología"]
+    tab_calc, tab_formulas, tab_presu, tab_esquema, tab_tablas, tab_metodo = st.tabs(
+        ["🔌 Calculadora", "🧮 Fórmulas", "💰 Presupuesto", "📐 Esquema unifilar",
+         "📊 Tablas normativas", "📖 Metodología"]
     )
 
     with tab_calc:
@@ -1666,6 +2131,9 @@ def main():
 
     with tab_presu:
         _render_presupuesto(inputs, resultado)
+
+    with tab_esquema:
+        _render_esquema_unifilar()
 
     with tab_tablas:
         _render_tablas()
