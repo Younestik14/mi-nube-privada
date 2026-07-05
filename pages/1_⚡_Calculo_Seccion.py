@@ -2,14 +2,6 @@ import streamlit as st
 import math
 import pandas as pd
 import streamlit as st
-# 1. Importas tus funciones de estilo desde la carpeta utils
-from utils.style import aplicar_estilo_global, generar_banner
-from estilos import aplicar_marca_agua
-
-# Llamamos a la función justo después de cualquier configuración inicial
-aplicar_marca_agua()
-
-# ... resto de tu código ...
 
 # 3. Aplicas el diseño y generas el banner superior
 aplicar_estilo_global()
