@@ -1490,9 +1490,10 @@ def generar_pdf_mtd(datos_proyecto: dict, inputs_cable: dict, resultado_cable: d
     story.append(Paragraph("F. Presupuesto", h2))
     if total_presupuesto:
         story.append(Paragraph(f"El presupuesto de la instalación asciende a la cantidad de "
-                                f"<b>{total_presupuesto:,.2f} €</b> ({numero_a_letras_euros(total_presupuesto)}), "
+                                f"<b>{_miles(total_presupuesto, 2)} €</b> "
+                                f"({numero_a_letras_euros(total_presupuesto)}), "
                                 "IVA incluido, según el desglose por capítulos que se adjunta en el documento "
-                                "de Presupuesto.".replace(",", "."), normal))
+                                "de Presupuesto.", normal))
     else:
         story.append(Paragraph("No se ha generado presupuesto en la pestaña correspondiente.", normal))
 
@@ -1523,14 +1524,238 @@ def generar_pdf_mtd(datos_proyecto: dict, inputs_cable: dict, resultado_cable: d
     return buffer.getvalue()
 
 
+def _parrafos_calculo_cable_pdf(inp: dict, res: dict, normal, formula) -> list:
+    """Redacta la justificación de cálculo del circuito de baja tensión como
+    una memoria de cálculo al uso (fórmula tipográfica + texto explicativo +
+    sustitución numérica), en vez de líneas sueltas tipo calculadora."""
+    from reportlab.platypus import Paragraph
+    P = []
+    sistema = inp["sistema"]
+    cosphi = inp["cos_phi"]
+
+    if inp["modo_entrada"] == "Potencia activa":
+        p_w = inp["potencia_kw"] * 1000.0
+        p_w_txt = _miles(p_w)
+        if sistema == SISTEMA_MONO:
+            P.append(Paragraph("La intensidad de empleo del circuito, para un sistema monofásico, se "
+                                "determina mediante la expresión:", normal))
+            P.append(Paragraph("I<sub>b</sub> = P / (V · cos φ)", formula))
+            P.append(Paragraph(f"Sustituyendo los valores de la instalación (P = {p_w_txt} W, "
+                                f"V = {inp['tension']:g} V, cos φ = {cosphi:.2f}), resulta:", normal))
+            P.append(Paragraph(f"I<sub>b</sub> = {p_w_txt} / ({inp['tension']:g} × {cosphi:.2f}) = "
+                                f"<b>{res['ib']:.2f} A</b>", formula))
+        else:
+            P.append(Paragraph("La intensidad de empleo del circuito, para un sistema trifásico "
+                                "equilibrado, se determina mediante la expresión:", normal))
+            P.append(Paragraph("I<sub>b</sub> = P / (√3 · V · cos φ)", formula))
+            P.append(Paragraph(f"Sustituyendo los valores de la instalación (P = {p_w_txt} W, "
+                                f"V = {inp['tension']:g} V, cos φ = {cosphi:.2f}), resulta:", normal))
+            P.append(Paragraph(f"I<sub>b</sub> = {p_w_txt} / (√3 × {inp['tension']:g} × {cosphi:.2f}) = "
+                                f"<b>{res['ib']:.2f} A</b>", formula))
+    else:
+        P.append(Paragraph(f"La intensidad de empleo se ha introducido de forma directa: "
+                            f"I<sub>b</sub> = <b>{res['ib']:.2f} A</b>.", normal))
+
+    if res.get("ib_motor") is not None:
+        if len(inp["corrientes_motores"]) == 1:
+            P.append(Paragraph("Al tratarse de un circuito de motor único, la ITC-BT-47 exige dimensionar "
+                                "el conductor para el 125% de la intensidad a plena carga del motor:", normal))
+            P.append(Paragraph(f"I<sub>b,motor</sub> = 1,25 · I<sub>n</sub> = 1,25 × "
+                                f"{inp['corrientes_motores'][0]:.2f} = <b>{res['ib_motor']:.2f} A</b>", formula))
+        else:
+            ordenados = sorted(inp["corrientes_motores"], reverse=True)
+            resto = " + ".join(f"{x:.1f}" for x in ordenados[1:])
+            P.append(Paragraph("Al existir varios motores en el mismo circuito, la ITC-BT-47 exige "
+                                "dimensionar el conductor para el 125% de la intensidad del motor de mayor "
+                                "potencia, más el 100% de la intensidad del resto:", normal))
+            P.append(Paragraph(f"I<sub>b,motor</sub> = 1,25 × {ordenados[0]:.2f} + ({resto}) = "
+                                f"<b>{res['ib_motor']:.2f} A</b>", formula))
+        if inp["ascensor_grua"]:
+            P.append(Paragraph("Por tratarse de un ascensor o grúa, se aplica adicionalmente el factor "
+                                "×1,3 previsto en la ITC-BT-47.", normal))
+    if inp["alumbrado_descarga"]:
+        P.append(Paragraph("Al tratarse de alumbrado con lámparas de descarga sin corregir el factor de "
+                            "potencia, se incrementa la intensidad de cálculo con un factor orientativo de "
+                            "1,8, según la ITC-BT-44:", normal))
+        P.append(Paragraph(f"I<sub>b,cálculo</sub> = I<sub>b</sub> × 1,8 = <b>{res['ib_calculo']:.2f} A</b>",
+                            formula))
+
+    P.append(Paragraph("El criterio térmico del artículo 19.2 de la ITC-BT-19 exige que la intensidad "
+                        "admisible del cable, corregida por las condiciones reales de la instalación, no "
+                        "sea inferior a la intensidad de empleo:", normal))
+    P.append(Paragraph("I<sub>b</sub> ≤ I<sub>n</sub> ≤ I<sub>z</sub> ,  con  I<sub>z</sub> = "
+                        "I<sub>z,tabla</sub> · f<sub>temp</sub> · f<sub>agrup</sub> · f<sub>capas</sub> · "
+                        "f<sub>resist</sub>", formula))
+    factor_base = res["iz_termica"] / max(res["factor_total"], 1e-9)
+    P.append(Paragraph(f"Para la sección adoptada, la Guía-BT-19 establece una intensidad admisible de "
+                        f"base de {factor_base:.1f} A que, corregida por los factores de temperatura "
+                        f"({res['f_temp']:.3f}), agrupamiento ({res['f_agrup']:.3f}), capas "
+                        f"({res['f_capas']:.3f}) y resistividad del terreno ({res['f_resist']:.3f}), "
+                        "resulta:", normal))
+    P.append(Paragraph(f"I<sub>z</sub> = {factor_base:.1f} × {res['f_temp']:.3f} × {res['f_agrup']:.3f} × "
+                        f"{res['f_capas']:.3f} × {res['f_resist']:.3f} = "
+                        f"<b>{res['iz_termica']:.2f} A</b>", formula))
+    i_comparar = res["ib_calculo"] / (res["n_paralelo"] if res["necesita_paralelo"] else 1)
+    cumple_termico = res["iz_termica"] >= i_comparar
+    P.append(Paragraph(f"Al ser I<sub>z</sub> = {res['iz_termica']:.2f} A "
+                        f"{'superior' if cumple_termico else 'inferior'} a la intensidad de cálculo "
+                        f"({i_comparar:.2f} A), la sección de <b>{res['s_termica']:g} mm²</b> "
+                        f"{'satisface' if cumple_termico else 'NO satisface'} el criterio térmico.", normal))
+
+    P.append(Paragraph("Para el criterio de caída de tensión, la conductividad del conductor se toma a su "
+                        "temperatura de servicio (más conservadora que a 20°C):", normal))
+    P.append(Paragraph("κ(T) = κ<sub>20°C</sub> / [1 + α · (T<sub>servicio</sub> − 20)]", formula))
+    kappa = res["kappa"]
+    P.append(Paragraph(f"κ = {CONDUCTIVIDAD_20C[inp['conductor']]:g} / [1 + "
+                        f"{COEF_TEMP_RESIST[inp['conductor']]:g} × "
+                        f"({TEMP_SERVICIO[inp['aislamiento']]:g} − 20)] = <b>{kappa:.2f} m/(Ω·mm²)</b>", formula))
+    S = res["seccion_final"]
+    r_metro = 1.0 / (kappa * S)
+    k_sist_txt = "2" if sistema == SISTEMA_MONO else "√3"
+    P.append(Paragraph("La caída de tensión se calcula, con resistencia R = 1/(κ·S), mediante:", normal))
+    P.append(Paragraph(f"ΔU = {k_sist_txt} · L · I<sub>b</sub> · (R·cos φ + X·sen φ)", formula))
+    P.append(Paragraph(f"Para L = {inp['longitud']:g} m y S = {S:g} mm², R = 1/({kappa:.2f}×{S:g}) = "
+                        f"{r_metro:.5f} Ω/m, resultando:", normal))
+    P.append(Paragraph(f"ΔU = {res['e_final']:.2f} V = <b>{res['e_final_pct']:.2f} %</b> de "
+                        f"{inp['tension']:g} V", formula))
+    cumple_du = res["e_final_pct"] <= inp["delta_u_max"]
+    P.append(Paragraph(f"Como {res['e_final_pct']:.2f} % es {'inferior' if cumple_du else 'superior'} al "
+                        f"máximo admisible del {inp['delta_u_max']:g} % para este tramo, la sección "
+                        f"{'satisface' if cumple_du else 'NO satisface'} el criterio de caída de tensión.",
+                        normal))
+
+    if res.get("seccion_neutro"):
+        P.append(Paragraph("La sección del conductor neutro se obtiene según el criterio general del REBT "
+                            "(igual a la de fase hasta 16 mm², o la mitad redondeada para secciones "
+                            "mayores sin armónicos significativos):", normal))
+        P.append(Paragraph(f"S<sub>f</sub> = {S:g} mm² → <b>S<sub>n</sub> = "
+                            f"{res['seccion_neutro']:g} mm²</b>", formula))
+    if res.get("seccion_proteccion"):
+        P.append(Paragraph("La sección del conductor de protección se obtiene según la tabla de la "
+                            "ITC-BT-18:", normal))
+        P.append(Paragraph(f"S<sub>f</sub> = {S:g} mm² → <b>S<sub>p</sub> = "
+                            f"{res['seccion_proteccion']:g} mm²</b>", formula))
+
+    if res.get("cumple_cc") is not None:
+        k_cc = K_CORTOCIRCUITO[(inp["conductor"], inp["aislamiento"])]
+        P.append(Paragraph("Por último, se verifica el criterio térmico de cortocircuito (IEC 60364-5-54):",
+                            normal))
+        P.append(Paragraph("S<sub>mín</sub> = I<sub>cc</sub> · √t / k", formula))
+        P.append(Paragraph(f"S<sub>mín</sub> = ({inp['icc_ka']:g}×1000 × √{inp['tiempo_s']:g}) / {k_cc} = "
+                            f"<b>{res['s_min_cc']:g} mm²</b>, frente a los {S:g} mm² adoptados: "
+                            f"{'cumple' if res['cumple_cc'] else 'NO cumple'}.", normal))
+    return P
+
+
+def _parrafos_calculo_fv_pdf(inp: dict, res: dict, normal, formula) -> list:
+    """Redacta la justificación de cálculo de la instalación fotovoltaica
+    como memoria de cálculo (mismo espíritu que la función de cable)."""
+    from reportlab.platypus import Paragraph
+    P = []
+
+    P.append(Paragraph(f"El generador fotovoltaico se dimensiona para una potencia pico de "
+                        f"<b>{res['p_pico_kwp']:.2f} kWp</b>, equivalente a {res['n_paneles']} paneles de "
+                        f"{inp['potencia_panel_wp']:g} Wp y una superficie de captación de "
+                        f"{res['superficie_necesaria_m2']:.1f} m².", normal))
+
+    P.append(Paragraph("Las pérdidas por orientación e inclinación no óptimas se calculan según la "
+                        "expresión del Documento Básico HE5 del Código Técnico de la Edificación:", normal))
+    P.append(Paragraph("Pérdidas (%) = 100 · [1,2·10⁻⁴·(β − φ + 10)² + 3,5·10⁻⁵·α²]", formula))
+    P.append(Paragraph(f"con inclinación β = {inp['inclinacion']:g}°, latitud φ = {inp['latitud']:g}° y "
+                        f"azimut α = {inp['azimut']:g}°, lo que da unas pérdidas de "
+                        f"<b>{res['perdidas_orient_pct']:.2f} %</b>.", normal))
+    P.append(Paragraph("El rendimiento efectivo (Performance Ratio) incorpora además las pérdidas por "
+                        "sombras/suciedad y la eficiencia del inversor:", normal))
+    P.append(Paragraph(f"PR<sub>efectivo</sub> = PR<sub>base</sub> · (1 − p<sub>orient</sub>) · "
+                        f"(1 − p<sub>sombras</sub>) · η<sub>inversor</sub> = {inp['pr']:.2f} × "
+                        f"(1 − {res['perdidas_orient_pct']/100:.3f}) × "
+                        f"(1 − {inp['perdidas_sombras']/100:.2f}) × {inp['eficiencia_inversor']/100:.3f} = "
+                        f"<b>{res['pr_efectivo']:.3f}</b>", formula))
+    P.append(Paragraph("La producción anual estimada resulta de aplicar la fórmula del IDAE:", normal))
+    P.append(Paragraph("E<sub>anual</sub> = P<sub>pico</sub> · HSP · 365 · PR<sub>efectivo</sub>", formula))
+    P.append(Paragraph(f"E<sub>anual</sub> = {res['p_pico_kwp']:.2f} × {inp['hsp']:g} × 365 × "
+                        f"{res['pr_efectivo']:.3f} = <b>{_miles(res['produccion_anual_kwh'])} kWh/año</b>",
+                        formula))
+    P.append(Paragraph(f"Considerando una degradación anual del panel del {inp['degradacion_anual']:g}%, la "
+                        f"producción estimada será de {_miles(res['produccion_ano10'])} kWh/año en el año "
+                        f"10 y de {_miles(res['produccion_ano25'])} kWh/año en el año 25. El ahorro de "
+                        f"emisiones asociado, con un factor de emisión de la red de "
+                        f"{inp.get('factor_co2', FACTOR_CO2_RED_DEFECTO):.2f} kg CO₂/kWh, es de "
+                        f"<b>{res['co2_evitado_kg_ano']/1000:.2f} toneladas de CO₂ al año</b>.", normal))
+
+    P.append(Paragraph(f"El generador se configura con {res['n_serie']} paneles en serie por string y "
+                        f"{res['n_paralelo']} strings en paralelo. La tensión de circuito abierto del "
+                        "string en la condición más desfavorable (frío) se calcula como:", normal))
+    P.append(Paragraph("V<sub>string,frío</sub> = N<sub>serie</sub> · V<sub>oc</sub> · "
+                        "[1 + α<sub>V</sub> · (25 − T<sub>mín</sub>)]", formula))
+    P.append(Paragraph(f"V<sub>string,frío</sub> = {res['n_serie']} × {inp['voc']:g} × "
+                        f"[1 + {inp['coef_temp_voc']/100:.4f} × (25 − {inp['temp_min']:g})] = "
+                        f"<b>{res['v_string_frio']:.1f} V</b>", formula))
+    cumple_v = res["cumple_vmax"] and res["cumple_vmpp_min"] and res["cumple_vmpp_max"]
+    P.append(Paragraph(f"Este valor {'se mantiene dentro' if cumple_v else 'NO se mantiene dentro'} de la "
+                        f"ventana de tensión admisible del inversor "
+                        f"({inp['vmin_mppt']:g}-{inp['vmax_mppt']:g} V de rango MPPT, "
+                        f"{inp['vmax_entrada_inversor']:g} V de tensión máxima de entrada).", normal))
+
+    P.append(Paragraph("De acuerdo con la ITC-BT-40, los cables de conexión de instalaciones generadoras "
+                        "se dimensionan para una intensidad no inferior al 125% de la intensidad máxima del "
+                        "generador, con una caída de tensión conjunta (continua + alterna) no superior al "
+                        "1,5% entre el generador y el punto de interconexión:", normal))
+    P.append(Paragraph(f"I<sub>diseño,CC</sub> = 1,25 · I<sub>sc</sub> = 1,25 × {inp['isc']:g} = "
+                        f"<b>{res['i_diseno_cc']:.2f} A</b>  →  sección adoptada "
+                        f"<b>{res['s_cc_final']:g} mm²</b> (ΔU = {res['du_cc_pct']:.2f} %)", formula))
+    P.append(Paragraph(f"I<sub>diseño,CA</sub> = 1,25 · I<sub>b</sub> = <b>{res['i_diseno_ca']:.2f} A</b>  →  "
+                        f"sección adoptada <b>{res['s_ca_final']:g} mm²</b> "
+                        f"(ΔU = {res['e_ca_pct']:.2f} %)", formula))
+    cumple_total = res["du_total_pct"] <= 1.5
+    P.append(Paragraph(f"La caída de tensión conjunta resulta ΔU = {res['du_total_pct']:.2f} %, que "
+                        f"{'cumple' if cumple_total else 'NO cumple'} el límite del 1,5% establecido por "
+                        "la ITC-BT-40.", normal))
+
+    if res.get("calibre_fusible_string"):
+        P.append(Paragraph(f"Al haber más de un string en paralelo, se dispone fusible de protección de "
+                            f"cada string, de calibre <b>{res['calibre_fusible_string']} A</b> y tensión "
+                            f"nominal <b>{res.get('tension_fusible_string','—')} V</b> (criterio orientativo "
+                            "1,5-2,4 veces la Isc del string, UNE-EN 62548).", normal))
+    if res.get("capacidad_bateria_kwh"):
+        P.append(Paragraph("La capacidad de la batería de acumulación se determina a partir del consumo "
+                            "diario a cubrir, la autonomía deseada y la profundidad de descarga admisible:",
+                            normal))
+        P.append(Paragraph("C<sub>batería</sub> = (Consumo<sub>diario</sub> · Días<sub>autonomía</sub>) / "
+                            "Profundidad<sub>descarga</sub>", formula))
+        P.append(Paragraph(f"C<sub>batería</sub> = ({inp.get('consumo_diario_bateria_kwh',0):.2f} × "
+                            f"{inp.get('autonomia_dias',0):g}) / {inp.get('profundidad_descarga',80)/100:.2f} "
+                            f"= <b>{res['capacidad_bateria_kwh']:.1f} kWh</b>", formula))
+
+    if res.get("ahorro_anual"):
+        texto_ahorro = (f"Del total producido, se estima que un {inp['pct_autoconsumo']:g}% se "
+                        f"autoconsume directamente ({_miles(res['energia_autoconsumida'])} kWh/año), "
+                        f"generando un ahorro de <b>{_fmt_eur(res['ahorro_autoconsumo'])}/año</b>")
+        if res["ingreso_excedentes"]:
+            texto_ahorro += (f", más un ingreso por compensación de excedentes de "
+                              f"<b>{_fmt_eur(res['ingreso_excedentes'])}/año</b>")
+        texto_ahorro += "."
+        P.append(Paragraph(texto_ahorro, normal))
+        if res.get("payback_anos"):
+            P.append(Paragraph(f"Con una inversión estimada de {_fmt_eur(inp['inversion_total'])} y un "
+                                f"ahorro anual de {_fmt_eur(res['ahorro_anual'])}, el retorno simple de la "
+                                f"inversión es de <b>{res['payback_anos']:.1f} años</b>.", normal))
+    return P
+
+
 def generar_pdf_anexo_calculos(datos_proyecto: dict, inputs_cable: dict, resultado_cable: dict,
                                  inputs_fv: dict, resultado_fv: dict, capitulos_presupuesto: list,
                                  pct_beneficio: float, pct_amortizacion: float) -> bytes:
     from reportlab.platypus import Table, TableStyle, Paragraph, Spacer
     from reportlab.lib.units import cm as _cm
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER
 
     buffer, doc, cajetin, AZUL, colors, h2, h3, normal = _preparar_doc_pdf(
         "ANEXO DE CALCULOS Y MEDICIONES", "Justificacion tecnica y mediciones", datos_proyecto)
+    COBRE = colors.HexColor("#8a5a1f")
+    formula = ParagraphStyle("formula", parent=normal, alignment=TA_CENTER, textColor=COBRE,
+                              fontSize=10, leading=15, spaceBefore=4, spaceAfter=8)
 
     story = []
     hay_cable = resultado_cable.get("seccion_final") is not None
@@ -1541,21 +1766,17 @@ def generar_pdf_anexo_calculos(datos_proyecto: dict, inputs_cable: dict, resulta
         "Este Anexo justifica, mediante las fórmulas y valores empleados, las secciones de conductor, "
         "protecciones y caídas de tensión adoptadas en la instalación descrita en la Memoria Técnica de "
         "Diseño, así como las mediciones que dan origen al Presupuesto. Los criterios generales aplicados "
-        "son los del artículo 19.2 de la ITC-BT-19 (criterio térmico Ib≤In≤Iz, criterio de caída de tensión "
-        "y, cuando se aporta, criterio térmico de cortocircuito) y, para la instalación fotovoltaica en su "
+        "son los del artículo 19.2 de la ITC-BT-19 (criterio térmico, criterio de caída de tensión y, "
+        "cuando se aporta, criterio térmico de cortocircuito) y, para la instalación fotovoltaica en su "
         "caso, la ITC-BT-40 y el Real Decreto 244/2019.", normal))
 
     story.append(Paragraph("1. Cálculos justificativos", h2))
     if hay_cable:
         story.append(Paragraph(f"1.1. Instalación de baja tensión — {inputs_cable['tipo_circuito']}", h3))
-        for linea in _lineas_formulas_texto(inputs_cable, resultado_cable):
-            if linea:
-                story.append(Paragraph(_pdf_safe(linea), normal))
+        story.extend(_parrafos_calculo_cable_pdf(inputs_cable, resultado_cable, normal, formula))
     if hay_fv:
         story.append(Paragraph("1.2. Instalación fotovoltaica", h3))
-        for linea in _lineas_formulas_fv_texto(inputs_fv, resultado_fv):
-            if linea:
-                story.append(Paragraph(_pdf_safe(linea), normal))
+        story.extend(_parrafos_calculo_fv_pdf(inputs_fv, resultado_fv, normal, formula))
     if not hay_cable and not hay_fv:
         story.append(Paragraph("No hay cálculos disponibles: completa la Calculadora de cables y/o el "
                                 "módulo Fotovoltaico antes de generar este anexo.", normal))
@@ -2101,6 +2322,105 @@ def generar_excel_presupuesto_capitulos(capitulos: list, pct_beneficio: float, p
 
 
 # ==============================================================================
+# 7B. CÁLCULOS BT — calculadoras sueltas de referencia rápida (independientes
+# entre sí), inspiradas en el catálogo de calculadoras de circuitoelectrico.com:
+# cables, cortocircuito, tierras, fotovoltaica rápida y eléctricas generales.
+# ==============================================================================
+
+# --- Conversión AWG <-> mm² (fórmula estándar: d(mm) = 0,127 x 92^((36-AWG)/39)) ---
+AWG_DISPONIBLES = [0000, 000, 00, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+                   16, 17, 18, 19, 20, 21, 22, 23, 24]
+
+
+def awg_a_mm2(awg) -> float:
+    n = {"0000": -3, "000": -2, "00": -1}.get(str(awg), awg if isinstance(awg, (int, float)) else int(awg))
+    d_mm = 0.127 * (92 ** ((36 - n) / 39))
+    return round(math.pi / 4 * d_mm ** 2, 4)
+
+
+def mm2_a_awg_mas_cercano(mm2: float) -> tuple:
+    mejor = min(AWG_DISPONIBLES, key=lambda a: abs(awg_a_mm2(a) - mm2))
+    return mejor, awg_a_mm2(mejor)
+
+
+# --- Resistencia de electrodos de tierra (ITC-BT-18, Guía técnica, Tabla 5) ---
+RESISTIVIDAD_TERRENOS_REF = {
+    "Terrenos pantanosos (algunos)": 30,
+    "Limo": 100,
+    "Humus": 150,
+    "Turba húmeda": 5,
+    "Arcilla plástica": 50,
+    "Terrenos cultivables y fértiles, terraplenes compactos y húmedos": 50,
+    "Terraplenes cultivables poco fértiles y otros terraplenes": 500,
+    "Suelos pedregosos desnudos, arenas secas permeables": 3000,
+    "Arena arcillosa": 100,
+    "Calizas blandas": 300,
+    "Calizas compactas": 1000,
+    "Pizarras": 150,
+    "Rocas eruptivas (granito, basalto...)": 5000,
+    "Personalizado (introducir ρ manualmente)": None,
+}
+
+
+def resistencia_electrodo_pica(rho: float, longitud: float) -> float:
+    """R = ρ / L (ITC-BT-18, Tabla 5)."""
+    return rho / max(longitud, 1e-6)
+
+
+def resistencia_electrodo_placa(rho: float, perimetro: float) -> float:
+    """R = 0,8 · ρ / P (ITC-BT-18, Tabla 5)."""
+    return 0.8 * rho / max(perimetro, 1e-6)
+
+
+def resistencia_electrodo_conductor(rho: float, longitud: float) -> float:
+    """R = 2 · ρ / L (ITC-BT-18, Tabla 5), conductor enterrado horizontalmente."""
+    return 2 * rho / max(longitud, 1e-6)
+
+
+def resistencia_picas_paralelo(r_una_pica: float, n_picas: int) -> float:
+    """Aproximación habitual para picas bien separadas (distancia >= 2xL):
+    R_total ≈ R_una_pica / n. Orientativa; en terrenos heterogéneos o picas
+    próximas la reducción real puede ser menor."""
+    return r_una_pica / max(n_picas, 1)
+
+
+# --- Cortocircuito simplificado (con/sin datos de red aguas arriba) ---
+def impedancia_linea(conductor: str, aislamiento: str, seccion: float, longitud: float,
+                      n_cargados: int, reactancia_ohm_km: float = REACTANCIA_LINEAL_DEFECTO) -> tuple:
+    """Devuelve (R, X) en ohmios de un tramo de línea, ida simple (no ida+vuelta)."""
+    kappa = kappa_servicio(conductor, aislamiento)
+    r = longitud / (kappa * seccion)
+    x = longitud * reactancia_ohm_km / 1000.0
+    return r, x
+
+
+def icc_trifasico(u: float, r_total: float, x_total: float) -> float:
+    """Icc = U / (√3 · Z), Z = sqrt(R²+X²). U en V, resultado en A."""
+    z = math.sqrt(r_total ** 2 + x_total ** 2)
+    return u / (math.sqrt(3) * max(z, 1e-9))
+
+
+# --- Colores de resistencias (código de 4 bandas) ---
+COLORES_DIGITO = {
+    "Negro": 0, "Marrón": 1, "Rojo": 2, "Naranja": 3, "Amarillo": 4,
+    "Verde": 5, "Azul": 6, "Violeta": 7, "Gris": 8, "Blanco": 9,
+}
+COLORES_MULTIPLICADOR = {
+    "Negro": 1, "Marrón": 10, "Rojo": 100, "Naranja": 1_000, "Amarillo": 10_000,
+    "Verde": 100_000, "Azul": 1_000_000, "Oro": 0.1, "Plata": 0.01,
+}
+COLORES_TOLERANCIA = {
+    "Marrón": "±1%", "Rojo": "±2%", "Verde": "±0,5%", "Azul": "±0,25%",
+    "Violeta": "±0,1%", "Gris": "±0,05%", "Oro": "±5%", "Plata": "±10%", "Ninguno": "±20%",
+}
+
+
+def valor_resistencia_4_bandas(c1: str, c2: str, c3: str, c4: str) -> tuple:
+    valor = (COLORES_DIGITO[c1] * 10 + COLORES_DIGITO[c2]) * COLORES_MULTIPLICADOR[c3]
+    return valor, COLORES_TOLERANCIA.get(c4, "±20%")
+
+
+# ==============================================================================
 # 8. INSTALACIONES FOTOVOLTAICAS — módulo de cálculo independiente
 # ==============================================================================
 # Independiente del todo de la Calculadora de cables: entradas, sesión y motor
@@ -2364,6 +2684,14 @@ def _fmt_eur(valor: float) -> str:
     texto = f"{valor:,.2f}"
     texto = texto.replace(",", "TMP").replace(".", ",").replace("TMP", ".")
     return f"{texto} €"
+
+
+def _miles(valor: float, decimales: int = 0) -> str:
+    """Formatea un número en estilo español (1.234,56), SOLO el número — a
+    diferencia de un .replace(',', '.') sobre toda la frase, esto no toca las
+    comas literales del texto que lo rodea."""
+    texto = f"{valor:,.{decimales}f}"
+    return texto.replace(",", "TMP").replace(".", ",").replace("TMP", ".")
 
 
 def _render_inputs() -> dict:
@@ -3205,6 +3533,274 @@ def _render_documentacion(inputs_cable: dict, resultado_cable: dict, inputs_fv: 
                 "completo.")
 
 
+def _render_calculos_bt():
+    st.markdown('<p class="section-label">Cálculos BT</p>', unsafe_allow_html=True)
+    st.caption("Calculadoras sueltas de referencia rápida, independientes entre sí y de las demás pestañas "
+               "— inspiradas en el catálogo de calculadoras de circuitoelectrico.com (cables, cortocircuito, "
+               "tierras, fotovoltaica rápida y eléctricas generales). Para el dimensionado completo de un "
+               "circuito, usa la pestaña Calculadora.")
+
+    # ---------------------------------------------------------------- CABLES
+    with st.expander("🔌 Cables eléctricos", expanded=True):
+        st.markdown("**Caída de tensión** (dados sección, longitud e intensidad)")
+        c1, c2, c3, c4, c5 = st.columns(5)
+        sistema_ct = c1.selectbox("Sistema", [SISTEMA_MONO, SISTEMA_TRI], key="bt_ct_sistema")
+        s_ct = c2.selectbox("Sección (mm²)", SECCIONES_NORMALIZADAS, index=4, key="bt_ct_seccion")
+        l_ct = c3.number_input("Longitud (m)", min_value=0.1, value=20.0, key="bt_ct_l")
+        i_ct = c4.number_input("Intensidad (A)", min_value=0.1, value=20.0, key="bt_ct_i")
+        cond_ct = c5.selectbox("Conductor", ["Cobre", "Aluminio"], key="bt_ct_cond")
+        cosphi_ct = st.slider("cos φ", 0.1, 1.0, 0.9, key="bt_ct_cosphi")
+        kappa_ct = kappa_servicio(cond_ct, "PVC")
+        e_ct = caida_tension_voltios(sistema_ct, i_ct, l_ct, s_ct, cosphi_ct, kappa_ct)
+        tension_ref = 230.0 if sistema_ct == SISTEMA_MONO else 400.0
+        st.markdown(f"→ ΔU = **{e_ct:.2f} V** = **{e_ct/tension_ref*100:.2f} %** (sobre {tension_ref:g} V)")
+
+        st.divider()
+        st.markdown("**Longitud máxima** (para no superar una ΔU objetivo)")
+        c1, c2, c3, c4 = st.columns(4)
+        sistema_lm = c1.selectbox("Sistema", [SISTEMA_MONO, SISTEMA_TRI], key="bt_lm_sistema")
+        s_lm = c2.selectbox("Sección (mm²)", SECCIONES_NORMALIZADAS, index=4, key="bt_lm_seccion")
+        i_lm = c3.number_input("Intensidad (A)", min_value=0.1, value=20.0, key="bt_lm_i")
+        du_lm = c4.number_input("ΔU máx. (%)", min_value=0.1, value=3.0, key="bt_lm_du")
+        tension_lm = 230.0 if sistema_lm == SISTEMA_MONO else 400.0
+        k_sist_lm = 2.0 if sistema_lm == SISTEMA_MONO else math.sqrt(3)
+        kappa_lm = kappa_servicio("Cobre", "PVC")
+        l_max = (du_lm / 100 * tension_lm) / (k_sist_lm * i_lm * (0.9 / (kappa_lm * s_lm)))
+        st.markdown(f"→ Longitud máxima ≈ **{l_max:.1f} m** (cobre, PVC, cos φ=0,9 orientativo)")
+
+        st.divider()
+        st.markdown("**Sección por caída de tensión** / **Sección por corriente (Iz)**")
+        c1, c2, c3, c4, c5 = st.columns(5)
+        sistema_s = c1.selectbox("Sistema", [SISTEMA_MONO, SISTEMA_TRI], key="bt_s_sistema")
+        i_s = c2.number_input("Intensidad (A)", min_value=0.1, value=20.0, key="bt_s_i")
+        l_s = c3.number_input("Longitud (m)", min_value=0.1, value=20.0, key="bt_s_l")
+        du_s = c4.number_input("ΔU máx. (%)", min_value=0.1, value=3.0, key="bt_s_du")
+        metodo_s = c5.selectbox("Método", METODOS_DISPONIBLES, index=1, key="bt_s_metodo")
+        aisl_s = "XLPE/EPR" if metodo_s in (METODO_D, METODO_F) else st.selectbox(
+            "Aislamiento", ["PVC", "XLPE/EPR"], key="bt_s_aisl")
+        tension_s = 230.0 if sistema_s == SISTEMA_MONO else 400.0
+        kappa_s = kappa_servicio("Cobre", aisl_s)
+        n_carg_s = 2 if sistema_s == SISTEMA_MONO else 3
+        s_por_du, _, _ = seccion_por_caida_tension(sistema_s, i_s, l_s, tension_s, 0.9, kappa_s, du_s, "Cobre")
+        s_por_iz, iz_val, _, _ = seccion_por_criterio_termico(i_s, metodo_s, aisl_s, "Cobre", n_carg_s, 1.0)
+        cc1, cc2 = st.columns(2)
+        cc1.metric("Sección mínima por ΔU", f"{s_por_du:g} mm²" if s_por_du else "—")
+        cc2.metric("Sección mínima por Iz", f"{s_por_iz:g} mm²" if s_por_iz else "—",
+                   help=f"Iz tabla = {iz_val:.1f} A" if iz_val else None)
+        if s_por_du and s_por_iz:
+            st.markdown(f"→ Sección final adoptada (la mayor de ambas): **{max(s_por_du, s_por_iz):g} mm²**")
+
+        st.divider()
+        st.markdown("**Resistencia de un conductor**")
+        c1, c2, c3, c4 = st.columns(4)
+        cond_r = c1.selectbox("Conductor", ["Cobre", "Aluminio"], key="bt_r_cond")
+        s_r = c2.selectbox("Sección (mm²)", SECCIONES_NORMALIZADAS, index=4, key="bt_r_seccion")
+        l_r = c3.number_input("Longitud (m)", min_value=0.1, value=100.0, key="bt_r_l")
+        temp_r = c4.number_input("Temperatura (°C)", value=20.0, key="bt_r_temp")
+        kappa_20 = CONDUCTIVIDAD_20C[cond_r]
+        alpha_r = COEF_TEMP_RESIST[cond_r]
+        kappa_t = kappa_20 / (1 + alpha_r * (temp_r - 20))
+        r_cond = l_r / (kappa_t * s_r)
+        st.markdown(f"→ R = L/(κ·S) = {l_r:g}/({kappa_t:.2f}×{s_r:g}) = **{r_cond:.4f} Ω** (ida simple)")
+
+        st.divider()
+        st.markdown("**Conversión AWG ↔ mm²**")
+        c1, c2, c3 = st.columns(3)
+        modo_awg = c1.radio("Convertir", ["AWG → mm²", "mm² → AWG"], key="bt_awg_modo", horizontal=True)
+        if modo_awg == "AWG → mm²":
+            awg_in = c2.selectbox("Calibre AWG", AWG_DISPONIBLES, index=10, key="bt_awg_in")
+            c3.metric("Sección equivalente", f"{awg_a_mm2(awg_in):.3f} mm²")
+        else:
+            mm2_in = c2.number_input("Sección (mm²)", min_value=0.01, value=2.5, key="bt_mm2_in")
+            awg_cercano, mm2_exacto = mm2_a_awg_mas_cercano(mm2_in)
+            c3.metric("AWG más cercano", f"{awg_cercano} AWG ({mm2_exacto:.3f} mm²)")
+
+        st.divider()
+        st.markdown("**Protección contra sobrecarga** (Ib ≤ In ≤ Iz)")
+        c1, c2, c3 = st.columns(3)
+        ib_p = c1.number_input("Ib, intensidad de empleo (A)", min_value=0.1, value=18.0, key="bt_p_ib")
+        in_p = c2.selectbox("In, calibre del interruptor (A)", CALIBRES_MAGNETOTERMICO, index=2, key="bt_p_in")
+        iz_p = c3.number_input("Iz, admisible del cable (A)", min_value=0.1, value=21.0, key="bt_p_iz")
+        cumple1 = ib_p <= in_p
+        cumple2 = in_p <= iz_p
+        st.markdown(f"→ Ib≤In: {'✅' if cumple1 else '❌'}  ·  In≤Iz: {'✅' if cumple2 else '❌'}  ·  "
+                    f"conjunto: {'✅ Cumple ITC-BT-22' if (cumple1 and cumple2) else '❌ No cumple'}")
+
+        st.markdown("**Protección contra sobrecarga y cortocircuito** (añade verificación térmica)")
+        c1, c2, c3, c4 = st.columns(4)
+        s_pc = c1.selectbox("Sección (mm²)", SECCIONES_NORMALIZADAS, index=4, key="bt_pc_s")
+        icc_pc = c2.number_input("Icc en el punto (kA)", min_value=0.01, value=4.0, key="bt_pc_icc")
+        t_pc = c3.number_input("Tiempo de actuación (s)", min_value=0.001, value=0.1, format="%.3f", key="bt_pc_t")
+        aisl_pc = c4.selectbox("Aislamiento", ["PVC", "XLPE/EPR"], key="bt_pc_aisl")
+        cumple_pc, smin_pc = verificar_cortocircuito(s_pc, icc_pc, t_pc, "Cobre", aisl_pc)
+        st.markdown(f"→ S_mín térmica = **{smin_pc:g} mm²** frente a {s_pc:g} mm² adoptados: "
+                    f"{'✅ Cumple' if cumple_pc else '❌ No cumple'}")
+
+    # ---------------------------------------------------------------- CORTOCIRCUITO
+    with st.expander("⚡ Corriente de cortocircuito"):
+        st.markdown("**Con datos de la red de BT** (se conoce la Icc o la Scc de origen)")
+        c1, c2, c3, c4, c5 = st.columns(5)
+        u_cc1 = c1.number_input("Tensión (V)", min_value=100.0, value=400.0, key="bt_cc1_u")
+        icc_origen = c2.number_input("Icc en el origen (kA)", min_value=0.1, value=10.0, key="bt_cc1_icc0")
+        s_cc1 = c3.selectbox("Sección (mm²)", SECCIONES_NORMALIZADAS, index=6, key="bt_cc1_s")
+        l_cc1 = c4.number_input("Longitud (m)", min_value=0.1, value=30.0, key="bt_cc1_l")
+        n_carg_cc1 = c5.selectbox("Conductores cargados", [2, 3], index=1, key="bt_cc1_n")
+        z_red = u_cc1 / (math.sqrt(3) * icc_origen * 1000.0)
+        r_lin1, x_lin1 = impedancia_linea("Cobre", "PVC", s_cc1, l_cc1, n_carg_cc1)
+        icc_final1 = icc_trifasico(u_cc1, z_red + r_lin1, x_lin1)
+        st.markdown(f"→ Z_red = {z_red*1000:.2f} mΩ · Z_línea ≈ {r_lin1*1000:.2f} mΩ  →  "
+                    f"**Icc en el punto final = {icc_final1/1000:.2f} kA**")
+
+        st.divider()
+        st.markdown("**Sin datos de la red de BT** (se asume red de potencia infinita en origen)")
+        c1, c2, c3, c4 = st.columns(4)
+        u_cc2 = c1.number_input("Tensión (V)", min_value=100.0, value=400.0, key="bt_cc2_u")
+        s_cc2 = c2.selectbox("Sección (mm²)", SECCIONES_NORMALIZADAS, index=6, key="bt_cc2_s")
+        l_cc2 = c3.number_input("Longitud (m)", min_value=0.1, value=30.0, key="bt_cc2_l")
+        n_carg_cc2 = c4.selectbox("Conductores cargados", [2, 3], index=1, key="bt_cc2_n")
+        r_lin2, x_lin2 = impedancia_linea("Cobre", "PVC", s_cc2, l_cc2, n_carg_cc2)
+        icc_final2 = icc_trifasico(u_cc2, r_lin2, x_lin2)
+        st.markdown(f"→ **Icc estimada = {icc_final2/1000:.2f} kA** (valor máximo teórico, orientativo al "
+                    "no considerar la impedancia de la red aguas arriba)")
+
+    # ---------------------------------------------------------------- TIERRAS
+    with st.expander("🌍 Resistencia de tierras"):
+        st.markdown("**Electrodos de tierra** (ITC-BT-18, Tabla 5)")
+        c1, c2 = st.columns(2)
+        with c1:
+            claves_rho = list(RESISTIVIDAD_TERRENOS_REF.keys())
+            terreno_sel = st.selectbox("Naturaleza del terreno", claves_rho,
+                                        index=claves_rho.index("Terrenos cultivables y fértiles, "
+                                                                "terraplenes compactos y húmedos"))
+            rho_defecto = RESISTIVIDAD_TERRENOS_REF[terreno_sel] or 100.0
+            rho_t = st.number_input("Resistividad ρ (Ω·m)", min_value=1.0, value=float(rho_defecto))
+        with c2:
+            tipo_electrodo = st.radio("Tipo de electrodo", ["Pica vertical", "Placa enterrada",
+                                                             "Conductor enterrado horizontal"])
+        if tipo_electrodo == "Pica vertical":
+            long_pica = st.number_input("Longitud de la pica (m)", min_value=0.5, value=2.0, step=0.5)
+            r_electrodo = resistencia_electrodo_pica(rho_t, long_pica)
+            st.markdown(f"→ R = ρ/L = {rho_t:g}/{long_pica:g} = **{r_electrodo:.2f} Ω**")
+        elif tipo_electrodo == "Placa enterrada":
+            perimetro_placa = st.number_input("Perímetro de la placa (m)", min_value=0.5, value=2.0, step=0.1)
+            r_electrodo = resistencia_electrodo_placa(rho_t, perimetro_placa)
+            st.markdown(f"→ R = 0,8·ρ/P = 0,8×{rho_t:g}/{perimetro_placa:g} = **{r_electrodo:.2f} Ω**")
+        else:
+            long_cond = st.number_input("Longitud del conductor enterrado (m)", min_value=1.0, value=20.0)
+            r_electrodo = resistencia_electrodo_conductor(rho_t, long_cond)
+            st.markdown(f"→ R = 2·ρ/L = 2×{rho_t:g}/{long_cond:g} = **{r_electrodo:.2f} Ω**")
+
+        st.divider()
+        st.markdown("**Picas de tierra en paralelo**")
+        c1, c2 = st.columns(2)
+        r_una = c1.number_input("Resistencia de una pica (Ω)", min_value=0.1, value=75.0, key="bt_picas_r1")
+        n_picas = c2.number_input("Número de picas (bien separadas, ≥2×L)", min_value=1, value=3, key="bt_picas_n")
+        r_total_picas = resistencia_picas_paralelo(r_una, int(n_picas))
+        st.markdown(f"→ R_total ≈ R/n = {r_una:g}/{n_picas:g} = **{r_total_picas:.2f} Ω** "
+                    "(aproximación para picas bien separadas)")
+
+    # ---------------------------------------------------------------- FOTOVOLTAICA RAPIDA
+    with st.expander("☀️ Fotovoltaicas — cálculo rápido"):
+        st.caption("Para el dimensionado completo (strings, inversor, cableado CC/CA, batería...) usa la "
+                   "pestaña Fotovoltaica. Aquí solo estimaciones puntuales rápidas.")
+        st.markdown("**Energía máxima diaria** (consumo)")
+        c1, c2, c3 = st.columns(3)
+        pot_ap = c1.number_input("Potencia del aparato (W)", min_value=1.0, value=100.0, key="bt_fv_pot")
+        horas_ap = c2.number_input("Horas de uso al día", min_value=0.1, value=4.0, key="bt_fv_horas")
+        n_ap = c3.number_input("Número de aparatos iguales", min_value=1, value=1, key="bt_fv_n")
+        energia_dia = pot_ap * horas_ap * n_ap
+        st.markdown(f"→ Energía diaria = **{energia_dia:.0f} Wh/día** ({energia_dia/1000:.2f} kWh/día)")
+
+        st.divider()
+        st.markdown("**Número de paneles solares**")
+        c1, c2, c3, c4 = st.columns(4)
+        energia_nec = c1.number_input("Energía necesaria (Wh/día)", min_value=1.0, value=3000.0, key="bt_fv_en")
+        pot_panel = c2.number_input("Potencia del panel (Wp)", min_value=10.0, value=450.0, key="bt_fv_pp")
+        hsp_fv = c3.number_input("HSP (h/día)", min_value=1.0, value=4.5, key="bt_fv_hsp")
+        pr_fv = c4.number_input("PR", min_value=0.5, max_value=0.95, value=0.80, key="bt_fv_pr")
+        n_paneles_bt = math.ceil(energia_nec / (pot_panel * hsp_fv * pr_fv))
+        st.markdown(f"→ Nº de paneles ≈ **{n_paneles_bt}** paneles de {pot_panel:g} Wp")
+
+        st.divider()
+        st.markdown("**Baterías solares**")
+        c1, c2, c3, c4 = st.columns(4)
+        energia_bat = c1.number_input("Energía a acumular (Wh/día)", min_value=1.0, value=3000.0, key="bt_bat_e")
+        dias_aut = c2.number_input("Días de autonomía", min_value=0.5, value=1.0, key="bt_bat_dias")
+        v_bat = c3.number_input("Tensión del banco (V)", min_value=1.0, value=48.0, key="bt_bat_v")
+        pd_bat = c4.number_input("Profundidad de descarga (%)", min_value=10.0, max_value=100.0, value=80.0,
+                                  key="bt_bat_pd")
+        capacidad_ah = (energia_bat * dias_aut) / (v_bat * (pd_bat / 100.0))
+        st.markdown(f"→ Capacidad necesaria ≈ **{capacidad_ah:.0f} Ah** a {v_bat:g} V "
+                    f"({capacidad_ah*v_bat/1000:.2f} kWh)")
+
+    # ---------------------------------------------------------------- ELECTRICAS GENERALES
+    with st.expander("📐 Eléctricas generales"):
+        st.markdown("**Consumo eléctrico**")
+        c1, c2, c3 = st.columns(3)
+        pot_ce = c1.number_input("Potencia (W)", min_value=1.0, value=1500.0, key="bt_ce_p")
+        horas_ce = c2.number_input("Horas de uso al día", min_value=0.1, value=2.0, key="bt_ce_h")
+        precio_ce = c3.number_input("Precio kWh (€)", min_value=0.01, value=0.18, key="bt_ce_precio")
+        kwh_dia = pot_ce / 1000 * horas_ce
+        st.markdown(f"→ {kwh_dia:.3f} kWh/día · {kwh_dia*30:.1f} kWh/mes · "
+                    f"**{_fmt_eur(kwh_dia*30*precio_ce)}/mes**")
+
+        st.divider()
+        st.markdown("**Ley de Ohm**")
+        c1, c2 = st.columns(2)
+        v_ohm = c1.number_input("Tensión V (V)", min_value=0.0, value=230.0, key="bt_ohm_v")
+        i_ohm = c2.number_input("Intensidad I (A)", min_value=0.001, value=2.0, key="bt_ohm_i")
+        st.markdown(f"→ Con V={v_ohm:g} V e I={i_ohm:g} A: R = V/I = **{v_ohm/max(i_ohm,1e-9):.2f} Ω**")
+
+        st.divider()
+        st.markdown("**Potencia eléctrica**")
+        c1, c2, c3 = st.columns(3)
+        v_pot = c1.number_input("Tensión (V)", min_value=0.0, value=230.0, key="bt_pot_v")
+        i_pot = c2.number_input("Intensidad (A)", min_value=0.0, value=5.0, key="bt_pot_i")
+        cosphi_pot = c3.slider("cos φ (1 si es CC o carga resistiva)", 0.1, 1.0, 1.0, key="bt_pot_cosphi")
+        p_pot = v_pot * i_pot * cosphi_pot
+        st.markdown(f"→ P = V·I·cos φ = **{p_pot:.1f} W**")
+
+        st.divider()
+        st.markdown("**Código de colores de resistencias** (4 bandas)")
+        c1, c2, c3, c4 = st.columns(4)
+        col1 = c1.selectbox("1ª banda", list(COLORES_DIGITO.keys()), index=1, key="bt_col1")
+        col2 = c2.selectbox("2ª banda", list(COLORES_DIGITO.keys()), index=0, key="bt_col2")
+        col3 = c3.selectbox("Multiplicador", list(COLORES_MULTIPLICADOR.keys()), index=2, key="bt_col3")
+        col4 = c4.selectbox("Tolerancia", list(COLORES_TOLERANCIA.keys()), index=6, key="bt_col4")
+        valor_r, tol_r = valor_resistencia_4_bandas(col1, col2, col3, col4)
+        st.markdown(f"→ Valor = **{valor_r:g} Ω** ({tol_r})")
+
+        st.divider()
+        st.markdown("**Resistencias en paralelo**")
+        texto_r = st.text_input("Valores separados por coma (Ω)", "100, 220, 330", key="bt_rp_texto")
+        try:
+            valores_r = [float(x.strip()) for x in texto_r.split(",") if x.strip()]
+            req = 1.0 / sum(1.0 / v for v in valores_r) if valores_r else 0.0
+            st.markdown(f"→ R_eq = **{req:.2f} Ω**")
+        except (ValueError, ZeroDivisionError):
+            st.warning("Introduce valores numéricos separados por comas.")
+
+        st.divider()
+        st.markdown("**Factor de potencia y batería de condensadores**")
+        c1, c2, c3 = st.columns(3)
+        p_fp = c1.number_input("Potencia activa P (kW)", min_value=0.1, value=10.0, key="bt_fp_p")
+        cosphi_actual = c2.number_input("cos φ actual", min_value=0.1, max_value=1.0, value=0.75, key="bt_fp_actual")
+        cosphi_obj = c3.number_input("cos φ objetivo", min_value=0.1, max_value=1.0, value=0.95, key="bt_fp_obj")
+        tan_actual = math.tan(math.acos(cosphi_actual))
+        tan_obj = math.tan(math.acos(cosphi_obj))
+        q_condensador = p_fp * (tan_actual - tan_obj)
+        st.markdown(f"→ Potencia reactiva de la batería de condensadores: **{max(q_condensador,0):.2f} kVAr**")
+
+        st.divider()
+        st.markdown("**Divisor de tensión**")
+        c1, c2, c3 = st.columns(3)
+        vin_dt = c1.number_input("Tensión de entrada Vin (V)", min_value=0.0, value=12.0, key="bt_dt_vin")
+        r1_dt = c2.number_input("R1 (Ω)", min_value=0.01, value=1000.0, key="bt_dt_r1")
+        r2_dt = c3.number_input("R2 (Ω)", min_value=0.01, value=1000.0, key="bt_dt_r2")
+        vout_dt = vin_dt * r2_dt / (r1_dt + r2_dt)
+        st.markdown(f"→ Vout = Vin·R2/(R1+R2) = **{vout_dt:.3f} V**")
+
+
 def _render_tablas():
     st.markdown('<p class="section-label">Tabla A — Intensidades admisibles (A), cobre, no enterrado, '
                 'aire a 40°C</p>', unsafe_allow_html=True)
@@ -3358,8 +3954,8 @@ def main():
         unsafe_allow_html=True,
     )
 
-    tab_calc, tab_formulas, tab_fv, tab_presu, tab_doc, tab_tablas, tab_metodo = st.tabs(
-        ["🔌 Calculadora", "🧮 Fórmulas", "☀️ Fotovoltaica", "💰 Presupuesto",
+    tab_calc, tab_formulas, tab_fv, tab_bt, tab_presu, tab_doc, tab_tablas, tab_metodo = st.tabs(
+        ["🔌 Calculadora", "🧮 Fórmulas", "☀️ Fotovoltaica", "📐 Cálculos BT", "💰 Presupuesto",
          "📄 Documentación", "📊 Tablas normativas", "📖 Metodología"]
     )
 
@@ -3375,6 +3971,9 @@ def main():
         inputs_fv = _render_inputs_fv()
         resultado_fv = calcular_fv(inputs_fv)
         _render_resultados_fv(inputs_fv, resultado_fv)
+
+    with tab_bt:
+        _render_calculos_bt()
 
     with tab_presu:
         _render_presupuesto(inputs_cable, resultado_cable, inputs_fv, resultado_fv)
