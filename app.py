@@ -231,72 +231,179 @@ PRECIOS_DIFERENCIAL_DEFECTO = {
 # que el desplegable de "añadir partida" sea manejable.
 # ------------------------------------------------------------------------------
 CATALOGO_MATERIALES = {
+    "Cables (por tipo, además del cálculo automático)": {
+        "Cable RZ1-K 0,6/1kV 1,5mm² (libre halógenos)": ("m", 0.42),
+        "Cable RZ1-K 0,6/1kV 2,5mm²": ("m", 0.58),
+        "Cable RZ1-K 0,6/1kV 4mm²": ("m", 0.88),
+        "Cable RZ1-K 0,6/1kV 6mm²": ("m", 1.25),
+        "Cable RZ1-K 0,6/1kV 10mm²": ("m", 1.95),
+        "Cable RZ1-K 0,6/1kV 16mm²": ("m", 2.95),
+        "Cable H07V-K 1,5mm² (unipolar, interior tubo)": ("m", 0.28),
+        "Cable H07V-K 2,5mm²": ("m", 0.40),
+        "Cable ES07Z1-K 1,5mm² (libre halógenos, unipolar)": ("m", 0.35),
+        "Cable ES07Z1-K 2,5mm²": ("m", 0.48),
+        "Manguera redonda RV-K 3x1,5mm²": ("m", 1.10),
+        "Manguera redonda RV-K 3x2,5mm²": ("m", 1.55),
+        "Manguera redonda RV-K 5x6mm²": ("m", 4.20),
+        "Cable coaxial / datos UTP Cat6": ("m", 0.60),
+        "Cable de acometida CU 3x35+16mm² (LGA)": ("m", 12.50),
+    },
     "Canalizaciones": {
         "Tubo corrugado empotrar Ø16mm": ("m", 0.55),
         "Tubo corrugado empotrar Ø20mm": ("m", 0.65),
         "Tubo corrugado empotrar Ø25mm": ("m", 0.85),
         "Tubo corrugado empotrar Ø32mm": ("m", 1.10),
-        "Tubo rígido superficie Ø20mm": ("m", 1.60),
-        "Tubo rígido superficie Ø32mm": ("m", 2.40),
+        "Tubo corrugado empotrar Ø40mm": ("m", 1.55),
+        "Tubo corrugado empotrar Ø50mm": ("m", 2.10),
+        "Tubo rígido metálico superficie Ø20mm": ("m", 2.80),
+        "Tubo rígido PVC superficie Ø20mm": ("m", 1.60),
+        "Tubo rígido PVC superficie Ø32mm": ("m", 2.40),
+        "Tubo enterrado TPC doble capa Ø63mm": ("m", 3.20),
+        "Tubo enterrado TPC doble capa Ø110mm": ("m", 5.60),
         "Bandeja perforada 100mm": ("m", 6.50),
         "Bandeja perforada 200mm": ("m", 9.80),
         "Bandeja perforada 300mm": ("m", 13.50),
+        "Bandeja perforada 400mm": ("m", 17.20),
         "Bandeja no perforada (rejiband) 200mm": ("m", 8.20),
+        "Bandeja de varilla (rejilla) 100mm": ("m", 5.40),
         "Canaleta PVC 20x12mm": ("m", 2.10),
         "Canaleta PVC 40x25mm": ("m", 4.30),
+        "Canaleta PVC 60x40mm con tabique": ("m", 7.80),
+        "Columna/canal de suelo técnico 2 vías": ("m", 22.00),
     },
     "Cajas y mecanismos": {
         "Caja de derivación empotrar 100x100": ("ud", 1.80),
+        "Caja de derivación empotrar 150x150": ("ud", 3.20),
         "Caja de derivación estanca IP65 150x110": ("ud", 6.50),
+        "Caja de derivación estanca IP65 190x140": ("ud", 9.80),
         "Caja de mecanismo universal": ("ud", 0.60),
         "Interruptor simple (mecanismo + tecla)": ("ud", 8.50),
         "Conmutador": ("ud", 9.50),
+        "Cruzamiento (conmutador de cruce)": ("ud", 11.50),
         "Pulsador timbre": ("ud", 7.50),
+        "Detector de movimiento/presencia empotrar": ("ud", 24.00),
+        "Regulador de intensidad (dimmer)": ("ud", 18.50),
         "Base de enchufe Schuko 16A": ("ud", 8.90),
+        "Base de enchufe Schuko con USB": ("ud", 16.50),
+        "Base de enchufe estanca IP44 16A": ("ud", 12.50),
+        "Base industrial CETAC 16A 2P+T": ("ud", 18.00),
         "Base industrial CETAC 16A 3P+N+T": ("ud", 22.00),
         "Base industrial CETAC 32A 3P+N+T": ("ud", 35.00),
-        "Marco embellecedor": ("ud", 3.20),
+        "Base industrial CETAC 63A 3P+N+T": ("ud", 68.00),
+        "Base de cocina/horno 25A 2P+T": ("ud", 9.50),
+        "Marco embellecedor 1 elemento": ("ud", 3.20),
+        "Marco embellecedor 2-3 elementos": ("ud", 5.50),
     },
     "Protección y maniobra": {
-        "Interruptor general automático (IGA)": ("ud", 65.00),
+        "PIA (magnetotérmico) 6-10A, curva C": ("ud", 18.00),
+        "PIA (magnetotérmico) 16-20A, curva C": ("ud", 19.50),
+        "PIA (magnetotérmico) 25-32A, curva C": ("ud", 22.00),
+        "PIA (magnetotérmico) 40-50A, curva C": ("ud", 32.00),
+        "PIA (magnetotérmico) 63A, curva C": ("ud", 48.00),
+        "Interruptor general automático (IGA) 25-40A": ("ud", 65.00),
+        "Interruptor general automático (IGA) 63A": ("ud", 95.00),
+        "Diferencial tipo AC 25A 30mA": ("ud", 32.00),
+        "Diferencial tipo A 25A 30mA": ("ud", 45.00),
+        "Diferencial tipo A 40A 30mA": ("ud", 58.00),
+        "Diferencial tipo A superinmunizado (Si) 40A": ("ud", 85.00),
+        "Diferencial tipo B (para inversores/FV) 40A": ("ud", 210.00),
+        "Relé diferencial rearmable + toroidal": ("ud", 145.00),
         "Contactor 25A": ("ud", 38.00),
         "Contactor 40A": ("ud", 58.00),
-        "Guardamotor 0,4-40A (según ajuste)": ("ud", 75.00),
+        "Contactor 63A": ("ud", 95.00),
+        "Guardamotor 0,4-6,3A (según ajuste)": ("ud", 55.00),
+        "Guardamotor 6-40A (según ajuste)": ("ud", 75.00),
         "Relé térmico": ("ud", 42.00),
         "Seccionador bajo carga 40A": ("ud", 48.00),
+        "Seccionador bajo carga 100A": ("ud", 95.00),
         "Base + fusible cilíndrico 10x38": ("ud", 6.50),
         "Fusible NH tamaño 00": ("ud", 12.00),
+        "Fusible NH tamaño 1": ("ud", 16.00),
+        "Protector de sobretensiones DPS tipo 1+2": ("ud", 140.00),
+        "Protector de sobretensiones DPS tipo 2": ("ud", 55.00),
+        "Contador de energía monofásico": ("ud", 62.00),
+        "Contador de energía trifásico": ("ud", 110.00),
     },
     "Cuadros eléctricos": {
         "Cuadro superficie 12 módulos": ("ud", 28.00),
         "Cuadro superficie 24 módulos": ("ud", 42.00),
         "Cuadro superficie 36 módulos": ("ud", 58.00),
+        "Cuadro superficie 48 módulos": ("ud", 72.00),
+        "Cuadro empotrar 12 módulos": ("ud", 32.00),
         "Cuadro empotrar 24 módulos": ("ud", 48.00),
         "Cuadro empotrar 48 módulos": ("ud", 78.00),
+        "Armario metálico IP65 (industrial), pequeño": ("ud", 145.00),
+        "Armario metálico IP65 (industrial), grande": ("ud", 320.00),
         "Embarrado de peine 12 módulos": ("ud", 9.50),
+        "Caja General de Protección (CGP)": ("ud", 85.00),
+        "Caja de Protección y Medida (CPM)": ("ud", 130.00),
     },
     "Puesta a tierra": {
+        "Pica de acero cobreado 1m Ø14mm": ("ud", 9.50),
         "Pica de acero cobreado 2m Ø14mm": ("ud", 14.00),
-        "Cable desnudo Cu 35mm² (tierra)": ("m", 4.80),
         "Grapa de conexión pica-cable": ("ud", 3.50),
         "Soldadura aluminotérmica": ("ud", 9.00),
-        "Arqueta de registro de tierra": ("ud", 32.00),
+        "Placa de tierra de cobre 500x500mm": ("ud", 48.00),
+        "Cable desnudo Cu 16mm² (tierra)": ("m", 2.60),
+        "Cable desnudo Cu 35mm² (tierra)": ("m", 4.80),
+        "Cable desnudo Cu 50mm² (tierra)": ("m", 6.90),
+        "Conductor de protección verde/amarillo (según sección)": ("m", 0.55),
+        "Arqueta de registro de tierra 30x30": ("ud", 32.00),
         "Punto de puesta a tierra (caja + borne)": ("ud", 15.00),
+        "Borne principal de tierra": ("ud", 18.00),
     },
     "Luminarias": {
+        "Downlight LED 8W empotrar": ("ud", 8.90),
         "Downlight LED 12W empotrar": ("ud", 11.50),
+        "Downlight LED 18W empotrar": ("ud", 15.90),
         "Pantalla LED 60x60 40W": ("ud", 28.00),
+        "Regleta LED estanca 1x18W": ("ud", 16.50),
         "Luminaria estanca IP65 1x36W LED": ("ud", 24.00),
+        "Luminaria estanca IP65 2x58W LED": ("ud", 38.00),
         "Aparato autónomo de emergencia LED": ("ud", 26.00),
+        "Proyector LED exterior 30W": ("ud", 32.00),
         "Proyector LED exterior 50W": ("ud", 45.00),
+        "Proyector LED exterior 100W": ("ud", 78.00),
+        "Baliza LED exterior baja altura": ("ud", 34.00),
+        "Columna/farola LED exterior completa": ("ud", 220.00),
+    },
+    "Fotovoltaica (además del cálculo automático)": {
+        "Panel fotovoltaico 450Wp": ("ud", 110.00),
+        "Panel fotovoltaico 550Wp": ("ud", 135.00),
+        "Microinversor (por panel)": ("ud", 145.00),
+        "Optimizador de potencia (por panel)": ("ud", 65.00),
+        "Estructura coplanar cubierta inclinada (por panel)": ("ud", 35.00),
+        "Estructura triangular cubierta plana (por panel)": ("ud", 65.00),
+        "Estructura sobre suelo/carport (por panel)": ("ud", 95.00),
+        "Conector MC4 (par)": ("ud", 3.50),
+        "Batería de litio 5 kWh": ("ud", 2400.00),
+        "Batería de litio 10 kWh": ("ud", 4500.00),
+        "Cargador de vehículo eléctrico 7,4kW": ("ud", 650.00),
+        "Monitorización/gestión de energía (kit)": ("ud", 180.00),
+    },
+    "Domótica y automatización": {
+        "Actuador de persiana KNX": ("ud", 85.00),
+        "Actuador de encendido KNX 4 canales": ("ud", 120.00),
+        "Termostato/sonda de temperatura KNX": ("ud", 95.00),
+        "Pasarela KNX-IP": ("ud", 210.00),
+        "Detector crepuscular/fotocélula": ("ud", 22.00),
+        "Interruptor horario/programador": ("ud", 28.00),
+        "Central de alarma básica": ("ud", 145.00),
+        "Detector de humo/CO conectado": ("ud", 38.00),
     },
     "Varios / accesorios": {
+        "Prensaestopas M16": ("ud", 0.70),
         "Prensaestopas M20": ("ud", 0.90),
+        "Prensaestopas M25": ("ud", 1.20),
         "Prensaestopas M32": ("ud", 1.60),
         "Terminal/puntera tubular (según sección)": ("ud", 0.35),
         "Brida de nylon": ("ud", 0.08),
         "Etiqueta de señalización normalizada": ("ud", 1.20),
         "Regleta de conexión": ("ud", 2.50),
+        "Regleta de conexión estanca": ("ud", 4.80),
+        "Cinta aislante": ("ud", 1.50),
+        "Manguito termorretráctil": ("ud", 0.60),
+        "Tapa ciega de mecanismo": ("ud", 1.10),
     },
 }
 
@@ -1067,10 +1174,24 @@ def _lineas_formulas_fv_texto(inp: dict, res: dict) -> list:
     el Anexo de cálculos (mismo espíritu que _lineas_formulas_texto)."""
     L = []
     L.append(f"Potencia pico = {res['p_pico_kwp']:.2f} kWp  ({res['n_paneles']} paneles de "
-              f"{inp['potencia_panel_wp']:g} Wp segun dimensionado)")
-    L.append(f"Produccion anual = Ppico x HSP x 365 x PR x (1 - perdidas) = {res['p_pico_kwp']:.2f} x "
-              f"{inp['hsp']:g} x 365 x {inp['pr']:.2f} x (1-{inp['perdidas_sombras']:g}/100) = "
+              f"{inp['potencia_panel_wp']:g} Wp segun dimensionado; superficie necesaria = "
+              f"{res['superficie_necesaria_m2']:.1f} m2)")
+    L.append(f"Perdidas por orientacion/inclinacion (CTE DB-HE5) = 100 x [1,2e-4 x (beta-phi+10)^2 + "
+              f"3,5e-5 x alfa^2] , con beta={inp['inclinacion']:g}, phi={inp['latitud']:g}, "
+              f"alfa={inp['azimut']:g}  =>  {res['perdidas_orient_pct']:.2f} %")
+    L.append(f"PR efectivo = PR_base x (1-perd.orient) x (1-perd.sombras) x eficiencia_inversor = "
+              f"{inp['pr']:.2f} x (1-{res['perdidas_orient_pct']:.2f}/100) x "
+              f"(1-{inp['perdidas_sombras']:g}/100) x {inp['eficiencia_inversor']/100:.3f} = "
+              f"{res['pr_efectivo']:.3f}")
+    L.append(f"Produccion anual = Ppico x HSP x 365 x PR_efectivo = {res['p_pico_kwp']:.2f} x "
+              f"{inp['hsp']:g} x 365 x {res['pr_efectivo']:.3f} = "
               f"{res['produccion_anual_kwh']:,.0f} kWh/anio".replace(",", "."))
+    L.append(f"Produccion a 10 anios (degradacion {inp['degradacion_anual']:g}%/anio) = "
+              f"{res['produccion_ano10']:,.0f} kWh/anio".replace(",", "."))
+    L.append(f"Produccion a 25 anios = {res['produccion_ano25']:,.0f} kWh/anio".replace(",", "."))
+    L.append(f"CO2 evitado = Produccion x factor_red = {res['produccion_anual_kwh']:.0f} x "
+              f"{inp.get('factor_co2', FACTOR_CO2_RED_DEFECTO):.2f} = "
+              f"{res['co2_evitado_kg_ano']:.0f} kg CO2/anio ({res['co2_evitado_kg_ano']/1000:.2f} t/anio)")
     L.append("")
     L.append(f"Configuracion string: {res['n_serie']} paneles serie x {res['n_paralelo']} strings paralelo "
               f"= {res['n_paneles_configurados']} paneles")
@@ -1090,14 +1211,26 @@ def _lineas_formulas_fv_texto(inp: dict, res: dict) -> list:
               "punto de interconexion) -> " + ("Cumple" if res["du_total_pct"] <= 1.5 else "No cumple"))
     L.append("")
     if res.get("calibre_fusible_string"):
-        L.append(f"Fusible de string sugerido: {res['calibre_fusible_string']} A "
-                  f"(criterio orientativo ~1,8 x Isc, UNE-EN 62548)")
+        L.append(f"Fusible de string sugerido: {res['calibre_fusible_string']} A / "
+                  f"{res.get('tension_fusible_string','-')} V (criterio orientativo ~1,8 x Isc, tension >= "
+                  f"V string frio; UNE-EN 62548)")
     L.append(f"Magnetotermico CA sugerido: {res['calibre_magneto_ca']} A")
+    if res.get("capacidad_bateria_kwh"):
+        L.append("")
+        L.append(f"Bateria: Capacidad = (consumo_diario x dias_autonomia) / prof_descarga = "
+                  f"({inp.get('consumo_diario_bateria_kwh',0):.2f} x {inp.get('autonomia_dias',0):g}) / "
+                  f"({inp.get('profundidad_descarga',80):g}/100) = {res['capacidad_bateria_kwh']:.1f} kWh")
     if res.get("ahorro_anual"):
         L.append("")
-        L.append(f"Ahorro anual estimado = Produccion x precio_kWh x %autoconsumo = "
-                  f"{res['produccion_anual_kwh']:.0f} x {inp['precio_kwh']:.2f} x "
-                  f"{inp['pct_autoconsumo']/100:.2f} = {res['ahorro_anual']:.2f} EUR/anio")
+        L.append(f"Energia autoconsumida = Produccion x %autoconsumo = {res['produccion_anual_kwh']:.0f} x "
+                  f"{inp['pct_autoconsumo']/100:.2f} = {res['energia_autoconsumida']:.0f} kWh/anio")
+        L.append(f"Ahorro por autoconsumo = {res['energia_autoconsumida']:.0f} x {inp['precio_kwh']:.2f} = "
+                  f"{res['ahorro_autoconsumo']:.2f} EUR/anio")
+        if res["ingreso_excedentes"]:
+            L.append(f"Ingreso por excedentes compensados = {res['energia_excedente']:.0f} x "
+                      f"{inp.get('precio_compensacion', PRECIO_COMPENSACION_DEFECTO):.2f} = "
+                      f"{res['ingreso_excedentes']:.2f} EUR/anio")
+        L.append(f"Ahorro anual total = {res['ahorro_anual']:.2f} EUR/anio")
         if res.get("payback_anos"):
             L.append(f"Retorno simple = Inversion / Ahorro anual = {inp['inversion_total']:.0f} / "
                       f"{res['ahorro_anual']:.2f} = {res['payback_anos']:.1f} anios")
@@ -1179,13 +1312,14 @@ def _preparar_doc_pdf(titulo: str, subtitulo: str, datos_proyecto: dict):
 
 def generar_pdf_mtd(datos_proyecto: dict, inputs_cable: dict, resultado_cable: dict,
                      inputs_fv: dict, resultado_fv: dict, total_presupuesto: float) -> bytes:
-    from reportlab.platypus import Table, TableStyle, Paragraph, Spacer
+    from reportlab.platypus import Table, TableStyle, Paragraph, Spacer, PageBreak
 
     buffer, doc, cajetin, AZUL, colors, h2, h3, normal = _preparar_doc_pdf(
         "MEMORIA TECNICA DE DISENO (MTD)", "REBT - ITC-BT-04", datos_proyecto)
 
     hay_cable = resultado_cable.get("seccion_final") is not None
     hay_fv = bool(resultado_fv) and resultado_fv.get("p_pico_kwp") is not None
+    d = datos_proyecto
 
     def tabla(datos, colw=(6.5, 9.5)):
         from reportlab.lib.units import cm as _cm
@@ -1199,52 +1333,161 @@ def generar_pdf_mtd(datos_proyecto: dict, inputs_cable: dict, resultado_cable: d
         ]))
         return t
 
-    story = [Paragraph("1. Datos generales", h2)]
+    story = []
+
+    # ---------------------------------------------------------------- A/B/C
+    story.append(Paragraph("A. Datos del titular", h2))
     story.append(tabla([
         ["Campo", "Valor"],
-        ["Titular de la instalación", datos_proyecto.get("titular") or "-"],
-        ["Emplazamiento", datos_proyecto.get("emplazamiento") or "-"],
-        ["Referencia catastral", datos_proyecto.get("referencia_catastral") or "-"],
-        ["Uso de la instalación", datos_proyecto.get("uso") or "-"],
+        ["Titular de la instalación (nombre o razón social)", d.get("titular") or "-"],
+        ["NIF / CIF", d.get("nif_titular") or "-"],
     ]))
 
-    story.append(Paragraph("2. Objeto", h2))
+    story.append(Paragraph("B. Instalador autorizado / técnico competente", h2))
+    story.append(tabla([
+        ["Campo", "Valor"],
+        ["Nombre", d.get("instalador") or "-"],
+        ["NIF", d.get("nif_instalador") or "-"],
+        ["Nº de autorización / colegiado", d.get("n_autorizacion") or "-"],
+        ["Categoría", d.get("categoria_instalador") or "-"],
+    ]))
+    story.append(Paragraph(
+        "El instalador autorizado para la categoría de la instalación correspondiente, o el técnico "
+        "titulado competente que suscriba esta Memoria, es directamente responsable de que la misma se "
+        "adapte a las exigencias reglamentarias vigentes (ITC-BT-04).", normal))
+
+    story.append(Paragraph("C. Datos generales de la instalación", h2))
+    story.append(tabla([
+        ["Campo", "Valor"],
+        ["Emplazamiento", d.get("emplazamiento") or "-"],
+        ["Referencia catastral", d.get("referencia_catastral") or "-"],
+        ["Uso al que se destina", d.get("uso") or "-"],
+        ["Superficie", (d.get("superficie") or "-") + (" m²" if d.get("superficie") else "")],
+        ["Tipo de actuación", d.get("tipo_instalacion") or "-"],
+    ]))
+
+    # ---------------------------------------------------------------- D. Memoria Descriptiva
+    story.append(Paragraph("D. Memoria descriptiva", h2))
+
+    story.append(Paragraph("D.1 Objeto y normativa de aplicación", h3))
     story.append(Paragraph(
         "La presente Memoria Técnica de Diseño (MTD) tiene por objeto describir y justificar las "
-        "características técnicas de la instalación eléctrica de baja tensión reseñada, de acuerdo con el "
-        "Reglamento Electrotécnico para Baja Tensión (REBT, RD 842/2002) y sus Instrucciones Técnicas "
-        "Complementarias, en particular la ITC-BT-04 sobre documentación y puesta en servicio de las "
-        "instalaciones.", normal))
+        "características técnicas de la instalación eléctrica de baja tensión reseñada, así como servir de "
+        "base para su tramitación administrativa y puesta en servicio, de acuerdo con el Reglamento "
+        "Electrotécnico para Baja Tensión (REBT, aprobado por Real Decreto 842/2002) y sus Instrucciones "
+        "Técnicas Complementarias (ITC-BT), en particular la ITC-BT-04 relativa a la documentación y puesta "
+        "en servicio de las instalaciones. Esta MTD es válida para instalaciones de las características "
+        "recogidas en el apartado 3 de la ITC-BT-04 que no requieren de Proyecto firmado por técnico "
+        "titulado competente.", normal))
 
-    story.append(Paragraph("3. Descripción de la instalación", h2))
     if hay_cable:
-        story.append(Paragraph(f"<b>Instalación de baja tensión — {inputs_cable['tipo_circuito']}</b>", h3))
+        story.append(Paragraph("D.2 Instalación de baja tensión calculada", h3))
+        story.append(Paragraph(f"Circuito de referencia: <b>{inputs_cable['tipo_circuito']}</b>.", normal))
         story.append(tabla([
             ["Concepto", "Valor"],
             ["Sistema", f"{inputs_cable['sistema']} — {inputs_cable['tension']:g} V"],
             ["Conductor / Aislamiento", f"{inputs_cable['conductor']} / {inputs_cable['aislamiento']}"],
-            ["Método de instalación", inputs_cable["metodo"]],
+            ["Método de instalación (canalización)", inputs_cable["metodo"]],
+            ["Longitud del circuito", f"{inputs_cable['longitud']:g} m"],
             ["Sección de fase adoptada", f"{resultado_cable['seccion_final']:g} mm²"],
+            ["Sección de neutro", f"{resultado_cable['seccion_neutro']:g} mm²" if resultado_cable.get("seccion_neutro") else "—"],
+            ["Sección de protección (PE)", f"{resultado_cable['seccion_proteccion']:g} mm²" if resultado_cable.get("seccion_proteccion") else "—"],
             ["Protección (interruptor automático)", f"{resultado_cable['calibre_magnetotermico']} A"],
+            ["Caída de tensión", f"{resultado_cable['e_final_pct']:.2f} % (máx. {inputs_cable['delta_u_max']:g} %)"],
         ]))
+        story.append(Paragraph(
+            "Los dispositivos generales e individuales de mando y protección se han seleccionado conforme a "
+            "la ITC-BT-17 (protección contra sobreintensidades) y la ITC-BT-24 (protección contra contactos "
+            "directos e indirectos), garantizando la selectividad y el poder de corte necesarios frente a la "
+            "intensidad de cortocircuito prevista en el punto de instalación.", normal))
+    else:
+        story.append(Paragraph("D.2 Instalación de baja tensión", h3))
+        story.append(Paragraph("No se ha completado ningún cálculo de circuito en la pestaña Calculadora; "
+                                "esta sección se completará cuando se disponga de esos datos.", normal))
+
+    story.append(Paragraph("D.3 Cuadro general de mando y protección", h3))
+    story.append(Paragraph(
+        "El cuadro general de mando y protección aloja, como mínimo: un interruptor general automático "
+        "(IGA) de corte omnipolar, un interruptor diferencial general (o varios, según la previsión de "
+        "cargas) y los interruptores automáticos individuales de cada circuito derivado, coordinados entre "
+        "sí para garantizar la selectividad. Se recomienda la instalación de un dispositivo de protección "
+        "contra sobretensiones (DPS) en cabecera cuando la acometida sea aérea o exista riesgo de "
+        "sobretensiones de origen atmosférico (ITC-BT-23).", normal))
+
+    story.append(Paragraph("D.4 Instalación interior. Canalizaciones", h3))
+    metodo_txt = inputs_cable.get("metodo", "") if hay_cable else ""
+    story.append(Paragraph(
+        f"El sistema de canalización empleado se corresponde con el tipo {metodo_txt or '[a determinar]'} "
+        "según la clasificación de la ITC-BT-19 y la norma UNE-HD 60364-5-52, seleccionado en función de "
+        "las influencias externas del emplazamiento (humedad, temperatura, riesgo mecánico) conforme a la "
+        "clasificación de la norma UNE 20460-3.", normal))
+
+    story.append(Paragraph("D.5 Puesta a tierra", h3))
+    story.append(Paragraph(
+        "La puesta a tierra de la instalación se ejecutará conforme a la ITC-BT-18, mediante electrodo(s) "
+        "(picas y/o conductor enterrado) conectado al borne principal de tierra, del que partirá el "
+        "conductor de protección hacia todas las masas metálicas de la instalación. La resistencia de tierra "
+        "resultante será compatible con la sensibilidad de las protecciones diferenciales instaladas, de "
+        "forma que la tensión de contacto no supere los límites de seguridad de la ITC-BT-24.", normal))
+
     if hay_fv:
-        story.append(Paragraph("<b>Instalación generadora fotovoltaica (RD 244/2019, ITC-BT-40)</b>", h3))
+        story.append(Paragraph("D.6 Instalación generadora fotovoltaica", h3))
         story.append(tabla([
             ["Concepto", "Valor"],
-            ["Modalidad de autoconsumo", inputs_fv["tipo_autoconsumo"]],
+            ["Modalidad de autoconsumo (RD 244/2019)", inputs_fv["tipo_autoconsumo"]],
             ["Potencia pico instalada", f"{resultado_fv['p_pico_kwp']:.2f} kWp"],
-            ["Nº de paneles", f"{resultado_fv['n_paneles_configurados']}"],
+            ["Nº de paneles / configuración", f"{resultado_fv['n_paneles_configurados']} ({resultado_fv['n_serie']}S{resultado_fv['n_paralelo']}P)"],
             ["Potencia del inversor", f"{inputs_fv['potencia_inversor_kw']:g} kW"],
+            ["Sección CC / CA", f"{resultado_fv['s_cc_final']:g} mm² / {resultado_fv['s_ca_final']:g} mm²"],
             ["Producción anual estimada", f"{resultado_fv['produccion_anual_kwh']:,.0f} kWh/año".replace(",", ".")],
+            ["CO₂ evitado estimado", f"{resultado_fv['co2_evitado_kg_ano']/1000:.2f} t/año"],
         ]))
-        umbral = "≤10 kW → Certificado eléctrico" if resultado_fv["p_pico_kwp"] <= 10 else ">10 kW → Proyecto firmado por técnico competente"
-        story.append(Paragraph(f"Régimen documental según RD 244/2019: {umbral}.", normal))
-    if not hay_cable and not hay_fv:
-        story.append(Paragraph("No se ha completado ningún cálculo en las pestañas Calculadora o "
-                                "Fotovoltaica de la aplicación. Complétalos antes de generar la MTD "
-                                "definitiva.", normal))
+        umbral = ("≤10 kW → Certificado eléctrico firmado por instalador autorizado"
+                  if resultado_fv["p_pico_kwp"] <= 10 else
+                  ">10 kW → Proyecto firmado por técnico competente")
+        story.append(Paragraph(f"Régimen documental aplicable según RD 244/2019: {umbral}. La conexión se "
+                                "realiza a través de un cuadro de mando y protección específico dotado de "
+                                "las protecciones diferenciales necesarias, y de un mecanismo antivertido si "
+                                "la modalidad es sin excedentes, conforme al Anexo I de la ITC-BT-40.", normal))
 
-    story.append(Paragraph("4. Presupuesto", h2))
+    story.append(Paragraph("D.7 Influencias externas", h3))
+    story.append(Paragraph(
+        "Salvo indicación expresa en contrario, se considera que el emplazamiento presenta condiciones "
+        "ambientales normales (AD1, AA4, BA1 según UNE 20460-3), sin riesgo de incendio ni explosión, por lo "
+        "que no son de aplicación las prescripciones adicionales de la ITC-BT-29 para locales de "
+        "características especiales.", normal))
+
+    # ---------------------------------------------------------------- E. Memoria Justificativa
+    story.append(PageBreak())
+    story.append(Paragraph("E. Memoria justificativa (resumen de cálculos)", h2))
+    story.append(Paragraph(
+        "El detalle completo de las fórmulas y valores empleados para justificar las secciones, "
+        "protecciones y caídas de tensión se recoge en el Anexo de Cálculos y Mediciones, documento que "
+        "forma parte integrante de esta Memoria. A continuación se resume el resultado:", normal))
+    filas_resumen = [["Parte de la instalación", "Potencia (kW)", "Longitud (m)", "Sección (mm²)", "ΔU (%)"]]
+    if hay_cable:
+        filas_resumen.append([
+            inputs_cable["tipo_circuito"][:28],
+            f"{inputs_cable['potencia_kw']:.2f}" if inputs_cable.get("potencia_kw") else "—",
+            f"{inputs_cable['longitud']:g}", f"{resultado_cable['seccion_final']:g}",
+            f"{resultado_cable['e_final_pct']:.2f}",
+        ])
+    if hay_fv:
+        filas_resumen.append([
+            "Generador FV (tramo CC)", f"{resultado_fv['p_pico_kwp']:.2f}", f"{inputs_fv['longitud_cc']:g}",
+            f"{resultado_fv['s_cc_final']:g}", f"{resultado_fv['du_cc_pct']:.2f}",
+        ])
+        filas_resumen.append([
+            "Generador FV (tramo CA)", f"{inputs_fv['potencia_inversor_kw']:g}", f"{inputs_fv['longitud_ca']:g}",
+            f"{resultado_fv['s_ca_final']:g}", f"{resultado_fv['e_ca_pct']:.2f}",
+        ])
+    if len(filas_resumen) > 1:
+        story.append(tabla(filas_resumen, colw=(4.5, 3.0, 2.7, 2.9, 2.9)))
+    else:
+        story.append(Paragraph("No hay cálculos disponibles todavía.", normal))
+
+    # ---------------------------------------------------------------- F/G/H
+    story.append(Paragraph("F. Presupuesto", h2))
     if total_presupuesto:
         story.append(Paragraph(f"El presupuesto de la instalación asciende a la cantidad de "
                                 f"<b>{total_presupuesto:,.2f} €</b> ({numero_a_letras_euros(total_presupuesto)}), "
@@ -1253,16 +1496,28 @@ def generar_pdf_mtd(datos_proyecto: dict, inputs_cable: dict, resultado_cable: d
     else:
         story.append(Paragraph("No se ha generado presupuesto en la pestaña correspondiente.", normal))
 
-    story.append(Paragraph("5. Documentos que integran el proyecto", h2))
-    for linea in ["Memoria Técnica de Diseño (este documento)", "Anexo de cálculos y mediciones",
-                  "Condiciones generales de ejecución", "Presupuesto", "Planos (si procede)"]:
+    story.append(Paragraph("G. Documentos que integran el proyecto", h2))
+    for linea in ["Memoria Técnica de Diseño (este documento)", "Anexo de Cálculos y Mediciones",
+                  "Pliego de Condiciones Generales", "Presupuesto",
+                  "Esquema unifilar y croquis de emplazamiento (a incorporar por el técnico)",
+                  "Certificado de Instalación Eléctrica (CIE), tras la puesta en servicio"]:
         story.append(Paragraph("• " + linea, normal))
 
+    story.append(Paragraph("H. Declaración y firma", h2))
+    story.append(Paragraph(
+        f"D./Dña. {d.get('instalador') or '_______________________'}, en calidad de "
+        f"{(d.get('categoria_instalador') or 'instalador autorizado').lower()}, declara que la instalación "
+        "descrita en la presente Memoria Técnica de Diseño se ajusta a las prescripciones del Reglamento "
+        "Electrotécnico para Baja Tensión y sus Instrucciones Técnicas Complementarias.", normal))
+    story.append(Spacer(1, 24))
+    story.append(Paragraph("En ______________________, a ____ de ______________ de 20____", normal))
+    story.append(Spacer(1, 24))
+    story.append(Paragraph("Firma: _______________________________________", normal))
     story.append(Spacer(1, 10))
     story.append(Paragraph(
-        "Documento de apoyo generado automáticamente. Antes de su presentación ante el organismo competente, "
-        "debe ser revisado, completado y, en su caso, firmado por el instalador autorizado o técnico "
-        "competente responsable.", normal))
+        "Documento de apoyo generado automáticamente a partir de los datos introducidos en la aplicación. "
+        "Antes de su presentación ante el organismo competente, debe ser revisado, completado y firmado por "
+        "el instalador autorizado o técnico competente responsable.", normal))
 
     doc.build(story, onFirstPage=cajetin, onLaterPages=cajetin)
     return buffer.getvalue()
@@ -1281,6 +1536,15 @@ def generar_pdf_anexo_calculos(datos_proyecto: dict, inputs_cable: dict, resulta
     hay_cable = resultado_cable.get("seccion_final") is not None
     hay_fv = bool(resultado_fv) and resultado_fv.get("p_pico_kwp") is not None
 
+    story.append(Paragraph("0. Introducción y criterios generales", h2))
+    story.append(Paragraph(
+        "Este Anexo justifica, mediante las fórmulas y valores empleados, las secciones de conductor, "
+        "protecciones y caídas de tensión adoptadas en la instalación descrita en la Memoria Técnica de "
+        "Diseño, así como las mediciones que dan origen al Presupuesto. Los criterios generales aplicados "
+        "son los del artículo 19.2 de la ITC-BT-19 (criterio térmico Ib≤In≤Iz, criterio de caída de tensión "
+        "y, cuando se aporta, criterio térmico de cortocircuito) y, para la instalación fotovoltaica en su "
+        "caso, la ITC-BT-40 y el Real Decreto 244/2019.", normal))
+
     story.append(Paragraph("1. Cálculos justificativos", h2))
     if hay_cable:
         story.append(Paragraph(f"1.1. Instalación de baja tensión — {inputs_cable['tipo_circuito']}", h3))
@@ -1297,6 +1561,9 @@ def generar_pdf_anexo_calculos(datos_proyecto: dict, inputs_cable: dict, resulta
                                 "módulo Fotovoltaico antes de generar este anexo.", normal))
 
     story.append(Paragraph("2. Mediciones", h2))
+    story.append(Paragraph(
+        "Relación de unidades de obra y materiales, agrupadas por capítulo, que dan origen al Presupuesto "
+        "de la instalación:", normal))
     if capitulos_presupuesto:
         for cap in capitulos_presupuesto:
             if not cap["items"]:
@@ -1315,90 +1582,189 @@ def generar_pdf_anexo_calculos(datos_proyecto: dict, inputs_cable: dict, resulta
         story.append(Spacer(1, 6))
         story.append(Paragraph(f"Porcentajes aplicados en el presupuesto: Beneficio industrial {pct_beneficio:g}%, "
                                 f"Amortización de medios auxiliares {pct_amortizacion:g}%. El desglose económico "
-                                "completo se encuentra en el documento de Presupuesto.", normal))
+                                "completo (precios y totales) se encuentra en el documento de Presupuesto.", normal))
     else:
         story.append(Paragraph("No se han definido capítulos en la pestaña Presupuesto.", normal))
+
+    story.append(Paragraph("3. Conclusión", h2))
+    story.append(Paragraph(
+        "Con los cálculos y mediciones anteriores queda justificada, a juicio del técnico que suscribe, la "
+        "idoneidad de las secciones, protecciones y demás elementos descritos en la Memoria Técnica de "
+        "Diseño para el uso previsto de la instalación.", normal))
 
     doc.build(story, onFirstPage=cajetin, onLaterPages=cajetin)
     return buffer.getvalue()
 
 
 def generar_pdf_condiciones_generales(datos_proyecto: dict, hay_fv: bool) -> bytes:
-    from reportlab.platypus import Paragraph, Spacer
+    from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.units import cm as _cm
 
     buffer, doc, cajetin, AZUL, colors, h2, h3, normal = _preparar_doc_pdf(
-        "CONDICIONES GENERALES DE EJECUCION", "Prescripciones técnicas generales", datos_proyecto)
+        "PLIEGO DE CONDICIONES GENERALES", "Materiales, ejecución, pruebas y mantenimiento", datos_proyecto)
 
-    story = [Paragraph("1. Normativa de aplicación", h2)]
+    def lista(items, style=normal):
+        return [Paragraph("• " + t, style) for t in items]
+
+    def tabla(datos, colw=(6.0, 5.0, 5.0)):
+        t = Table(datos, colWidths=[c * _cm for c in colw])
+        t.setStyle(TableStyle([
+            ("FONTSIZE", (0, 0), (-1, -1), 8.5), ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#c9ccd1")),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("BACKGROUND", (0, 0), (-1, 0), AZUL), ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ]))
+        return t
+
+    story = [Paragraph("1. Objeto y alcance", h2)]
     story.append(Paragraph(
-        "La instalación se ejecutará de acuerdo con el Reglamento Electrotécnico para Baja Tensión (REBT, "
-        "RD 842/2002) y sus Instrucciones Técnicas Complementarias (ITC-BT), las normas UNE que le sean de "
-        "aplicación, y, en su caso, el Real Decreto 244/2019 de autoconsumo y el Código Técnico de la "
-        "Edificación.", normal))
+        "El presente Pliego de Condiciones Generales establece las prescripciones técnicas mínimas que "
+        "deben cumplir los materiales, la ejecución, las pruebas y la puesta en servicio de la instalación "
+        "eléctrica objeto de la Memoria Técnica de Diseño y su Anexo de Cálculos, sin perjuicio de "
+        "condiciones particulares más restrictivas que pueda fijar la Dirección Facultativa, la empresa "
+        "distribuidora o las ordenanzas municipales y autonómicas de aplicación.", normal))
 
-    story.append(Paragraph("2. Materiales", h2))
-    for linea in [
-        "Todos los materiales y equipos serán de primera calidad y dispondrán del marcado CE cuando "
-        "sea de aplicación, cumpliendo las normas UNE correspondientes a cada tipo de material.",
-        "Los conductores serán de cobre (salvo justificación expresa de aluminio) con la sección y el "
-        "aislamiento indicados en el Anexo de Cálculos.",
-        "Los aparatos de mando, maniobra y protección serán adecuados a la intensidad y tensión de la "
-        "instalación, y estarán homologados conforme a la normativa vigente.",
-    ]:
-        story.append(Paragraph("• " + linea, normal))
+    story.append(Paragraph("2. Normativa de aplicación", h2))
+    story.extend(lista([
+        "Reglamento Electrotécnico para Baja Tensión (REBT), Real Decreto 842/2002, y sus Instrucciones "
+        "Técnicas Complementarias (ITC-BT-01 a ITC-BT-53).",
+        "Normas UNE armonizadas de materiales, cables (UNE-EN 50525, UNE-HD 60364-5-52) y aparamenta "
+        "(UNE-EN 60898, UNE-EN 61008/61009).",
+        "Real Decreto 244/2019, condiciones administrativas, técnicas y económicas del autoconsumo de "
+        "energía eléctrica (cuando la instalación incluya generación fotovoltaica).",
+        "Código Técnico de la Edificación (CTE), en lo relativo a eficiencia energética (DB-HE) y "
+        "seguridad en caso de incendio (DB-SI), cuando resulte de aplicación.",
+        "Ordenanzas municipales y normas particulares de la empresa distribuidora de energía eléctrica.",
+    ]))
 
-    story.append(Paragraph("3. Ejecución", h2))
-    for linea in [
-        "La instalación será ejecutada por instalador autorizado, siguiendo las prescripciones de la "
-        "ITC-BT-19 (prescripciones generales), ITC-BT-17 (protección contra sobretensiones y "
-        "sobreintensidades) e ITC-BT-24 (protección contra contactos directos e indirectos).",
-        "Las canalizaciones se dispondrán de forma que permitan su identificación, mantenimiento e "
-        "inspección, evitando su proximidad a otras instalaciones (agua, gas, calefacción) según ITC-BT-20/21.",
-        "Se respetarán las distancias y radios de curvatura mínimos de los conductores y canalizaciones "
-        "indicados por el fabricante.",
-    ]:
-        story.append(Paragraph("• " + linea, normal))
+    story.append(Paragraph("3. Condiciones de los materiales", h2))
+    story.append(Paragraph("3.1 Conductores y cables", h3))
+    story.extend(lista([
+        "Serán de cobre electrolítico (salvo justificación expresa de aluminio en líneas de gran sección), "
+        "con aislamiento y cubierta adecuados al método de instalación definido en el Anexo de Cálculos "
+        "(PVC 450/750V para instalación interior, XLPE/EPR 0,6/1kV para acometidas, derivaciones "
+        "individuales e instalación fotovoltaica).",
+        "La identificación de conductores por color será: azul claro para el neutro, verde-amarillo "
+        "exclusivamente para el conductor de protección, y marrón/negro/gris para las fases (ITC-BT-19, "
+        "UNE 21089).",
+        "Los radios de curvatura mínimos y las tracciones máximas admisibles durante el tendido serán los "
+        "indicados por el fabricante del cable; no se admitirán empalmes salvo en cajas de registro "
+        "accesibles.",
+    ]))
+    story.append(Paragraph("3.2 Canalizaciones", h3))
+    story.extend(lista([
+        "Los tubos protectores (metálicos, PVC rígido o corrugado) cumplirán la norma UNE-EN 61386, con el "
+        "grado de protección IP adecuado al local (ITC-BT-30) y un diámetro tal que permita la incorporación "
+        "de conductores adicionales según la ITC-BT-21.",
+        "Las bandejas y canales portacables cumplirán la norma UNE-EN 61537, con la anchura y el grado de "
+        "ocupación indicados en el Anexo de Cálculos, dejando un margen mínimo del 20% para ampliaciones.",
+    ]))
+    story.append(Paragraph("3.3 Aparamenta de mando y protección", h3))
+    story.extend(lista([
+        "Los interruptores automáticos (PIA) cumplirán la norma UNE-EN 60898, con un poder de corte no "
+        "inferior a la intensidad de cortocircuito prevista en su punto de instalación.",
+        "Los interruptores diferenciales cumplirán la norma UNE-EN 61008/61009, siendo de tipo A o "
+        "superinmunizado en circuitos con receptores electrónicos o variadores de frecuencia, y de tipo B "
+        "en instalaciones fotovoltaicas cuando el inversor no garantice por diseño la ausencia de "
+        "componente continua de defecto (ITC-BT-24, guía UNE-HD 60364-5-53).",
+        "Todo el material de protección dispondrá del marcado CE y ficha técnica que acredite sus "
+        "características (intensidad nominal, poder de corte, curva de disparo, sensibilidad).",
+    ]))
+    story.append(Paragraph("3.4 Cuadros, mecanismos y receptores", h3))
+    story.extend(lista([
+        "Los cuadros eléctricos serán de material aislante autoextinguible o metálicos con puesta a tierra, "
+        "con grado de protección IP adecuado a su ubicación, y dispondrán de espacio de reserva no inferior "
+        "al 20% de los módulos instalados.",
+        "Los mecanismos (interruptores, bases de enchufe, tomas industriales) cumplirán las normas UNE-EN "
+        "60669 y UNE-EN 60309 según corresponda, con el grado de protección exigido en locales húmedos o "
+        "exteriores (mínimo IP44).",
+    ]))
 
-    story.append(Paragraph("4. Puesta a tierra y protecciones", h2))
-    story.append(Paragraph(
-        "La puesta a tierra se ejecutará conforme a la ITC-BT-18, garantizando una resistencia de tierra "
-        "compatible con las protecciones diferenciales instaladas (ITC-BT-24). Todas las masas metálicas "
-        "accesibles se conectarán al conductor de protección.", normal))
+    story.append(Paragraph("4. Condiciones de ejecución", h2))
+    story.extend(lista([
+        "La instalación será ejecutada por instalador eléctrico autorizado en la categoría correspondiente, "
+        "o bajo la dirección de técnico titulado competente, siguiendo el orden y las prescripciones de la "
+        "ITC-BT-19 (prescripciones generales de instalaciones interiores).",
+        "Las canalizaciones se dispondrán separadas de otras instalaciones no eléctricas (agua, gas, "
+        "calefacción, telecomunicaciones) según las distancias mínimas de la ITC-BT-20/21, y de forma que "
+        "permitan su identificación, ampliación y mantenimiento.",
+        "Los circuitos se identificarán en el cuadro mediante etiquetas indelebles, indicando el receptor o "
+        "zona que alimentan y su calibre de protección.",
+        "En instalaciones con más de un cuadro secundario, se levantará un diagrama de bloques que refleje "
+        "la relación de dependencia entre ellos, conforme al modelo oficial de MTD.",
+        "Toda modificación respecto a lo indicado en la Memoria y el Anexo de Cálculos deberá quedar "
+        "reflejada en la documentación 'as built' entregada al titular.",
+    ]))
 
     if hay_fv:
         story.append(Paragraph("5. Condiciones específicas de la instalación fotovoltaica", h2))
-        for linea in [
-            "La instalación generadora cumplirá la ITC-BT-40 y el Real Decreto 244/2019 sobre condiciones "
-            "administrativas, técnicas y económicas del autoconsumo de energía eléctrica.",
-            "Los cables de conexión se dimensionarán para una intensidad no inferior al 125% de la intensidad "
-            "máxima del generador, con una caída de tensión conjunta (CC+CA) no superior al 1,5% entre el "
-            "generador y el punto de interconexión.",
+        story.extend(lista([
+            "La instalación generadora cumplirá la ITC-BT-40 y el Real Decreto 244/2019, disponiendo de "
+            "dispositivos que limiten la inyección de corriente continua y la generación de sobretensiones, "
+            "e impidan el funcionamiento en isla de la red de distribución.",
+            "Los cables de conexión (tramos CC y CA) se dimensionarán para una intensidad no inferior al "
+            "125% de la intensidad máxima del generador, con una caída de tensión conjunta no superior al "
+            "1,5% entre el generador y el punto de interconexión.",
             "Las instalaciones de autoconsumo sin excedentes dispondrán de un mecanismo antivertido conforme "
-            "al Anexo I de la ITC-BT-40.",
+            "al Anexo I de la ITC-BT-40, verificado según los ensayos allí establecidos.",
+            "Los conectores del lado de corriente continua serán del tipo normalizado para aplicaciones "
+            "fotovoltaicas (p. ej. MC4), estancos e inconfundibles con los de otros sistemas.",
+            "Las estructuras metálicas de soporte de los módulos, incluyendo canalizaciones metálicas, se "
+            "conectarán equipotencialmente a tierra; si son de aluminio, se emplearán dispositivos de "
+            "conexión que eviten pares electroquímicos.",
             "Se dispondrá de un cuadro de mando y protección específico con las protecciones diferenciales "
-            "necesarias, y de los dispositivos de desconexión requeridos para las labores de mantenimiento.",
-        ]:
-            story.append(Paragraph("• " + linea, normal))
-        story.append(Paragraph("6. Pruebas y puesta en servicio", h2))
+            "necesarias y los dispositivos de seccionamiento requeridos para las labores de mantenimiento "
+            "en condiciones de seguridad.",
+        ]))
+        num_seccion_pruebas = "6"
     else:
-        story.append(Paragraph("5. Pruebas y puesta en servicio", h2))
-    story.append(Paragraph(
-        "Antes de la puesta en servicio se realizarán las verificaciones e inspecciones indicadas en la "
-        "ITC-BT-05 (verificaciones e inspecciones) y se emitirá el correspondiente Certificado de "
-        "Instalación Eléctrica (CIE) o, en su caso, Boletín de instalación, incluyendo medida de resistencia "
-        "de aislamiento, continuidad de conductores de protección y resistencia de puesta a tierra.", normal))
+        num_seccion_pruebas = "5"
 
-    story.append(Paragraph("7. Mantenimiento", h2))
+    story.append(Paragraph(f"{num_seccion_pruebas}. Pruebas y verificaciones antes de la puesta en servicio", h2))
+    story.append(Paragraph(
+        "Antes de la puesta en servicio se realizarán, como mínimo, las siguientes comprobaciones "
+        "(ITC-BT-05 y UNE-HD 60364-6):", normal))
+    story.append(tabla([
+        ["Ensayo", "Criterio de aceptación"],
+        ["Continuidad de conductores de protección y equipotenciales", "Continuidad eléctrica verificada"],
+        ["Resistencia de aislamiento (circuitos ≤500V, ensayo a 500V c.c.)", "≥ 0,50 MΩ"],
+        ["Resistencia de aislamiento (circuitos MBTS/MBTP, ensayo a 250V c.c.)", "≥ 0,25 MΩ"],
+        ["Resistencia de puesta a tierra", "Compatible con la sensibilidad del diferencial instalado"],
+        ["Disparo de los interruptores diferenciales (botón de test e Idn)", "Disparo correcto"],
+        ["Caída de tensión en los circuitos más desfavorables", "Conforme al Anexo de Cálculos"],
+        ["Secuencia de fases y tensiones (instalación trifásica)", "Correcta y equilibrada"],
+    ], colw=(9.0, 7.0)))
+    story.append(Paragraph(
+        "Realizadas las comprobaciones con resultado favorable, se emitirá el correspondiente Certificado "
+        "de Instalación Eléctrica (CIE), que se presentará junto con la MTD ante el órgano competente de la "
+        "Comunidad Autónoma para su registro.", normal))
+
+    story.append(Paragraph(f"{int(num_seccion_pruebas)+1}. Garantías y recepción", h2))
+    story.append(Paragraph(
+        "El instalador garantizará la instalación frente a defectos de ejecución durante el plazo legal "
+        "aplicable, sin perjuicio de las garantías comerciales de cada fabricante sobre los equipos "
+        "suministrados (aparamenta, luminarias, inversor, paneles, baterías). La recepción de la instalación "
+        "por el titular no exime al instalador de sus responsabilidades legales y contractuales.", normal))
+
+    story.append(Paragraph(f"{int(num_seccion_pruebas)+2}. Mantenimiento", h2))
     story.append(Paragraph(
         "El titular de la instalación velará por su correcto mantenimiento, revisando periódicamente el "
-        "estado de conductores, protecciones y puesta a tierra, y encargando las inspecciones periódicas "
-        "que, en su caso, sean obligatorias según la potencia y el uso de la instalación.", normal))
+        "estado de conductores, protecciones y puesta a tierra (accionamiento del botón de test del "
+        "diferencial al menos una vez al mes), y encargando las inspecciones periódicas que, en su caso, "
+        "sean obligatorias según la potencia y el uso de la instalación (ITC-BT-05).", normal))
+
+    story.append(Paragraph(f"{int(num_seccion_pruebas)+3}. Seguridad y salud", h2))
+    story.append(Paragraph(
+        "Durante la ejecución de los trabajos se cumplirá la normativa de prevención de riesgos laborales "
+        "aplicable (Ley 31/1995 y RD 1627/1997 en su caso), utilizando los equipos de protección individual "
+        "adecuados a los trabajos eléctricos y respetando en todo momento las cinco reglas de oro del "
+        "trabajo sin tensión cuando proceda.", normal))
 
     story.append(Spacer(1, 10))
     story.append(Paragraph(
-        "Estas condiciones generales son un documento de apoyo estándar; adáptalas a las particularidades "
-        "de cada proyecto y a las ordenanzas municipales o autonómicas que puedan resultar de aplicación.",
-        normal))
+        "Este pliego es un documento de apoyo estándar; adáptalo a las particularidades de cada proyecto y "
+        "a las ordenanzas municipales o autonómicas que puedan resultar de aplicación.", normal))
 
     doc.build(story, onFirstPage=cajetin, onLaterPages=cajetin)
     return buffer.getvalue()
@@ -1579,8 +1945,13 @@ def items_desde_calculo_fv(inp: dict, res: dict) -> list:
          "cantidad": 1, "precio_base": PRECIOS_FV_DEFECTO["Legalización y tramitación (notificación/certificado)"][1]},
     ]
     if res.get("calibre_fusible_string"):
-        items.append({"designacion": f"Fusible de string {res['calibre_fusible_string']} A (par)", "unidades": "ud",
+        items.append({"designacion": f"Fusible de string {res['calibre_fusible_string']} A / "
+                                      f"{res.get('tension_fusible_string', 1000)} V (par)", "unidades": "ud",
                        "cantidad": inp["n_strings_paralelo"], "precio_base": 8.0})
+    if res.get("capacidad_bateria_kwh"):
+        items.append({"designacion": f"Batería de litio {res['capacidad_bateria_kwh']:.1f} kWh",
+                       "unidades": "kWh", "cantidad": round(res["capacidad_bateria_kwh"], 1),
+                       "precio_base": PRECIOS_FV_DEFECTO["Batería de litio (por kWh de capacidad)"][1]})
     return items
 
 
@@ -1738,12 +2109,12 @@ def generar_excel_presupuesto_capitulos(capitulos: list, pct_beneficio: float, p
 # la misma física, no porque haya un acoplamiento de datos entre apartados.
 
 ZONAS_CLIMATICAS_HSP = {
-    "Norte (Galicia, Asturias, Cantabria, País Vasco)": 3.7,
-    "Centro / Meseta (Madrid, Castilla)": 4.4,
-    "Mediterráneo / Levante (Cataluña, C. Valenciana, Baleares)": 4.8,
-    "Sur (Andalucía, Murcia, Extremadura)": 5.3,
-    "Canarias": 5.4,
-    "Personalizado (introducir HSP manualmente)": None,
+    "Norte (Galicia, Asturias, Cantabria, País Vasco)": (3.7, 43.0),
+    "Centro / Meseta (Madrid, Castilla)": (4.4, 40.4),
+    "Mediterráneo / Levante (Cataluña, C. Valenciana, Baleares)": (4.8, 39.5),
+    "Sur (Andalucía, Murcia, Extremadura)": (5.3, 37.2),
+    "Canarias": (5.4, 28.3),
+    "Personalizado (introducir HSP y latitud manualmente)": (None, None),
 }
 
 TIPO_AUTOCONSUMO_FV = [
@@ -1754,6 +2125,11 @@ TIPO_AUTOCONSUMO_FV = [
 ]
 
 PR_DEFECTO_FV = 0.80
+EFICIENCIA_INVERSOR_DEFECTO = 97.0        # % — típico 95-98% (SunFields, fabricantes)
+DEGRADACION_ANUAL_DEFECTO = 0.5           # %/año — típico 0,3-0,8%/año
+FACTOR_CO2_RED_DEFECTO = 0.20             # kg CO2/kWh — orientativo, mix peninsular reciente (REE, 130-200 gCO2/kWh)
+AREA_PANEL_DEFECTO = 1.95                 # m² — panel estándar ~450Wp (aprox. 1,75x1,13 m)
+PRECIO_COMPENSACION_DEFECTO = 0.08        # €/kWh excedente compensado (orientativo, varía por comercializadora)
 
 # Módulo y catálogo de referencia orientativos (editables en la propia app).
 PANEL_DEFECTO = dict(potencia_wp=450, voc=41.8, isc=13.9, vmp=34.6, imp=13.0, coef_temp_voc=-0.27)
@@ -1762,6 +2138,9 @@ INVERSOR_DEFECTO = dict(potencia_kw=5.0, vmin_mppt=80, vmax_mppt=550, vmax_entra
 # Calibres de fusible de string normalizados (A) — criterio orientativo del
 # fabricante: In entre 1,5 y 2,4 veces Isc del string (UNE-EN 62548 / IEC 60269-6).
 CALIBRES_FUSIBLE_STRING = [2, 4, 6, 8, 10, 12, 15, 16, 20, 25, 32]
+
+# Tensiones nominales normalizadas de fusible cilíndrico fotovoltaico (V CC).
+TENSIONES_FUSIBLE_FV = [500, 600, 1000, 1500]
 
 PRECIOS_FV_DEFECTO = {
     "Panel fotovoltaico (según Wp introducido)": ("ud", 110.0),
@@ -1775,9 +2154,23 @@ PRECIOS_FV_DEFECTO = {
     "Magnetotérmico CA salida inversor": ("ud", 28.0),
     "Diferencial tipo A (salida inversor)": ("ud", 65.0),
     "Conectores MC4 (par)": ("ud", 3.5),
+    "Batería de litio (por kWh de capacidad)": ("kWh", 450.0),
     "Mano de obra instalador FV (por kWp)": ("kWp", 180.0),
     "Legalización y tramitación (notificación/certificado)": ("ud", 250.0),
 }
+
+
+def perdidas_orientacion_inclinacion_cte(inclinacion: float, azimut: float, latitud: float) -> float:
+    """Pérdidas (%) por orientación e inclinación no óptimas, según la
+    fórmula oficial del CTE DB-HE5: Pérdidas(%) = 100 x [1,2e-4·(β-φ+10)² +
+    3,5e-5·α²], con β=inclinación, φ=latitud, α=azimut (0°=sur, ±180°=norte).
+    Válida para |azimut| < 90° y ángulos de inclinación habituales; fuera de
+    ese rango se satura al valor en el límite para evitar resultados
+    absurdos."""
+    beta = max(0.0, min(90.0, inclinacion))
+    alfa = max(-180.0, min(180.0, azimut))
+    perdidas = 100 * (1.2e-4 * (beta - latitud + 10) ** 2 + 3.5e-5 * alfa ** 2)
+    return max(0.0, min(perdidas, 40.0))
 
 
 def calcular_fv(inp: dict) -> dict:
@@ -1786,10 +2179,10 @@ def calcular_fv(inp: dict) -> dict:
     avisos = []
 
     hsp = inp["hsp"]
-    pr = inp["pr"]
+    pr_base = inp["pr"]
 
     if inp["modo_dimensionado"] == "Por consumo anual (kWh)":
-        p_pico_kwp = inp["consumo_anual_kwh"] / max(hsp * 365 * pr, 1e-6)
+        p_pico_kwp = inp["consumo_anual_kwh"] / max(hsp * 365 * pr_base, 1e-6)
         n_paneles = math.ceil(p_pico_kwp * 1000 / inp["potencia_panel_wp"])
     elif inp["modo_dimensionado"] == "Por potencia pico deseada (kWp)":
         p_pico_kwp = inp["potencia_pico_deseada"]
@@ -1798,9 +2191,27 @@ def calcular_fv(inp: dict) -> dict:
         n_paneles = inp["n_paneles_manual"]
         p_pico_kwp = n_paneles * inp["potencia_panel_wp"] / 1000
 
-    produccion_anual_kwh = p_pico_kwp * hsp * 365 * pr
+    # --- Pérdidas por orientación/inclinación (CTE DB-HE5) + sombras/suciedad
+    # + eficiencia del inversor, todas aplicadas sobre la producción bruta. ---
+    perdidas_orient_pct = perdidas_orientacion_inclinacion_cte(
+        inp["inclinacion"], inp["azimut"], inp["latitud"])
     perdidas_sombra_pct = inp.get("perdidas_sombras", 0.0)
-    produccion_anual_kwh *= (1 - perdidas_sombra_pct / 100.0)
+    eficiencia_inversor_pct = inp.get("eficiencia_inversor", EFICIENCIA_INVERSOR_DEFECTO)
+
+    pr_efectivo = pr_base * (1 - perdidas_orient_pct / 100.0) * (1 - perdidas_sombra_pct / 100.0) * \
+        (eficiencia_inversor_pct / 100.0)
+    produccion_anual_kwh = p_pico_kwp * hsp * 365 * pr_efectivo
+
+    if perdidas_orient_pct > 15:
+        avisos.append(f"Pérdidas por orientación/inclinación estimadas en {perdidas_orient_pct:.1f}% "
+                      "(CTE DB-HE5): revisa si es posible acercar el campo solar a la orientación/"
+                      "inclinación óptimas para esta latitud.")
+
+    degradacion_pct = inp.get("degradacion_anual", DEGRADACION_ANUAL_DEFECTO)
+    produccion_ano10 = produccion_anual_kwh * (1 - degradacion_pct / 100.0) ** 9
+    produccion_ano25 = produccion_anual_kwh * (1 - degradacion_pct / 100.0) ** 24
+
+    superficie_necesaria_m2 = n_paneles * inp.get("area_panel", AREA_PANEL_DEFECTO)
 
     # --- Configuración del generador (strings) ---
     n_serie = inp["n_paneles_serie"]
@@ -1883,6 +2294,7 @@ def calcular_fv(inp: dict) -> dict:
 
     # --- Protecciones ---
     calibre_fusible_string = None
+    tension_fusible_string = None
     if n_paralelo >= 2:
         objetivo = 1.8 * isc
         for c in CALIBRES_FUSIBLE_STRING:
@@ -1890,22 +2302,56 @@ def calcular_fv(inp: dict) -> dict:
                 calibre_fusible_string = c
                 break
         calibre_fusible_string = calibre_fusible_string or CALIBRES_FUSIBLE_STRING[-1]
+        for v in TENSIONES_FUSIBLE_FV:
+            if v >= v_string_frio:
+                tension_fusible_string = v
+                break
+        tension_fusible_string = tension_fusible_string or TENSIONES_FUSIBLE_FV[-1]
+        if tension_fusible_string < v_string_frio:
+            avisos.append(f"Ningún calibre estándar de tensión de fusible ({TENSIONES_FUSIBLE_FV} V) cubre "
+                          f"la tensión de string en frío ({v_string_frio:.0f} V): usa fusibles de mayor "
+                          "tensión nominal.")
     calibre_magneto_ca = calibre_magnetotermico_sugerido(i_diseno_ca)
 
-    # --- Económico simplificado ---
-    ahorro_anual = produccion_anual_kwh * inp["precio_kwh"] * (inp["pct_autoconsumo"] / 100.0)
+    # --- Batería (opcional: aislada o autoconsumo con almacenamiento) ---
+    capacidad_bateria_kwh = None
+    if inp.get("con_bateria"):
+        consumo_diario_kwh = inp.get("consumo_diario_bateria_kwh") or (produccion_anual_kwh / 365.0)
+        autonomia_dias = inp.get("autonomia_dias", 1.0)
+        prof_descarga_pct = inp.get("profundidad_descarga", 80.0)
+        capacidad_bateria_kwh = (consumo_diario_kwh * autonomia_dias) / max(prof_descarga_pct / 100.0, 0.01)
+
+    # --- Económico: autoconsumo + compensación de excedentes ---
+    energia_autoconsumida = produccion_anual_kwh * (inp["pct_autoconsumo"] / 100.0)
+    energia_excedente = produccion_anual_kwh - energia_autoconsumida
+    ahorro_autoconsumo = energia_autoconsumida * inp["precio_kwh"]
+    ingreso_excedentes = 0.0
+    if inp["tipo_autoconsumo"] == "Con excedentes acogido a compensación":
+        ingreso_excedentes = energia_excedente * inp.get("precio_compensacion", PRECIO_COMPENSACION_DEFECTO)
+    ahorro_anual = ahorro_autoconsumo + ingreso_excedentes
     payback_anos = (inp["inversion_total"] / ahorro_anual) if ahorro_anual > 0 and inp["inversion_total"] else None
+
+    # --- CO2 evitado ---
+    factor_co2 = inp.get("factor_co2", FACTOR_CO2_RED_DEFECTO)
+    co2_evitado_kg_ano = produccion_anual_kwh * factor_co2
 
     return dict(
         p_pico_kwp=p_pico_kwp, n_paneles=n_paneles, produccion_anual_kwh=produccion_anual_kwh,
+        produccion_ano10=produccion_ano10, produccion_ano25=produccion_ano25,
+        perdidas_orient_pct=perdidas_orient_pct, pr_efectivo=pr_efectivo,
+        superficie_necesaria_m2=superficie_necesaria_m2,
         n_serie=n_serie, n_paralelo=n_paralelo, n_paneles_configurados=n_paneles_configurados,
         v_string_frio=v_string_frio, v_string_caliente=v_string_caliente, i_generador=i_generador,
         cumple_vmax=cumple_vmax, cumple_vmpp_min=cumple_vmpp_min, cumple_vmpp_max=cumple_vmpp_max,
         ratio_dc_ac=ratio_dc_ac, i_diseno_cc=i_diseno_cc, s_cc_final=s_cc_final, du_cc_pct=du_cc_pct,
         ib_ca=ib_ca, i_diseno_ca=i_diseno_ca, s_ca_final=s_ca_final, iz_ca=iz_ca, e_ca_pct=e_ca_pct,
         du_total_pct=du_total_pct,
-        calibre_fusible_string=calibre_fusible_string, calibre_magneto_ca=calibre_magneto_ca,
-        ahorro_anual=ahorro_anual, payback_anos=payback_anos, avisos=avisos,
+        calibre_fusible_string=calibre_fusible_string, tension_fusible_string=tension_fusible_string,
+        calibre_magneto_ca=calibre_magneto_ca, capacidad_bateria_kwh=capacidad_bateria_kwh,
+        energia_autoconsumida=energia_autoconsumida, energia_excedente=energia_excedente,
+        ahorro_autoconsumo=ahorro_autoconsumo, ingreso_excedentes=ingreso_excedentes,
+        ahorro_anual=ahorro_anual, payback_anos=payback_anos,
+        co2_evitado_kg_ano=co2_evitado_kg_ano, avisos=avisos,
     )
 
 
@@ -2153,22 +2599,39 @@ def _render_inputs_fv() -> dict:
             n_paneles_manual = st.number_input("Número de paneles", min_value=1, value=12, step=1)
     with d3:
         potencia_panel_wp = st.number_input("Potencia unitaria del panel (Wp)", min_value=50.0, value=450.0, step=5.0)
+        area_panel = st.number_input("Superficie unitaria del panel (m²)", min_value=0.5, value=AREA_PANEL_DEFECTO, step=0.05)
 
-    st.markdown('<p class="section-label">2 · Ubicación y producción</p>', unsafe_allow_html=True)
-    u1, u2, u3 = st.columns(3)
+    st.markdown('<p class="section-label">2 · Ubicación, orientación y producción</p>', unsafe_allow_html=True)
+    u1, u2, u3, u4 = st.columns(4)
     with u1:
         zona = st.selectbox("Zona climática", list(ZONAS_CLIMATICAS_HSP.keys()), index=2,
-                             help="HSP orientativo por zona (fuente: IDAE/PVGIS). Para el cálculo definitivo, "
-                                  "usa el HSP exacto de PVGIS para tu ubicación.")
-        hsp_defecto = ZONAS_CLIMATICAS_HSP[zona] or 4.5
+                             help="HSP y latitud orientativos por zona (IDAE/PVGIS). Para el cálculo "
+                                  "definitivo, usa el HSP y la latitud exactos de PVGIS.")
+        hsp_defecto, lat_defecto = ZONAS_CLIMATICAS_HSP[zona]
         hsp = st.number_input("HSP (horas de sol pico, h/día)", min_value=1.0, max_value=8.0,
-                               value=float(hsp_defecto), step=0.1)
+                               value=float(hsp_defecto or 4.5), step=0.1)
+        latitud = st.number_input("Latitud (°)", min_value=0.0, max_value=90.0,
+                                   value=float(lat_defecto or 40.0), step=0.5)
     with u2:
-        pr = st.number_input("Performance Ratio (PR)", min_value=0.5, max_value=0.95, value=PR_DEFECTO_FV,
-                              step=0.01, help="Típico 0,75-0,85 en instalaciones bien diseñadas.")
-        perdidas_sombras = st.number_input("Pérdidas adicionales por sombras/suciedad (%)", min_value=0.0,
-                                            max_value=30.0, value=3.0, step=0.5)
+        inclinacion = st.number_input("Inclinación de los paneles (°)", min_value=0.0, max_value=90.0,
+                                       value=max(latitud - 10, 0.0), step=1.0,
+                                       help="Óptima orientativa en España: entre la latitud y la latitud-10°.")
+        azimut = st.number_input("Azimut / orientación (°, 0=sur, ±90=este/oeste, ±180=norte)",
+                                  min_value=-180.0, max_value=180.0, value=0.0, step=5.0)
+        perdidas_orient_preview = perdidas_orientacion_inclinacion_cte(inclinacion, azimut, latitud)
+        st.caption(f"Pérdida por orientación/inclinación (CTE DB-HE5): **{perdidas_orient_preview:.1f}%**")
     with u3:
+        pr = st.number_input("Performance Ratio base (PR)", min_value=0.5, max_value=0.95, value=PR_DEFECTO_FV,
+                              step=0.01, help="Típico 0,75-0,85. Aquí NO incluyas orientación/inclinación ni "
+                                   "eficiencia del inversor: se aplican aparte para desglosar cada pérdida.")
+        perdidas_sombras = st.number_input("Pérdidas adicionales por sombras/suciedad (%)", min_value=0.0,
+                                            max_value=40.0, value=3.0, step=0.5)
+        eficiencia_inversor = st.number_input("Eficiencia del inversor (%)", min_value=80.0, max_value=99.5,
+                                               value=EFICIENCIA_INVERSOR_DEFECTO, step=0.5)
+    with u4:
+        degradacion_anual = st.number_input("Degradación anual del panel (%/año)", min_value=0.0, max_value=2.0,
+                                             value=DEGRADACION_ANUAL_DEFECTO, step=0.05,
+                                             help="Típico 0,3-0,8%/año según el fabricante.")
         tipo_autoconsumo = st.selectbox("Modalidad (RD 244/2019)", TIPO_AUTOCONSUMO_FV)
         precio_kwh = st.number_input("Precio kWh evitado (€/kWh)", min_value=0.01, value=0.18, step=0.01)
 
@@ -2222,25 +2685,55 @@ def _render_inputs_fv() -> dict:
     with c3:
         longitud_ca = st.number_input("Longitud CA inversor→cuadro (m)", min_value=0.1, value=10.0, step=1.0)
 
-    with st.expander("💶 Estimación económica (opcional)"):
-        e1, e2 = st.columns(2)
+    with st.expander("🔋 Batería / almacenamiento (opcional)"):
+        con_bateria = st.checkbox("Instalación con batería (autoconsumo con almacenamiento o aislada)",
+                                   value=(tipo_autoconsumo == "Instalación aislada (con batería)"))
+        consumo_diario_bateria_kwh = autonomia_dias = profundidad_descarga = None
+        if con_bateria:
+            b1, b2, b3 = st.columns(3)
+            with b1:
+                consumo_diario_bateria_kwh = st.number_input("Consumo diario a cubrir (kWh)", min_value=0.1,
+                                                              value=8.0, step=0.5)
+            with b2:
+                autonomia_dias = st.number_input("Días de autonomía deseados", min_value=0.5, value=1.0, step=0.5)
+            with b3:
+                profundidad_descarga = st.number_input("Profundidad de descarga admisible (%)", min_value=20.0,
+                                                        max_value=100.0, value=80.0, step=5.0,
+                                                        help="Típico 80% para baterías de litio (LiFePO4).")
+
+    with st.expander("💶 Estimación económica y ambiental (opcional)"):
+        e1, e2, e3 = st.columns(3)
         with e1:
             pct_autoconsumo = st.number_input("% de la producción autoconsumida", min_value=0.0, max_value=100.0,
                                                value=65.0, step=5.0)
-        with e2:
             inversion_total = st.number_input("Inversión total estimada (€)", min_value=0.0, value=6000.0, step=100.0)
+        with e2:
+            precio_compensacion = st.number_input(
+                "Precio de compensación de excedentes (€/kWh)", min_value=0.0,
+                value=PRECIO_COMPENSACION_DEFECTO, step=0.01,
+                help="Solo aplica si la modalidad es 'con excedentes acogido a compensación'; varía por comercializadora.",
+                disabled=(tipo_autoconsumo != "Con excedentes acogido a compensación"))
+        with e3:
+            factor_co2 = st.number_input("Factor de emisión de la red (kg CO₂/kWh)", min_value=0.0,
+                                          value=FACTOR_CO2_RED_DEFECTO, step=0.01,
+                                          help="Orientativo (REE); el mix eléctrico varía año a año.")
 
     return dict(
         modo_dimensionado=modo_dimensionado, consumo_anual_kwh=consumo_anual_kwh,
         potencia_pico_deseada=potencia_pico_deseada, n_paneles_manual=n_paneles_manual,
-        potencia_panel_wp=potencia_panel_wp, zona=zona, hsp=hsp, pr=pr, perdidas_sombras=perdidas_sombras,
+        potencia_panel_wp=potencia_panel_wp, area_panel=area_panel, zona=zona, hsp=hsp, latitud=latitud,
+        inclinacion=inclinacion, azimut=azimut, pr=pr, perdidas_sombras=perdidas_sombras,
+        eficiencia_inversor=eficiencia_inversor, degradacion_anual=degradacion_anual,
         tipo_autoconsumo=tipo_autoconsumo, precio_kwh=precio_kwh, voc=voc, isc=isc, vmp=vmp,
         coef_temp_voc=coef_temp_voc, n_paneles_serie=n_paneles_serie, n_strings_paralelo=n_strings_paralelo,
         potencia_inversor_kw=potencia_inversor_kw, sistema_ca=sistema_ca, vmin_mppt=vmin_mppt,
         vmax_mppt=vmax_mppt, vmax_entrada_inversor=vmax_entrada_inversor, tension_ca=tension_ca,
         temp_min=temp_min, temp_max_celula=temp_max_celula, longitud_cc=longitud_cc,
         tension_cc_ref=tension_cc_ref, longitud_ca=longitud_ca, pct_autoconsumo=pct_autoconsumo,
-        inversion_total=inversion_total,
+        inversion_total=inversion_total, con_bateria=con_bateria,
+        consumo_diario_bateria_kwh=consumo_diario_bateria_kwh, autonomia_dias=autonomia_dias,
+        profundidad_descarga=profundidad_descarga, precio_compensacion=precio_compensacion,
+        factor_co2=factor_co2,
     )
 
 
@@ -2252,13 +2745,13 @@ def _render_resultados_fv(inp: dict, res: dict):
         st.markdown(f'''<div class="result-card hero">
             <div class="result-label">Potencia pico</div>
             <div class="result-value">{res['p_pico_kwp']:.2f} kWp</div>
-            <div class="result-sub">{res['n_paneles']} paneles según dimensionado</div>
+            <div class="result-sub">{res['n_paneles']} paneles · {res['superficie_necesaria_m2']:.1f} m² necesarios</div>
         </div>''', unsafe_allow_html=True)
     with r2:
         st.markdown(f'''<div class="result-card">
             <div class="result-label">Producción anual estimada</div>
             <div class="result-value small">{res['produccion_anual_kwh']:,.0f} kWh/año</div>
-            <div class="result-sub">HSP={inp['hsp']:g} h · PR={inp['pr']:.2f}</div>
+            <div class="result-sub">PR efectivo={res['pr_efectivo']:.3f} (incl. orient./sombra/inversor)</div>
         </div>'''.replace(",", "."), unsafe_allow_html=True)
     with r3:
         badge_v = "badge-ok" if (res["cumple_vmax"] and res["cumple_vmpp_min"] and res["cumple_vmpp_max"]) else "badge-fail"
@@ -2279,6 +2772,15 @@ def _render_resultados_fv(inp: dict, res: dict):
     for aviso in res["avisos"]:
         (st.error if "supera" in aviso or "combinada" in aviso else st.warning)(aviso)
 
+    st.markdown('<p class="section-label">Pérdidas y producción a largo plazo</p>', unsafe_allow_html=True)
+    pl1, pl2, pl3, pl4 = st.columns(4)
+    pl1.metric("Pérdidas orientación/inclinación", f"{res['perdidas_orient_pct']:.1f} %",
+               help="CTE DB-HE5, según azimut/inclinación/latitud introducidos.")
+    pl2.metric("Producción año 1", f"{res['produccion_anual_kwh']:,.0f} kWh".replace(",", "."))
+    pl3.metric("Producción año 10", f"{res['produccion_ano10']:,.0f} kWh".replace(",", "."),
+               help=f"Con degradación de {inp['degradacion_anual']:g}%/año.")
+    pl4.metric("Producción año 25", f"{res['produccion_ano25']:,.0f} kWh".replace(",", "."))
+
     st.markdown('<p class="section-label">Generador y string</p>', unsafe_allow_html=True)
     g1, g2, g3, g4 = st.columns(4)
     g1.metric("Paneles configurados", f"{res['n_paneles_configurados']}")
@@ -2296,15 +2798,27 @@ def _render_resultados_fv(inp: dict, res: dict):
     ])
     st.dataframe(cbl, width='stretch', hide_index=True)
 
-    p1, p2 = st.columns(2)
-    p1.metric("Fusible de string sugerido", f"{res['calibre_fusible_string']} A" if res["calibre_fusible_string"] else "No requerido (1 string)")
+    p1, p2, p3 = st.columns(3)
+    p1.metric("Fusible de string sugerido",
+              f"{res['calibre_fusible_string']} A / {res['tension_fusible_string']} V"
+              if res["calibre_fusible_string"] else "No requerido (1 string)")
     p2.metric("Magnetotérmico CA sugerido", f"{res['calibre_magneto_ca']} A")
+    p3.metric("CO₂ evitado", f"{res['co2_evitado_kg_ano']/1000:.2f} t/año")
+
+    if res.get("capacidad_bateria_kwh"):
+        st.markdown('<p class="section-label">Batería / almacenamiento</p>', unsafe_allow_html=True)
+        b1, b2 = st.columns(2)
+        b1.metric("Capacidad de batería necesaria", f"{res['capacidad_bateria_kwh']:.1f} kWh")
+        b2.metric("Autonomía configurada", f"{inp['autonomia_dias']:g} días · "
+                  f"{inp['profundidad_descarga']:g}% descarga admisible")
 
     if res["ahorro_anual"]:
         st.markdown('<p class="section-label">Estimación económica</p>', unsafe_allow_html=True)
-        e1, e2 = st.columns(2)
-        e1.metric("Ahorro anual estimado", _fmt_eur(res["ahorro_anual"]))
-        e2.metric("Retorno simple (payback)", f"{res['payback_anos']:.1f} años" if res["payback_anos"] else "—")
+        e1, e2, e3, e4 = st.columns(4)
+        e1.metric("Energía autoconsumida", f"{res['energia_autoconsumida']:,.0f} kWh".replace(",", "."))
+        e2.metric("Ahorro por autoconsumo", _fmt_eur(res["ahorro_autoconsumo"]))
+        e3.metric("Ingreso por excedentes", _fmt_eur(res["ingreso_excedentes"]))
+        e4.metric("Retorno simple (payback)", f"{res['payback_anos']:.1f} años" if res["payback_anos"] else "—")
         st.caption("Estimación simplificada (no considera IPC de la electricidad, degradación del panel ni "
                    "financiación). Para un estudio de viabilidad usa PVGIS y un análisis de flujo de caja.")
 
@@ -2428,8 +2942,13 @@ def _render_presupuesto(inputs_cable: dict, resultado_cable: dict, inputs_fv: di
         "nombre_proyecto": "", "pct_beneficio": PORCENTAJE_BENEFICIO_DEFECTO,
         "pct_amortizacion": PORCENTAJE_AMORTIZACION_DEFECTO, "pct_iva": IVA_DEFECTO_PCT,
     })
+    st.session_state.setdefault("catalogo_precios", {
+        cat: {item: precio for item, (unidad, precio) in items.items()}
+        for cat, items in CATALOGO_MATERIALES.items()
+    })
     capitulos = st.session_state["presupuesto_capitulos"]
     cfg = st.session_state["presupuesto_config"]
+    catalogo = st.session_state["catalogo_precios"]
 
     with st.expander("⚙️ Configuración general", expanded=not capitulos):
         cf1, cf2, cf3, cf4 = st.columns(4)
@@ -2443,6 +2962,18 @@ def _render_presupuesto(inputs_cable: dict, resultado_cable: dict, inputs_fv: di
                                                        max_value=20.0, value=cfg["pct_amortizacion"], step=0.5)
         with cf4:
             cfg["pct_iva"] = st.number_input("IVA (%)", min_value=0.0, max_value=25.0, value=cfg["pct_iva"], step=1.0)
+
+    with st.expander("📚 Base de precios — catálogo editable de materiales típicos", expanded=False):
+        st.caption(f"{sum(len(v) for v in catalogo.values())} materiales en {len(catalogo)} categorías, "
+                   "con todas sus variantes habituales (secciones, calibres, tipos...). Edita el precio base "
+                   "de cualquier fila; se guarda para toda la sesión y se usa al añadir partidas a un capítulo.")
+        cat_editar = st.selectbox("Categoría a revisar/editar", list(catalogo.keys()), key="cat_editar_catalogo")
+        df_cat = pd.DataFrame([{"Concepto": item, "Precio base (€)": precio}
+                                for item, precio in catalogo[cat_editar].items()])
+        df_cat_editada = st.data_editor(df_cat, key=f"editor_catalogo_{cat_editar}", width='stretch',
+                                         hide_index=True, num_rows="fixed")
+        for _, fila in df_cat_editada.iterrows():
+            catalogo[cat_editar][fila["Concepto"]] = float(fila["Precio base (€)"])
 
     nc1, nc2 = st.columns([3, 1])
     with nc1:
@@ -2481,13 +3012,30 @@ def _render_presupuesto(inputs_cable: dict, resultado_cable: dict, inputs_fv: di
                     cap["items"].extend(nuevos)
                     st.rerun()
 
+            ac1, ac2, ac3, ac4 = st.columns([2, 2.5, 1, 1])
+            with ac1:
+                cat_sel = st.selectbox("Categoría catálogo", list(catalogo.keys()), key=f"cat_sel_{idx}")
+            with ac2:
+                item_sel = st.selectbox("Material", list(catalogo[cat_sel].keys()), key=f"item_sel_{idx}")
+            with ac3:
+                cant_sel = st.number_input("Cantidad", min_value=0.1, value=1.0, step=1.0, key=f"cant_sel_{idx}")
+            with ac4:
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button("➕ Añadir", key=f"add_cat_{idx}"):
+                    unidad = CATALOGO_MATERIALES[cat_sel][item_sel][0]
+                    cap["items"].append({
+                        "partida": f"{idx + 1}.{len(cap['items']) + 1}", "designacion": item_sel,
+                        "unidades": unidad, "cantidad": cant_sel, "precio_base": catalogo[cat_sel][item_sel],
+                    })
+                    st.rerun()
+
             df_items = pd.DataFrame([
                 {"Partida": it.get("partida", "-"), "Designación": it["designacion"], "Unidades": it["unidades"],
                  "Cantidad": it["cantidad"], "Precio base": it["precio_base"]}
                 for it in cap["items"]
             ]) if cap["items"] else pd.DataFrame(columns=["Partida", "Designación", "Unidades", "Cantidad", "Precio base"])
 
-            st.caption("Edita, añade o borra filas directamente en la tabla (icono ➕/🗑️ al pasar el ratón).")
+            st.caption("También puedes editar, añadir o borrar filas directamente en la tabla (con texto libre).")
             df_editada = st.data_editor(
                 df_items, key=f"items_editor_{idx}", num_rows="dynamic", width='stretch', hide_index=True,
                 column_config={
@@ -2565,19 +3113,48 @@ def _render_documentacion(inputs_cable: dict, resultado_cable: dict, inputs_fv: 
                "estos tres documentos SÍ están pensados para juntar toda la información del proyecto.")
 
     st.session_state.setdefault("datos_proyecto", {
-        "titular": "", "emplazamiento": "", "referencia_catastral": "", "uso": "",
+        "titular": "", "nif_titular": "", "emplazamiento": "", "referencia_catastral": "", "uso": "",
+        "superficie": "", "tipo_instalacion": "Nueva instalación",
+        "instalador": "", "nif_instalador": "", "n_autorizacion": "", "categoria_instalador": "Básica",
     })
     datos = st.session_state["datos_proyecto"]
 
-    d1, d2 = st.columns(2)
+    st.markdown("**A · Titular**")
+    d1, d2, d3 = st.columns(3)
     with d1:
-        datos["titular"] = st.text_input("Titular de la instalación", datos["titular"])
-        datos["emplazamiento"] = st.text_input("Emplazamiento", datos["emplazamiento"])
+        datos["titular"] = st.text_input("Titular de la instalación (nombre o razón social)", datos["titular"])
     with d2:
+        datos["nif_titular"] = st.text_input("NIF/CIF del titular", datos["nif_titular"])
+    with d3:
+        datos["tipo_instalacion"] = st.selectbox(
+            "Tipo de actuación", ["Nueva instalación", "Ampliación", "Reforma"],
+            index=["Nueva instalación", "Ampliación", "Reforma"].index(datos["tipo_instalacion"]))
+
+    st.markdown("**B · Emplazamiento**")
+    e1, e2, e3, e4 = st.columns(4)
+    with e1:
+        datos["emplazamiento"] = st.text_input("Emplazamiento (dirección)", datos["emplazamiento"])
+    with e2:
         datos["referencia_catastral"] = st.text_input("Referencia catastral (opcional)",
                                                         datos["referencia_catastral"])
+    with e3:
         datos["uso"] = st.text_input("Uso de la instalación", datos["uso"],
                                       placeholder="Vivienda unifamiliar, local comercial...")
+    with e4:
+        datos["superficie"] = st.text_input("Superficie (m²)", datos["superficie"])
+
+    st.markdown("**C · Instalador autorizado / técnico competente**")
+    i1, i2, i3, i4 = st.columns(4)
+    with i1:
+        datos["instalador"] = st.text_input("Nombre del instalador/técnico", datos["instalador"])
+    with i2:
+        datos["nif_instalador"] = st.text_input("NIF del instalador/técnico", datos["nif_instalador"])
+    with i3:
+        datos["n_autorizacion"] = st.text_input("Nº de autorización / colegiado", datos["n_autorizacion"])
+    with i4:
+        datos["categoria_instalador"] = st.selectbox(
+            "Categoría", ["Básica", "Especialista", "Técnico titulado competente"],
+            index=["Básica", "Especialista", "Técnico titulado competente"].index(datos["categoria_instalador"]))
 
     hay_cable = resultado_cable.get("seccion_final") is not None
     hay_fv = bool(resultado_fv) and resultado_fv.get("p_pico_kwp") is not None
@@ -2603,7 +3180,7 @@ def _render_documentacion(inputs_cable: dict, resultado_cable: dict, inputs_fv: 
     c1, c2, c3 = st.columns(3)
     with c1:
         st.markdown("**Memoria Técnica de Diseño**")
-        st.caption("Descripción, características técnicas y presupuesto (ITC-BT-04).")
+        st.caption("Memoria descriptiva + justificativa, ITC-BT-04. Documento extenso multi-página.")
         pdf_mtd = generar_pdf_mtd(datos, inputs_cable, resultado_cable, inputs_fv, resultado_fv,
                                    total_presupuesto)
         st.download_button("⬇️ Descargar MTD (PDF)", data=pdf_mtd, file_name="MTD.pdf",
@@ -2616,8 +3193,8 @@ def _render_documentacion(inputs_cable: dict, resultado_cable: dict, inputs_fv: 
         st.download_button("⬇️ Descargar Anexo (PDF)", data=pdf_anexo, file_name="anexo_calculos.pdf",
                             mime="application/pdf")
     with c3:
-        st.markdown("**Condiciones Generales**")
-        st.caption("Prescripciones de ejecución, materiales y puesta en servicio.")
+        st.markdown("**Pliego de Condiciones**")
+        st.caption("Condiciones generales de materiales, ejecución y pruebas.")
         pdf_cond = generar_pdf_condiciones_generales(datos, hay_fv)
         st.download_button("⬇️ Descargar Condiciones (PDF)", data=pdf_cond, file_name="condiciones_generales.pdf",
                             mime="application/pdf")
