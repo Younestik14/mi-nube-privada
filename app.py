@@ -19,16 +19,23 @@ Criterios de dimensionado aplicados (art. 19.2 ITC-BT-19):
     2) Criterio de caída de tensión  ΔU% ≤ ΔU%max según tramo
     3) Criterio térmico de cortocircuito (verificación opcional, S ≥ (Icc·√t)/k)
 
+Incluye además:
+    - Justificación de fórmulas con los valores sustituidos (pestaña "Fórmulas")
+    - Memoria de cálculo exportable en PDF con cajetín tipo plano técnico
+    - Presupuesto (mediciones x precios unitarios editables) exportable a Excel
+
 Fuentes numéricas: Guía-BT-19 (Ministerio de Industria, Turismo y Comercio,
 Ed. feb-09 Rev.2) Tablas A, C, D, E, F; ITC-BT-14, ITC-BT-15, ITC-BT-47
 (textos oficiales); Libro Blanco de la Instalación (Prysmian) para las
-constantes k de cortocircuito. Ver pestaña "Metodología" dentro de la app
-para el detalle de cada tabla y sus limitaciones conocidas.
+constantes k de cortocircuito. Ver pestaña "Metodología" para el detalle de
+cada tabla, incluyendo qué valores son directos de la norma y cuáles son
+estimaciones ancladas a un valor real verificado.
 
 ⚠️  Herramienta de apoyo al diseño, no un sustituto del criterio de un
     técnico competente. Antes de emitir un proyecto o memoria firmada,
     contrasta los valores críticos contra la edición vigente de la
-    Guía-BT-19 y la norma UNE-HD 60364-5-52.
+    Guía-BT-19 y la norma UNE-HD 60364-5-52. Los precios del presupuesto
+    son orientativos y deben sustituirse por los del proveedor real.
 
 Autor: Younes — IDEA TSG
 ================================================================================
@@ -36,9 +43,9 @@ Autor: Younes — IDEA TSG
 
 from __future__ import annotations
 
+import io
 import math
-from dataclasses import dataclass, field
-from typing import Optional
+from datetime import date
 
 import pandas as pd
 import streamlit as st
@@ -47,44 +54,25 @@ import streamlit as st
 # 1. CONSTANTES Y TABLAS NORMATIVAS
 # ==============================================================================
 
-# Secciones comerciales normalizadas (mm²) contempladas por esta herramienta.
-# Se limita a 300 mm² porque es el rango en el que la Tabla 1 de la
-# ITC-BT-19 / Guía-BT-19 es completamente consistente; por encima, la
-# práctica habitual (y lo que hace esta app) es recurrir a conductores
-# en paralelo en lugar de secciones unipolares extremas.
 SECCIONES_NORMALIZADAS = [1.5, 2.5, 4, 6, 10, 16, 25, 35, 50, 70,
                           95, 120, 150, 185, 240, 300]
 
-# Conductividad a 20°C (m/Ω·mm²) y coeficiente de variación de la
-# resistencia con la temperatura (1/°C), para corregir la conductividad
-# a la temperatura de servicio real del aislamiento (criterio recomendado
-# por la Guía-BT-19 para el cálculo de caída de tensión, más conservador
-# que usar la conductividad a 20°C).
 CONDUCTIVIDAD_20C = {"Cobre": 56.0, "Aluminio": 35.0}
 COEF_TEMP_RESIST = {"Cobre": 0.00393, "Aluminio": 0.00403}
 TEMP_SERVICIO = {"PVC": 70.0, "XLPE/EPR": 90.0}
-TEMP_REF_TABLA_AIRE = 40.0     # Tabla A Guía-BT-19: intensidades admisibles al aire 40°C
-TEMP_REF_TABLA_TERRENO = 25.0  # Tabla D Guía-BT-19: cables enterrados, terreno 25°C
-RESISTIVIDAD_REF_TERRENO = 1.5  # K·m/W, condición de cálculo de la Tabla D
+TEMP_REF_TABLA_AIRE = 40.0
+TEMP_REF_TABLA_TERRENO = 25.0
+RESISTIVIDAD_REF_TERRENO = 1.5
 
-# Reactancia lineal aproximada de cables de BT (Ω/km), valor orientativo
-# habitual para conductores en conducto o bandeja, usado para no
-# despreciar por completo el término reactivo en la caída de tensión.
 REACTANCIA_LINEAL_DEFECTO = 0.08
 
-# Constantes k para la verificación térmica de cortocircuito (S = Icc·√t / k),
-# fórmula de IEC 60364-5-54 recogida también en ITC-BT-19 / ITC-BT-07.
-# Fuente: Libro Blanco de la Instalación (Prysmian), tablas 16/17 ITC-BT-07.
 K_CORTOCIRCUITO = {
-    ("Cobre", "PVC"): 115,          # 103 si S > 300 mm²
+    ("Cobre", "PVC"): 115,
     ("Cobre", "XLPE/EPR"): 143,
-    ("Aluminio", "PVC"): 76,        # 68 si S > 300 mm²
+    ("Aluminio", "PVC"): 76,
     ("Aluminio", "XLPE/EPR"): 94,
 }
 
-# Caídas de tensión máximas admisibles (%) según el tramo de la instalación.
-# Fuentes: ITC-BT-14 (LGA), ITC-BT-15 (DI), ITC-BT-19 apdo. 2.2.2 (interior),
-# ITC-BT-19 (transformador propio), ITC-BT-40 (generación / FV).
 CAIDA_TENSION_MAX = {
     "LGA — centralización única de contadores": 0.5,
     "LGA — centralizaciones parciales": 1.0,
@@ -100,59 +88,63 @@ CAIDA_TENSION_MAX = {
     "Personalizado": None,
 }
 
-# Cadenas canónicas para sistema y método de instalación: se usan tanto en la
-# UI (opciones de los selectbox) como en la lógica de cálculo, para que no
-# puedan desincronizarse entre sí.
 SISTEMA_MONO = "Monofásico (230 V)"
 SISTEMA_TRI = "Trifásico (400 V)"
-METODO_B1 = "B1/B2 — Bajo tubo (empotrado o superficie)"
-METODO_C = "C — Bandeja no perforada / directo sobre superficie"
+
+# Métodos de instalación disponibles. B1, C/E, F y D salen directamente de la
+# Tabla A / Tabla D de la Guía-BT-19. A1 y B2 se derivan de B1 aplicando un
+# ratio anclado a un valor real verificado de forma independiente (ver
+# comentarios junto a cada factor, y la pestaña "Metodología").
+METODO_A1 = "A1 — Tubo empotrado en pared aislante (estimado desde B1)"
+METODO_B1 = "B1 — Tubo empotrado en obra o en superficie"
+METODO_B2 = "B2 — Cable multiconductor en tubo (estimado desde B1)"
+METODO_CE = "C/E — Bandeja no perforada o perforada / directo sobre superficie"
 METODO_F = "F — Bandeja perforada, unipolares muy separados (S≥25 mm², XLPE)"
 METODO_D = "D — Enterrado bajo tubo (XLPE)"
-METODOS_DISPONIBLES = [METODO_B1, METODO_C, METODO_F, METODO_D]
+METODOS_DISPONIBLES = [METODO_A1, METODO_B1, METODO_B2, METODO_CE, METODO_F, METODO_D]
+
+# Ratio A1/B1 anclado en un valor real verificado de forma independiente:
+# A1, 2,5 mm², 2 cargados, PVC = 17,5 A (fuente: EleCalculador.com, con cita
+# textual de la Guía-BT-19) frente a B1 2,5 mm² 2 cargados PVC = 21 A
+# (Guía-BT-19 directa) → ratio 17,5/21 = 0,833.
+FACTOR_A1_SOBRE_B1 = 0.833
+
+# Ratio B2/B1 anclado en un ejercicio resuelto independiente (circuitoelectrico.com):
+# B2, 25 mm², 2 cargados, PVC = 77 A frente a B1 25 mm² 2 cargados PVC = 84 A
+# (Guía-BT-19 directa) → ratio 77/84 = 0,917. Coherente con el rango de
+# variación (7-12 %) que cita Prysmian entre columnas B1 y B2.
+FACTOR_B2_SOBRE_B1 = 0.917
 
 # ------------------------------------------------------------------------------
 # Tabla A — Intensidades admisibles (A), cables de COBRE, NO enterrados,
-# temperatura ambiente de referencia 40°C. Fuente: Guía-BT-19, Tabla A
-# (columnas 5-8 = método B1/B2; columnas 9-12 = método C; columna 13 = F).
-# Métodos A1/A2 (empotrado en pared térmicamente aislante) se han excluido
-# por ser poco habituales tanto en vivienda/terciario como en industria.
+# temperatura ambiente de referencia 40°C. Fuente: Guía-BT-19, Tabla A.
+# Aquí solo se tabula B1 (columnas 5-8) y C/E (columnas 9-12) y F (columna 13),
+# que son los tres bloques de columnas de los que hay valores directos
+# verificados; A1 y B2 se derivan de B1 mediante los factores anteriores.
 # ------------------------------------------------------------------------------
 TABLA_A_COBRE = {
-    # sección: {"B1": {"3xPVC","2xPVC","3xXLPE","2xXLPE"}, "C": {...}, "F_3xXLPE": valor|None}
-    1.5:  {"B1": (13.5, 15.0, 16.0, 16.5), "C": (19.0, 20.0, 21.0, 24.0), "F": None},
-    2.5:  {"B1": (18.5, 21.0, 22.0, 23.0), "C": (26.0, 26.5, 29.0, 33.0), "F": None},
-    4:    {"B1": (24.0, 27.0, 30.0, 31.0), "C": (34.0, 36.0, 38.0, 45.0), "F": None},
-    6:    {"B1": (32.0, 36.0, 37.0, 40.0), "C": (44.0, 46.0, 49.0, 57.0), "F": None},
-    10:   {"B1": (44.0, 50.0, 52.0, 54.0), "C": (60.0, 65.0, 68.0, 76.0), "F": None},
-    16:   {"B1": (59.0, 66.0, 70.0, 73.0), "C": (81.0, 87.0, 91.0, 105.0), "F": None},
-    25:   {"B1": (77.0, 84.0, 88.0, 95.0), "C": (103.0, 110.0, 116.0, 123.0), "F": 140.0},
-    35:   {"B1": (96.0, 104.0, 110.0, 119.0), "C": (127.0, 137.0, 144.0, 154.0), "F": 174.0},
-    50:   {"B1": (117.0, 125.0, 133.0, 145.0), "C": (155.0, 167.0, 175.0, 188.0), "F": 210.0},
-    70:   {"B1": (149.0, 160.0, 171.0, 185.0), "C": (199.0, 214.0, 224.0, 244.0), "F": 269.0},
-    95:   {"B1": (180.0, 194.0, 207.0, 224.0), "C": (241.0, 259.0, 271.0, 296.0), "F": 327.0},
-    120:  {"B1": (208.0, 225.0, 240.0, 260.0), "C": (280.0, 301.0, 314.0, 348.0), "F": 380.0},
-    150:  {"B1": (236.0, 260.0, 278.0, 299.0), "C": (322.0, 343.0, 363.0, 404.0), "F": 438.0},
-    185:  {"B1": (268.0, 297.0, 317.0, 341.0), "C": (368.0, 391.0, 415.0, 464.0), "F": 500.0},
-    240:  {"B1": (315.0, 350.0, 374.0, 401.0), "C": (435.0, 468.0, 490.0, 552.0), "F": 590.0},
-    300:  {"B1": (361.0, 401.0, 430.0, 461.0), "C": (500.0, 538.0, 563.0, 638.0), "F": 678.0},
+    1.5:  {"B1": (13.5, 15.0, 16.0, 16.5), "CE": (19.0, 20.0, 21.0, 24.0), "F": None},
+    2.5:  {"B1": (18.5, 21.0, 22.0, 23.0), "CE": (26.0, 26.5, 29.0, 33.0), "F": None},
+    4:    {"B1": (24.0, 27.0, 30.0, 31.0), "CE": (34.0, 36.0, 38.0, 45.0), "F": None},
+    6:    {"B1": (32.0, 36.0, 37.0, 40.0), "CE": (44.0, 46.0, 49.0, 57.0), "F": None},
+    10:   {"B1": (44.0, 50.0, 52.0, 54.0), "CE": (60.0, 65.0, 68.0, 76.0), "F": None},
+    16:   {"B1": (59.0, 66.0, 70.0, 73.0), "CE": (81.0, 87.0, 91.0, 105.0), "F": None},
+    25:   {"B1": (77.0, 84.0, 88.0, 95.0), "CE": (103.0, 110.0, 116.0, 123.0), "F": 140.0},
+    35:   {"B1": (96.0, 104.0, 110.0, 119.0), "CE": (127.0, 137.0, 144.0, 154.0), "F": 174.0},
+    50:   {"B1": (117.0, 125.0, 133.0, 145.0), "CE": (155.0, 167.0, 175.0, 188.0), "F": 210.0},
+    70:   {"B1": (149.0, 160.0, 171.0, 185.0), "CE": (199.0, 214.0, 224.0, 244.0), "F": 269.0},
+    95:   {"B1": (180.0, 194.0, 207.0, 224.0), "CE": (241.0, 259.0, 271.0, 296.0), "F": 327.0},
+    120:  {"B1": (208.0, 225.0, 240.0, 260.0), "CE": (280.0, 301.0, 314.0, 348.0), "F": 380.0},
+    150:  {"B1": (236.0, 260.0, 278.0, 299.0), "CE": (322.0, 343.0, 363.0, 404.0), "F": 438.0},
+    185:  {"B1": (268.0, 297.0, 317.0, 341.0), "CE": (368.0, 391.0, 415.0, 464.0), "F": 500.0},
+    240:  {"B1": (315.0, 350.0, 374.0, 401.0), "CE": (435.0, 468.0, 490.0, 552.0), "F": 590.0},
+    300:  {"B1": (361.0, 401.0, 430.0, 461.0), "CE": (500.0, 538.0, 563.0, 638.0), "F": 678.0},
 }
-# Orden de la tupla (3xPVC, 2xPVC, 3xXLPE, 2xXLPE) para B1 y C.
 IDX_3PVC, IDX_2PVC, IDX_3XLPE, IDX_2XLPE = 0, 1, 2, 3
 
-# Ratio Al/Cu orientativo para instalación NO enterrada (no publicado de forma
-# explícita en la Tabla A de la Guía-BT-19, que remite a la norma UNE para
-# aluminio). Ratio ampliamente citado en bibliografía técnica española.
 RATIO_ALUMINIO_NO_ENTERRADO = 0.78
 
-# ------------------------------------------------------------------------------
-# Tabla D — Intensidades admisibles (A), cables ENTERRADOS bajo tubo,
-# aislamiento XLPE 0,6/1 kV. Condiciones: resistividad térmica 1,5 K·m/W,
-# terreno a 25°C, profundidad 0,70 m. Fuente: Guía-BT-19, Tabla D.
-# En la práctica actual, el cable enterrado es casi siempre XLPE/EPR.
-# ------------------------------------------------------------------------------
 TABLA_D_ENTERRADO_XLPE = {
-    # sección: (3x_Cu, 3x_Al, 2x_Cu, 2x_Al)
     1.5:  (23.0, None, 27.0, None),
     2.5:  (30.0, 23.0, 36.0, 27.0),
     4:    (39.0, 30.0, 46.0, 36.0),
@@ -171,7 +163,6 @@ TABLA_D_ENTERRADO_XLPE = {
     300:  (455.0, 350.0, 500.0, 385.0),
 }
 
-# Tabla C (Guía-BT-19) — Resistividad térmica del terreno.
 RESISTIVIDAD_TERRENO = {
     "Inundado (0,40 K·m/W)": 0.40,
     "Muy húmedo (0,50 K·m/W)": 0.50,
@@ -184,18 +175,11 @@ RESISTIVIDAD_TERRENO = {
     "Piedra caliza (2,50 K·m/W)": 2.50,
     "Piedra granítica (3,00 K·m/W)": 3.00,
 }
-# Factor de corrección orientativo por resistividad térmica del terreno,
-# relativo a la referencia de la Tabla D (1,5 K·m/W = factor 1,0). No
-# publicado como tabla cerrada en la Guía-BT-19 consultada; valores
-# orientativos de uso extendido — verificar en UNE 20460-5-523 para
-# proyectos críticos.
 FACTOR_RESISTIVIDAD_TERRENO = {
     0.40: 1.25, 0.50: 1.21, 0.70: 1.18, 0.85: 1.14, 1.00: 1.10,
     1.20: 1.05, 1.50: 1.00, 2.00: 0.93, 2.50: 0.89, 3.00: 0.85,
 }
 
-# Tabla E (Guía-BT-19) — Factores de reducción por agrupamiento de circuitos.
-# disposicion -> {nº circuitos: factor}; se usa el primer breakpoint >= n.
 TABLA_E_AGRUPAMIENTO = {
     "Empotrados o embutidos": {1: 1.00, 2: 0.80, 3: 0.70, 4: 0.70, 6: 0.55, 9: 0.50, 12: 0.45, 16: 0.40, 20: 0.40},
     "Capa única sobre pared/suelo/bandeja no perforada": {1: 1.00, 2: 0.85, 3: 0.80, 4: 0.75, 6: 0.70, 9: 0.70},
@@ -203,55 +187,47 @@ TABLA_E_AGRUPAMIENTO = {
     "Capa única en bandeja perforada (horiz. o vert.)": {1: 1.00, 2: 0.90, 3: 0.80, 4: 0.75, 6: 0.75, 9: 0.70},
     "Capa única en bandeja de escalera / abrazaderas": {1: 1.00, 2: 0.85, 3: 0.80, 4: 0.80, 6: 0.80, 9: 0.80},
 }
-
-# Tabla F (Guía-BT-19) — Factor adicional por nº de capas de agrupamiento.
 TABLA_F_CAPAS = {1: 1.00, 2: 0.80, 3: 0.73, 4: 0.70, 5: 0.70, 6: 0.68, 7: 0.68, 8: 0.68, 9: 0.66}
 
-# Tabla H (Guía-BT-19) — Agrupamiento de tubos enterrados (un cable/tubo).
-TABLA_H_TUBOS_ENTERRADOS = {
-    # nº cables: {distancia_m: factor}
-    2: {0.0: 0.85, 0.25: 0.90, 0.50: 0.95, 1.0: 0.95},
-    3: {0.0: 0.75, 0.25: 0.85, 0.50: 0.90, 1.0: 0.95},
-    4: {0.0: 0.70, 0.25: 0.80, 0.50: 0.85, 1.0: 0.90},
-    5: {0.0: 0.65, 0.25: 0.80, 0.50: 0.85, 1.0: 0.90},
-    6: {0.0: 0.60, 0.25: 0.80, 0.50: 0.80, 1.0: 0.90},
-}
-
 MINIMO_ABSOLUTO_MM2 = 1.5
-MINIMO_ALUMINIO_MM2 = 16.0   # ITC-BT-07: sección mínima de aluminio en instalaciones fijas
-MINIMO_LGA_COBRE_MM2 = 10.0  # ITC-BT-14
+MINIMO_ALUMINIO_MM2 = 16.0
+MINIMO_LGA_COBRE_MM2 = 10.0
 MINIMO_LGA_ALUMINIO_MM2 = 16.0
+
+# ------------------------------------------------------------------------------
+# Precios orientativos (€) — PUNTO DE PARTIDA EDITABLE, no precios de mercado
+# en tiempo real. El precio del cobre fluctúa; sustituye por los de tu
+# proveedor antes de presupuestar en firme. Cable unipolar tipo RZ1-K 0,6/1kV
+# (Cu), €/m aproximados de referencia.
+# ------------------------------------------------------------------------------
+PRECIOS_CABLE_COBRE_DEFECTO = {
+    1.5: 0.45, 2.5: 0.65, 4: 0.95, 6: 1.35, 10: 2.10, 16: 3.20, 25: 5.50,
+    35: 7.50, 50: 10.50, 70: 14.50, 95: 19.50, 120: 24.50, 150: 30.50,
+    185: 38.00, 240: 49.00, 300: 62.00,
+}
+RATIO_PRECIO_ALUMINIO = 0.55  # el cable de aluminio es sensiblemente más barato que el de cobre
+
+PRECIOS_CANALIZACION_DEFECTO = {
+    METODO_A1: 1.10, METODO_B1: 1.10, METODO_B2: 1.10,
+    METODO_CE: 3.50, METODO_F: 4.50, METODO_D: 6.00,
+}
+PRECIO_MANO_OBRA_POR_METRO = 2.20
+PORCENTAJE_ACCESORIOS = 8.0  # % sobre el subtotal de materiales (cajas, terminales, prensaestopas...)
+
+# Calibres normalizados de interruptor automático (A) y precio orientativo (€)
+CALIBRES_MAGNETOTERMICO = [10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250]
+PRECIOS_MAGNETOTERMICO_DEFECTO = {
+    10: 18, 16: 18, 20: 19, 25: 20, 32: 22, 40: 28, 50: 35, 63: 45,
+    80: 120, 100: 145, 125: 180, 160: 260, 200: 320, 250: 410,
+}
+PRECIOS_DIFERENCIAL_DEFECTO = {
+    25: 55, 40: 65, 63: 90, 80: 210, 100: 260, 125: 320, 160: 420, 200: 520, 250: 650,
+}
 
 
 # ==============================================================================
 # 2. FUNCIONES DE CALCULO (logica pura, sin dependencias de Streamlit)
 # ==============================================================================
-
-@dataclass
-class ResultadoCalculo:
-    ib: float
-    ib_calculo: float
-    factor_correccion_total: float
-    factor_temperatura: float
-    factor_agrupamiento: float
-    factor_resistividad: float
-    kappa_usado: float
-    iz_requerida: float
-    seccion_termica: Optional[float]
-    iz_tabla_termica: Optional[float]
-    seccion_caida_tension: Optional[float]
-    delta_u_voltios: float = 0.0
-    delta_u_porcentaje: float = 0.0
-    delta_u_max_porcentaje: float = 0.0
-    seccion_final: Optional[float] = None
-    seccion_neutro: Optional[float] = None
-    seccion_proteccion: Optional[float] = None
-    necesita_paralelo: bool = False
-    n_conductores_paralelo: int = 1
-    cumple_cortocircuito: Optional[bool] = None
-    seccion_min_cortocircuito: Optional[float] = None
-    avisos: list = field(default_factory=list)
-
 
 def calcular_intensidad_empleo(sistema: str, potencia_w: float, tension: float,
                                 cos_phi: float) -> float:
@@ -277,11 +253,7 @@ def factor_varios_motores(corrientes_motores: list) -> float:
 
 def factor_correccion_temperatura(aislamiento: str, temp_ambiente: float,
                                    enterrado: bool) -> float:
-    """
-    Factor de correccion por temperatura ambiente distinta de la de
-    referencia de la tabla utilizada (40C aire / 25C terreno).
-    factor = sqrt((Tmax - Ta) / (Tmax - Tref))
-    """
+    """factor = sqrt((Tmax - Ta) / (Tmax - Tref)), Tref=40C aire / 25C terreno."""
     tmax = TEMP_SERVICIO[aislamiento]
     tref = TEMP_REF_TABLA_TERRENO if enterrado else TEMP_REF_TABLA_AIRE
     if temp_ambiente >= tmax:
@@ -324,9 +296,8 @@ def factor_correccion_resistividad(resistividad: float) -> float:
 def iz_tabla(seccion: float, metodo: str, aislamiento: str, conductor: str,
              n_cargados: int):
     """
-    Intensidad admisible tabulada (A) antes de aplicar factores de correccion,
-    para una seccion, metodo de instalacion, aislamiento, conductor y numero
-    de conductores cargados (2=monofasico, 3=trifasico).
+    Intensidad admisible tabulada (A), antes de factores de correccion.
+    A1 y B2 se derivan de B1 aplicando FACTOR_A1_SOBRE_B1 / FACTOR_B2_SOBRE_B1.
     """
     if metodo == METODO_D:
         fila = TABLA_D_ENTERRADO_XLPE.get(seccion)
@@ -348,13 +319,22 @@ def iz_tabla(seccion: float, metodo: str, aislamiento: str, conductor: str,
         if valor_cu is None:
             return None
     else:
-        clave = "B1" if metodo == METODO_B1 else "C"
-        tupla = fila[clave]
+        tupla_b1 = fila["B1"]
+        tupla_ce = fila["CE"]
+        idx = None
         if aislamiento == "PVC":
             idx = IDX_3PVC if n_cargados == 3 else IDX_2PVC
         else:
             idx = IDX_3XLPE if n_cargados == 3 else IDX_2XLPE
-        valor_cu = tupla[idx]
+
+        if metodo == METODO_A1:
+            valor_cu = round(tupla_b1[idx] * FACTOR_A1_SOBRE_B1, 1)
+        elif metodo == METODO_B1:
+            valor_cu = tupla_b1[idx]
+        elif metodo == METODO_B2:
+            valor_cu = round(tupla_b1[idx] * FACTOR_B2_SOBRE_B1, 1)
+        else:  # METODO_CE
+            valor_cu = tupla_ce[idx]
 
     if conductor == "Cobre":
         return valor_cu
@@ -364,11 +344,8 @@ def iz_tabla(seccion: float, metodo: str, aislamiento: str, conductor: str,
 def seccion_por_criterio_termico(ib_calculo: float, metodo: str, aislamiento: str,
                                   conductor: str, n_cargados: int,
                                   factor_correccion: float):
-    """
-    Busca la menor seccion normalizada cuya Iz (tabla x factor de correccion)
-    sea >= Ib de calculo. Si ninguna seccion normalizada basta, evalua si
-    hacen falta conductores en paralelo.
-    """
+    """Menor seccion normalizada cuya Iz (tabla x factor) >= Ib. Si ninguna basta,
+    evalua conductores en paralelo con la mayor seccion disponible."""
     minimo = MINIMO_ALUMINIO_MM2 if conductor == "Aluminio" else MINIMO_ABSOLUTO_MM2
     for s in SECCIONES_NORMALIZADAS:
         if s < minimo:
@@ -402,11 +379,7 @@ def kappa_servicio(conductor: str, aislamiento: str, usar_20c: bool = False) -> 
 def caida_tension_voltios(sistema: str, ib: float, longitud: float, seccion: float,
                            cos_phi: float, kappa: float,
                            reactancia_ohm_km: float = REACTANCIA_LINEAL_DEFECTO) -> float:
-    """
-    Caida de tension (V), incluyendo el termino reactivo aproximado.
-    e = k_sistema * L * Ib * (R*cosphi + X*sinphi),  R = 1/(kappa*S)
-    k_sistema = 2 (monofasico, ida y vuelta) o raiz(3) (trifasico).
-    """
+    """e = k_sistema * L * Ib * (R*cosphi + X*sinphi), R = 1/(kappa*S)."""
     sin_phi = math.sqrt(max(0.0, 1 - cos_phi ** 2))
     r_por_metro = 1.0 / (kappa * seccion)
     x_por_metro = reactancia_ohm_km / 1000.0
@@ -434,13 +407,8 @@ def seccion_por_caida_tension(sistema: str, ib: float, longitud: float, tension:
 
 def seccion_conductor_neutro(seccion_fase: float, conductor: str,
                               armonicos_significativos: bool) -> float:
-    """
-    Seccion del neutro (criterio general REBT / IEC 60364-5-52 punto 524):
-    - Si S_fase <= 16 mm2 (Cu) o 25 mm2 (Al): S_neutro = S_fase.
-    - Si es mayor y no hay armonicos relevantes: S_neutro >= S_fase / 2,
-      redondeada a la seccion normalizada superior, nunca < 16 mm2.
-    - Con armonicos de 3er orden significativos: S_neutro = S_fase.
-    """
+    """Sf<=16(Cu)/25(Al) -> Sn=Sf. Si no, Sn>=Sf/2 (redondeada, min 16). Con
+    armonicos de 3er orden significativos, Sn=Sf siempre."""
     umbral = 25.0 if conductor == "Aluminio" else 16.0
     if seccion_fase <= umbral or armonicos_significativos:
         return seccion_fase
@@ -452,12 +420,7 @@ def seccion_conductor_neutro(seccion_fase: float, conductor: str,
 
 
 def seccion_conductor_proteccion(seccion_fase: float) -> float:
-    """
-    Seccion del conductor de proteccion (ITC-BT-18 / IEC 60364-5-54):
-      Sf <= 16      -> Sp = Sf
-      16 < Sf <= 35 -> Sp = 16
-      Sf > 35       -> Sp = Sf / 2 (redondeada a seccion normalizada)
-    """
+    """Sf<=16 -> Sp=Sf; 16<Sf<=35 -> Sp=16; Sf>35 -> Sp=Sf/2 (redondeada)."""
     if seccion_fase <= 16:
         return seccion_fase
     if seccion_fase <= 35:
@@ -471,10 +434,7 @@ def seccion_conductor_proteccion(seccion_fase: float) -> float:
 
 def verificar_cortocircuito(seccion: float, icc_ka: float, tiempo_s: float,
                              conductor: str, aislamiento: str):
-    """
-    Verificacion termica de cortocircuito: S_min = Icc*sqrt(t) / k (mm2).
-    Devuelve (cumple, seccion_minima_necesaria).
-    """
+    """S_min = Icc*sqrt(t) / k (mm2). Devuelve (cumple, seccion_minima)."""
     k = K_CORTOCIRCUITO[(conductor, aislamiento)]
     if seccion > 300:
         if (conductor, aislamiento) == ("Cobre", "PVC"):
@@ -484,6 +444,14 @@ def verificar_cortocircuito(seccion: float, icc_ka: float, tiempo_s: float,
     icc_a = icc_ka * 1000.0
     s_min = (icc_a * math.sqrt(tiempo_s)) / k
     return seccion >= s_min, round(s_min, 2)
+
+
+def calibre_magnetotermico_sugerido(ib_calculo: float) -> int:
+    """Menor calibre normalizado de interruptor automático >= Ib de cálculo."""
+    for c in CALIBRES_MAGNETOTERMICO:
+        if c >= ib_calculo:
+            return c
+    return CALIBRES_MAGNETOTERMICO[-1]
 
 
 # ==============================================================================
@@ -521,7 +489,6 @@ html, body, [class*="css"], .stMarkdown, p, span, label, div {
 }
 h1, h2, h3, h4 { font-family: 'JetBrains Mono', monospace; letter-spacing: -0.01em; }
 
-/* ---------- Cartouche / titleblock ---------- */
 .titleblock {
     display: flex;
     justify-content: space-between;
@@ -567,7 +534,6 @@ h1, h2, h3, h4 { font-family: 'JetBrains Mono', monospace; letter-spacing: -0.01
     margin-top: 0.15rem;
 }
 
-/* ---------- Section labels ---------- */
 .section-label {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.72rem;
@@ -579,7 +545,6 @@ h1, h2, h3, h4 { font-family: 'JetBrains Mono', monospace; letter-spacing: -0.01
     margin: 0.4rem 0 0.9rem 0;
 }
 
-/* ---------- Result cards ---------- */
 .result-card {
     background: var(--bg-panel);
     border: 1px solid var(--border-subtle);
@@ -610,7 +575,6 @@ h1, h2, h3, h4 { font-family: 'JetBrains Mono', monospace; letter-spacing: -0.01
 .badge-ok { color: var(--accent-ok); font-weight: 600; }
 .badge-fail { color: var(--accent-fail); font-weight: 600; }
 
-/* ---------- Regla de secciones ---------- */
 .regla-wrap { display: flex; gap: 4px; margin: 0.6rem 0 1rem 0; flex-wrap: wrap; }
 .regla-chip {
     font-family: 'JetBrains Mono', monospace;
@@ -636,76 +600,591 @@ hr { border-color: var(--border-subtle); }
 
 
 # ==============================================================================
-# 4. GENERACIÓN DE MEMORIA DE CÁLCULO (texto descargable)
+# 4. ORQUESTADOR DE CÁLCULO (puro: dict de entradas -> dict de resultados)
 # ==============================================================================
 
-def _generar_memoria(inp: dict, res: dict) -> str:
-    L = []
-    L.append("=" * 72)
-    L.append("MEMORIA DE CALCULO - SECCION DE CONDUCTORES (REBT)")
-    L.append("=" * 72)
-    L.append("")
-    L.append(f"Tipo de circuito:      {inp['tipo_circuito']}")
-    L.append(f"Sistema:               {inp['sistema']}  -  Tension: {inp['tension']:g} V")
-    L.append(f"Conductor / Aislam.:   {inp['conductor']} / {inp['aislamiento']}")
-    L.append(f"Metodo instalacion:    {inp['metodo']}")
-    L.append(f"Longitud:              {inp['longitud']:g} m")
-    L.append("")
-    L.append("-" * 72)
-    L.append("1. CRITERIO TERMICO (Ib <= In <= Iz) - ITC-BT-19 art. 19")
-    L.append("-" * 72)
-    L.append(f"  Ib (corriente de empleo):        {res['ib']:.2f} A")
-    L.append(f"  Ib de calculo (tras factores):   {res['ib_calculo']:.2f} A")
-    L.append(f"  Factor de correccion total:      {res['factor_total']:.3f}")
-    if res.get('s_termica') is not None:
-        L.append(f"  Seccion por criterio termico:    {res['s_termica']:g} mm2  (Iz = {res['iz_termica']:.1f} A)")
-    L.append("")
-    L.append("-" * 72)
-    L.append("2. CRITERIO DE CAIDA DE TENSION - ITC-BT-14 / 15 / 19 / 40")
-    L.append("-" * 72)
-    L.append(f"  Delta U maxima admisible:        {res['delta_u_max']:g} %")
-    L.append(f"  Delta U con seccion adoptada:    {res['e_pct']:.2f} %")
-    L.append("")
-    L.append("-" * 72)
-    L.append("3. SECCION FINAL ADOPTADA")
-    L.append("-" * 72)
-    if res.get('seccion_final') is not None:
-        L.append(f"  Seccion de fase:                 {res['seccion_final']:g} mm2")
-    if res.get('seccion_neutro'):
-        L.append(f"  Seccion de neutro:               {res['seccion_neutro']:g} mm2")
-    if res.get('seccion_proteccion'):
-        L.append(f"  Seccion de proteccion (PE):      {res['seccion_proteccion']:g} mm2")
-    if res.get('necesita_paralelo'):
-        L.append(f"  >> Requiere {res['n_paralelo']} conductores en paralelo por fase <<")
-    L.append("")
-    if res.get('cumple_cc') is not None:
-        L.append("-" * 72)
-        L.append("4. VERIFICACION TERMICA DE CORTOCIRCUITO")
-        L.append("-" * 72)
-        estado = "CUMPLE" if res['cumple_cc'] else "NO CUMPLE"
-        L.append(f"  Resultado: {estado}  (seccion minima necesaria: {res['s_min_cc']:g} mm2)")
-        L.append("")
-    if res.get('avisos'):
-        L.append("-" * 72)
-        L.append("AVISOS")
-        L.append("-" * 72)
-        for a in res['avisos']:
-            L.append(f"  - {a}")
-        L.append("")
-    L.append("=" * 72)
-    L.append("Herramienta de apoyo al diseno. Verificar contra la Guia-BT-19")
-    L.append("vigente antes de incorporar a un proyecto o memoria firmada.")
-    L.append("=" * 72)
-    return "\n".join(L)
-
-
-# ==============================================================================
-# 5. INTERFAZ STREAMLIT
-# ==============================================================================
-
-def _render_calculadora():
+def calcular(inp: dict) -> dict:
+    """Ejecuta los 3 criterios de la ITC-BT-19 art. 19.2 a partir del dict de
+    entradas producido por _render_inputs(). No toca Streamlit: es testeable
+    de forma aislada."""
     avisos = []
+    sistema = inp["sistema"]
+    n_cargados = 2 if sistema == SISTEMA_MONO else 3
 
+    if inp["modo_entrada"] == "Potencia activa":
+        ib = calcular_intensidad_empleo(sistema, inp["potencia_kw"] * 1000.0, inp["tension"], inp["cos_phi"])
+    else:
+        ib = inp["intensidad_directa"]
+
+    ib_calculo = ib
+    ib_motor = None
+    if inp["es_motor"] and inp["corrientes_motores"]:
+        corrientes = inp["corrientes_motores"]
+        if len(corrientes) == 1:
+            ib_motor = factor_motor_unico(corrientes[0])
+        else:
+            ib_motor = factor_varios_motores(corrientes)
+        if inp["ascensor_grua"]:
+            ib_motor *= 1.3
+        ib_calculo = max(ib_calculo, ib_motor)
+        avisos.append(f"Corriente de cálculo ajustada según ITC-BT-47 (motores): {ib_motor:.2f} A.")
+
+    if inp["alumbrado_descarga"]:
+        ib_calculo *= 1.8
+        avisos.append("Corriente de cálculo incrementada ×1,8 por alumbrado de descarga sin corregir (orientativo).")
+
+    f_temp = factor_correccion_temperatura(inp["aislamiento"], inp["temp_ambiente"], inp["enterrado"])
+    f_agrup = factor_correccion_agrupamiento(inp["disposicion"], int(inp["n_circuitos"]))
+    f_capas = factor_correccion_capas(int(inp["n_capas"]))
+    f_resist = factor_correccion_resistividad(inp["resistividad"]) if inp["enterrado"] else 1.0
+    factor_total = f_temp * f_agrup * f_capas * f_resist
+
+    if f_temp <= 0.05:
+        avisos.append("La temperatura ambiente introducida iguala o supera la temperatura máxima de servicio "
+                       "del aislamiento elegido: instalación no viable en estas condiciones.")
+
+    s_termica, iz_termica, necesita_paralelo, n_paralelo = seccion_por_criterio_termico(
+        ib_calculo, inp["metodo"], inp["aislamiento"], inp["conductor"], n_cargados, factor_total)
+
+    kappa = kappa_servicio(inp["conductor"], inp["aislamiento"], inp["usar_kappa_20c"])
+    ib_paralelo = ib_calculo / n_paralelo if necesita_paralelo else ib_calculo
+    s_du, e_voltios, e_pct = seccion_por_caida_tension(
+        sistema, ib_paralelo, inp["longitud"], inp["tension"], inp["cos_phi"], kappa,
+        inp["delta_u_max"], inp["conductor"])
+
+    candidatos = [s for s in (s_termica, s_du) if s is not None]
+    seccion_final = max(candidatos) if candidatos else None
+    if s_termica is not None and s_du is None:
+        avisos.append("Ni siquiera 300 mm² cumple el criterio de caída de tensión con la longitud indicada: "
+                       "valora más conductores en paralelo, reducir la longitud o elevar el nivel de tensión.")
+
+    if seccion_final is not None:
+        e_final = caida_tension_voltios(sistema, ib_paralelo, inp["longitud"], seccion_final, inp["cos_phi"], kappa)
+        e_final_pct = e_final / inp["tension"] * 100.0
+    else:
+        e_final, e_final_pct = e_voltios, e_pct
+
+    seccion_neutro = None
+    if sistema == SISTEMA_TRI and seccion_final is not None:
+        seccion_neutro = seccion_conductor_neutro(seccion_final, inp["conductor"], inp["armonicos"])
+
+    seccion_proteccion = seccion_conductor_proteccion(seccion_final) if seccion_final is not None else None
+
+    if seccion_final is not None:
+        if inp["conductor"] == "Aluminio" and seccion_final < MINIMO_ALUMINIO_MM2:
+            seccion_final = MINIMO_ALUMINIO_MM2
+            avisos.append("Sección elevada a 16 mm² por ser el mínimo normativo del aluminio en instalación "
+                           "fija (ITC-BT-07).")
+        if inp["tipo_circuito"].startswith("LGA"):
+            minimo_lga = MINIMO_LGA_ALUMINIO_MM2 if inp["conductor"] == "Aluminio" else MINIMO_LGA_COBRE_MM2
+            if seccion_final < minimo_lga:
+                seccion_final = minimo_lga
+                avisos.append(f"Sección elevada a {minimo_lga:g} mm² por ser el mínimo normativo de la LGA "
+                               "(ITC-BT-14).")
+
+    cumple_cc, s_min_cc = None, None
+    if inp["verificar_cc"] and seccion_final is not None:
+        cumple_cc, s_min_cc = verificar_cortocircuito(seccion_final, inp["icc_ka"], inp["tiempo_s"],
+                                                        inp["conductor"], inp["aislamiento"])
+        if not cumple_cc:
+            avisos.append(f"La sección adoptada no soporta térmicamente el cortocircuito indicado: se "
+                           f"necesitarían ≥ {s_min_cc:g} mm² (o una protección más rápida/limitadora).")
+
+    calibre = calibre_magnetotermico_sugerido(ib_calculo)
+
+    return dict(
+        n_cargados=n_cargados, ib=ib, ib_calculo=ib_calculo, ib_motor=ib_motor,
+        f_temp=f_temp, f_agrup=f_agrup, f_capas=f_capas, f_resist=f_resist, factor_total=factor_total,
+        s_termica=s_termica, iz_termica=iz_termica, necesita_paralelo=necesita_paralelo, n_paralelo=n_paralelo,
+        kappa=kappa, ib_paralelo=ib_paralelo, s_du=s_du, e_voltios=e_voltios, e_pct=e_pct,
+        seccion_final=seccion_final, e_final=e_final, e_final_pct=e_final_pct,
+        seccion_neutro=seccion_neutro, seccion_proteccion=seccion_proteccion,
+        cumple_cc=cumple_cc, s_min_cc=s_min_cc, calibre_magnetotermico=calibre, avisos=avisos,
+    )
+
+
+# ==============================================================================
+# 5. GENERACIÓN DE PDF (memoria de cálculo con cajetín tipo plano técnico)
+# ==============================================================================
+# Nota sobre codificación: las fuentes estándar de reportlab (Helvetica) usan
+# WinAnsiEncoding, que soporta vocales acentuadas y ñ sin problema, pero NO
+# incluye de forma fiable símbolos como Δ, ≤, ≥, √ o ÷. Para evitar glifos
+# rotos en el PDF, se sanean esos símbolos a su equivalente ASCII antes de
+# escribir cualquier texto; el resto de la app (interfaz Streamlit) sigue
+# usando los símbolos Unicode con normalidad, ya que el navegador sí los
+# renderiza correctamente.
+
+_PDF_REPLACEMENTS = {
+    "Δ": "Delta ", "≤": "<=", "≥": ">=", "√": "raiz", "÷": "/",
+    "²": "2", "³": "3", "°": "gr.", "·": "-", "×": "x",
+    "—": "-", "–": "-", "✅": "[OK]", "❌": "[NO]", "⚠️": "[AVISO]",
+    "⬇️": "", "🔌": "", "📊": "", "📖": "", "⚙️": "", "🌡️": "", "⚡": "",
+}
+
+
+def _pdf_safe(texto: str) -> str:
+    texto = str(texto)
+    for k, v in _PDF_REPLACEMENTS.items():
+        texto = texto.replace(k, v)
+    return texto
+
+
+def generar_pdf_memoria(inp: dict, res: dict) -> bytes:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import cm
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+    AZUL = colors.HexColor("#122340")
+    COBRE = colors.HexColor("#b3711f")
+    GRIS = colors.HexColor("#5a6472")
+
+    buffer = io.BytesIO()
+    margin = 1.6 * cm
+    cajetin_h = 2.4 * cm
+
+    doc = SimpleDocTemplate(
+        buffer, pagesize=A4,
+        leftMargin=margin, rightMargin=margin,
+        topMargin=margin + cajetin_h + 0.3 * cm, bottomMargin=margin + 0.6 * cm,
+    )
+
+    fecha_hoy = date.today().strftime("%d/%m/%Y")
+
+    def _cajetin(c, d):
+        c.saveState()
+        width, height = A4
+        top = height - margin
+        c.setStrokeColor(AZUL)
+        c.setLineWidth(1.1)
+        c.rect(margin, top - cajetin_h, width - 2 * margin, cajetin_h)
+        divisor_x = width - margin - 5.2 * cm
+        c.line(divisor_x, top - cajetin_h, divisor_x, top)
+        c.setFillColor(AZUL)
+        c.setFont("Helvetica-Bold", 12.5)
+        c.drawString(margin + 0.35 * cm, top - 0.85 * cm, "MEMORIA DE CALCULO - SECCION DE CONDUCTORES")
+        c.setFont("Helvetica", 8.3)
+        c.setFillColor(GRIS)
+        c.drawString(margin + 0.35 * cm, top - 1.35 * cm, "Reglamento Electrotecnico de Baja Tension - ITC-BT-19")
+        c.setFont("Helvetica", 8.3)
+        c.drawString(margin + 0.35 * cm, top - 1.85 * cm, _pdf_safe(f"Circuito: {inp['tipo_circuito']}"))
+
+        campos = [
+            ("NORMA", "REBT - ITC-BT-19"),
+            ("FECHA", fecha_hoy),
+            ("REVISION", "1.0"),
+        ]
+        y = top - 0.55 * cm
+        for etiqueta, valor in campos:
+            c.setFont("Helvetica-Bold", 6.6)
+            c.setFillColor(GRIS)
+            c.drawString(divisor_x + 0.3 * cm, y, etiqueta)
+            c.setFont("Helvetica-Bold", 9)
+            c.setFillColor(AZUL)
+            c.drawString(divisor_x + 0.3 * cm, y - 0.34 * cm, valor)
+            y -= 0.72 * cm
+        c.setStrokeColor(COBRE)
+        c.setLineWidth(2.2)
+        c.line(margin, top - cajetin_h, width - margin, top - cajetin_h)
+
+        c.setFont("Helvetica-Oblique", 6.8)
+        c.setFillColor(GRIS)
+        c.drawCentredString(
+            width / 2, margin * 0.45,
+            "Herramienta de apoyo al diseno. Verificar contra la Guia-BT-19 vigente antes de firmar un proyecto.",
+        )
+        c.drawRightString(width - margin, margin * 0.45, f"Pag. {d.page}")
+        c.restoreState()
+
+    styles = getSampleStyleSheet()
+    h2 = ParagraphStyle("h2c", parent=styles["Heading2"], textColor=AZUL, fontSize=12, spaceBefore=10, spaceAfter=4)
+    normal = ParagraphStyle("normalc", parent=styles["Normal"], fontSize=9.3, leading=13)
+    aviso_style = ParagraphStyle("avisoc", parent=styles["Normal"], fontSize=9, leading=13, textColor=colors.HexColor("#8a4b00"))
+
+    def fila_estilo(header=True):
+        base = [
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#c9ccd1")),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]
+        if header:
+            base += [("BACKGROUND", (0, 0), (-1, 0), AZUL), ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                      ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold")]
+        return TableStyle(base)
+
+    story = []
+
+    story.append(Paragraph("1. Datos del circuito", h2))
+    datos = [
+        ["Concepto", "Valor"],
+        ["Tipo de circuito", _pdf_safe(inp["tipo_circuito"])],
+        ["Sistema", _pdf_safe(inp["sistema"]) + f"  -  {inp['tension']:g} V"],
+        ["Conductor / Aislamiento", f"{inp['conductor']} / {inp['aislamiento']}"],
+        ["Metodo de instalacion", _pdf_safe(inp["metodo"])],
+        ["Longitud", f"{inp['longitud']:g} m"],
+    ]
+    t = Table(datos, colWidths=[6.5 * cm, 9.5 * cm])
+    t.setStyle(fila_estilo())
+    story.append(t)
+
+    story.append(Paragraph("2. Criterio termico (Ib &lt;= In &lt;= Iz) - ITC-BT-19 art. 19", h2))
+    termico = [
+        ["Magnitud", "Valor"],
+        ["Ib (corriente de empleo)", f"{res['ib']:.2f} A"],
+        ["Ib de calculo (tras factores)", f"{res['ib_calculo']:.2f} A"],
+        ["Factor de correccion total", f"{res['factor_total']:.3f}"],
+        ["Seccion por criterio termico", f"{res['s_termica']:g} mm2" if res["s_termica"] else "-"],
+        ["Iz obtenida (tabla x factores)", f"{res['iz_termica']:.1f} A" if res["iz_termica"] else "-"],
+    ]
+    t = Table(termico, colWidths=[6.5 * cm, 9.5 * cm])
+    t.setStyle(fila_estilo())
+    story.append(t)
+
+    story.append(Paragraph("3. Criterio de caida de tension - ITC-BT-14/15/19/40", h2))
+    du = [
+        ["Magnitud", "Valor"],
+        ["Delta U maxima admisible", f"{res['e_final_pct'] and inp['delta_u_max']:g} %"],
+        ["Delta U con la seccion adoptada", f"{res['e_final_pct']:.2f} %"],
+        ["Cumple", "SI" if res["e_final_pct"] <= inp["delta_u_max"] else "NO"],
+    ]
+    t = Table(du, colWidths=[6.5 * cm, 9.5 * cm])
+    t.setStyle(fila_estilo())
+    story.append(t)
+
+    story.append(Paragraph("4. Seccion final adoptada", h2))
+    final_rows = [["Elemento", "Seccion"]]
+    if res["seccion_final"] is not None:
+        final_rows.append(["Conductor de fase", f"{res['seccion_final']:g} mm2"])
+    if res.get("seccion_neutro"):
+        final_rows.append(["Conductor de neutro", f"{res['seccion_neutro']:g} mm2"])
+    if res.get("seccion_proteccion"):
+        final_rows.append(["Conductor de proteccion (PE)", f"{res['seccion_proteccion']:g} mm2"])
+    if res.get("necesita_paralelo"):
+        final_rows.append(["Conductores en paralelo", f"{res['n_paralelo']} x {res['seccion_final']:g} mm2 por fase"])
+    final_rows.append(["Interruptor automatico sugerido", f"{res['calibre_magnetotermico']} A"])
+    t = Table(final_rows, colWidths=[6.5 * cm, 9.5 * cm])
+    t.setStyle(fila_estilo())
+    story.append(t)
+
+    if res.get("cumple_cc") is not None:
+        story.append(Paragraph("5. Verificacion termica de cortocircuito", h2))
+        estado = "CUMPLE" if res["cumple_cc"] else "NO CUMPLE"
+        cc_rows = [
+            ["Magnitud", "Valor"],
+            ["Resultado", estado],
+            ["Seccion minima necesaria", f"{res['s_min_cc']:g} mm2"],
+        ]
+        t = Table(cc_rows, colWidths=[6.5 * cm, 9.5 * cm])
+        t.setStyle(fila_estilo())
+        story.append(t)
+
+    story.append(Paragraph("6. Formulas aplicadas", h2))
+    for linea in _lineas_formulas_texto(inp, res):
+        story.append(Paragraph(_pdf_safe(linea), normal))
+
+    if res.get("avisos"):
+        story.append(Paragraph("7. Avisos", h2))
+        for a in res["avisos"]:
+            story.append(Paragraph("- " + _pdf_safe(a), aviso_style))
+
+    story.append(Spacer(1, 10))
+    story.append(Paragraph(
+        "Herramienta de apoyo al diseno. Los valores de esta memoria deben verificarse contra la edicion "
+        "vigente de la Guia-BT-19 y la normativa UNE aplicable antes de incorporarse a un proyecto o "
+        "memoria tecnica firmada.", normal))
+
+    doc.build(story, onFirstPage=_cajetin, onLaterPages=_cajetin)
+    return buffer.getvalue()
+
+
+# ==============================================================================
+# 6. JUSTIFICACIÓN DE FÓRMULAS (texto plano, reutilizado por PDF y por la UI)
+# ==============================================================================
+
+def _lineas_formulas_texto(inp: dict, res: dict) -> list:
+    """Genera la secuencia de fórmulas con los valores del cálculo actual
+    sustituidos, en texto plano (sin LaTeX), para incluir en el PDF."""
+    L = []
+    sistema = inp["sistema"]
+    cos_phi = inp["cos_phi"]
+
+    if inp["modo_entrada"] == "Potencia activa":
+        p_w = inp["potencia_kw"] * 1000.0
+        if sistema == SISTEMA_MONO:
+            L.append(f"Ib = P / (V x cos(phi)) = {p_w:.0f} / ({inp['tension']:g} x {cos_phi:.2f}) "
+                      f"= {res['ib']:.2f} A")
+        else:
+            L.append(f"Ib = P / (raiz(3) x V x cos(phi)) = {p_w:.0f} / (1,732 x {inp['tension']:g} x "
+                      f"{cos_phi:.2f}) = {res['ib']:.2f} A")
+    else:
+        L.append(f"Ib = {res['ib']:.2f} A (introducida directamente)")
+
+    if res.get("ib_motor") is not None:
+        if len(inp["corrientes_motores"]) == 1:
+            L.append(f"Motor unico (ITC-BT-47): Ib_calculo = 1,25 x In = 1,25 x "
+                      f"{inp['corrientes_motores'][0]:.2f} = {res['ib_motor']:.2f} A")
+        else:
+            ordenados = sorted(inp["corrientes_motores"], reverse=True)
+            resto = " + ".join(f"{x:.1f}" for x in ordenados[1:])
+            L.append(f"Varios motores (ITC-BT-47): Ib_calculo = 1,25 x {ordenados[0]:.2f} + ({resto}) "
+                      f"= {res['ib_motor']:.2f} A")
+        if inp["ascensor_grua"]:
+            L.append("Ascensor/grua: factor adicional x1,3 aplicado sobre la intensidad del motor.")
+
+    if inp["alumbrado_descarga"]:
+        L.append("Alumbrado de descarga sin corregir f.d.p.: Ib_calculo se multiplica x1,8 (orientativo).")
+
+    L.append(f"Ib de calculo final = {res['ib_calculo']:.2f} A")
+    L.append("")
+    L.append(f"Factor de correccion = f_temp x f_agrup x f_capas x f_resist = {res['f_temp']:.3f} x "
+              f"{res['f_agrup']:.3f} x {res['f_capas']:.3f} x {res['f_resist']:.3f} = {res['factor_total']:.3f}")
+    if res["iz_termica"] is not None:
+        L.append(f"Iz = Iz_tabla x factor = {res['iz_termica'] / max(res['factor_total'], 1e-9):.1f} x "
+                  f"{res['factor_total']:.3f} = {res['iz_termica']:.2f} A")
+        cumple_termico = res["iz_termica"] >= (res["ib_calculo"] / (res["n_paralelo"] if res["necesita_paralelo"] else 1))
+        L.append(f"Criterio termico: Iz = {res['iz_termica']:.2f} A >= Ib = {res['ib_calculo']:.2f} A "
+                  f"-> {'Cumple' if cumple_termico else 'No cumple'} con S = {res['s_termica']:g} mm2")
+    L.append("")
+
+    kappa = res["kappa"]
+    L.append(f"Conductividad a temperatura de servicio: kappa = {kappa:.2f} m/(ohm x mm2)")
+    k_sist = "2" if sistema == SISTEMA_MONO else "raiz(3)=1,732"
+    S = res["seccion_final"] if res["seccion_final"] else res["s_termica"]
+    L.append(f"Delta U = {k_sist} x L x Ib x (R x cos(phi) + X x sen(phi)),  R = 1/(kappa x S)")
+    if S:
+        r = 1.0 / (kappa * S)
+        L.append(f"R = 1 / ({kappa:.2f} x {S:g}) = {r:.5f} ohm/m")
+        L.append(f"Delta U = {res['e_final']:.2f} V  =  {res['e_final_pct']:.2f} % de {inp['tension']:g} V")
+        cumple_du = res["e_final_pct"] <= inp["delta_u_max"]
+        L.append(f"Criterio de caida de tension: {res['e_final_pct']:.2f} % <= {inp['delta_u_max']:g} % "
+                  f"-> {'Cumple' if cumple_du else 'No cumple'}")
+    L.append("")
+
+    if res.get("seccion_neutro"):
+        L.append(f"Seccion de neutro: Sf={res['seccion_final']:g} mm2 -> Sn={res['seccion_neutro']:g} mm2 "
+                  "(regla REBT / IEC 60364-5-52 punto 524)")
+    if res.get("seccion_proteccion"):
+        L.append(f"Seccion de proteccion (ITC-BT-18): Sf={res['seccion_final']:g} mm2 -> "
+                  f"Sp={res['seccion_proteccion']:g} mm2")
+
+    if res.get("cumple_cc") is not None:
+        L.append("")
+        k_cc = K_CORTOCIRCUITO[(inp["conductor"], inp["aislamiento"])]
+        L.append(f"Cortocircuito: S_min = (Icc x raiz(t)) / k = ({inp['icc_ka']:g}x1000 x "
+                  f"raiz({inp['tiempo_s']:g})) / {k_cc} = {res['s_min_cc']:g} mm2")
+
+    return L
+
+
+# ==============================================================================
+# 7. PRESUPUESTO (mediciones x precios unitarios editables) + EXPORT EXCEL
+# ==============================================================================
+
+def tabla_precios_cable_defecto() -> pd.DataFrame:
+    filas = []
+    for s in SECCIONES_NORMALIZADAS:
+        filas.append({
+            "Sección (mm²)": s,
+            "€/m Cobre": PRECIOS_CABLE_COBRE_DEFECTO[s],
+            "€/m Aluminio": round(PRECIOS_CABLE_COBRE_DEFECTO[s] * RATIO_PRECIO_ALUMINIO, 2),
+        })
+    return pd.DataFrame(filas)
+
+
+def tabla_otros_conceptos_defecto(metodo: str) -> pd.DataFrame:
+    filas = [
+        {"Concepto": "Canalización (tubo / bandeja según método)", "Unidad": "€/m",
+         "Precio unitario (€)": PRECIOS_CANALIZACION_DEFECTO.get(metodo, 2.0)},
+        {"Concepto": "Mano de obra de instalación", "Unidad": "€/m",
+         "Precio unitario (€)": PRECIO_MANO_OBRA_POR_METRO},
+        {"Concepto": "Accesorios y pequeño material (cajas, terminales...)", "Unidad": "% s/materiales",
+         "Precio unitario (€)": PORCENTAJE_ACCESORIOS},
+    ]
+    return pd.DataFrame(filas)
+
+
+def calcular_presupuesto(inp: dict, res: dict, precios_cable: pd.DataFrame,
+                          otros_conceptos: pd.DataFrame) -> tuple:
+    """Devuelve (df_mediciones, subtotal_materiales, subtotal_mo, total)."""
+    seccion = res["seccion_final"]
+    if seccion is None:
+        return pd.DataFrame(), 0.0, 0.0, 0.0
+
+    n_paralelo = res["n_paralelo"] if res["necesita_paralelo"] else 1
+    longitud = inp["longitud"]
+    conductor = inp["conductor"]
+    columna_precio = "€/m Cobre" if conductor == "Cobre" else "€/m Aluminio"
+
+    def precio_cable(s):
+        fila = precios_cable.loc[precios_cable["Sección (mm²)"] == s]
+        if fila.empty:
+            return 0.0
+        return float(fila.iloc[0][columna_precio])
+
+    n_fases = 3 if inp["sistema"] == SISTEMA_TRI else 1
+    filas = []
+
+    metros_fase = longitud * n_fases * n_paralelo
+    filas.append({
+        "Concepto": f"Cable {conductor} {seccion:g} mm² (fase)", "Unidad": "m",
+        "Cantidad": metros_fase, "Precio unitario (€)": precio_cable(seccion),
+        "Importe (€)": round(metros_fase * precio_cable(seccion), 2),
+    })
+
+    if res.get("seccion_neutro"):
+        s_n = res["seccion_neutro"]
+        metros_n = longitud * n_paralelo
+        filas.append({
+            "Concepto": f"Cable {conductor} {s_n:g} mm² (neutro)", "Unidad": "m",
+            "Cantidad": metros_n, "Precio unitario (€)": precio_cable(s_n),
+            "Importe (€)": round(metros_n * precio_cable(s_n), 2),
+        })
+
+    if res.get("seccion_proteccion"):
+        s_p = res["seccion_proteccion"]
+        metros_p = longitud * n_paralelo
+        filas.append({
+            "Concepto": f"Cable {conductor} {s_p:g} mm² (protección PE)", "Unidad": "m",
+            "Cantidad": metros_p, "Precio unitario (€)": precio_cable(s_p),
+            "Importe (€)": round(metros_p * precio_cable(s_p), 2),
+        })
+
+    fila_canal = otros_conceptos.loc[otros_conceptos["Concepto"].str.startswith("Canalización")]
+    precio_canal = float(fila_canal.iloc[0]["Precio unitario (€)"]) if not fila_canal.empty else 0.0
+    filas.append({
+        "Concepto": "Canalización (tubo / bandeja)", "Unidad": "m",
+        "Cantidad": longitud, "Precio unitario (€)": precio_canal,
+        "Importe (€)": round(longitud * precio_canal, 2),
+    })
+
+    calibre = res["calibre_magnetotermico"]
+    precio_mt = PRECIOS_MAGNETOTERMICO_DEFECTO.get(calibre, 30)
+    filas.append({
+        "Concepto": f"Interruptor automático {calibre} A", "Unidad": "ud",
+        "Cantidad": 1, "Precio unitario (€)": precio_mt, "Importe (€)": precio_mt,
+    })
+    calibre_dif = min((c for c in PRECIOS_DIFERENCIAL_DEFECTO if c >= calibre),
+                       default=max(PRECIOS_DIFERENCIAL_DEFECTO))
+    precio_dif = PRECIOS_DIFERENCIAL_DEFECTO[calibre_dif]
+    filas.append({
+        "Concepto": f"Interruptor diferencial {calibre_dif} A", "Unidad": "ud",
+        "Cantidad": 1, "Precio unitario (€)": precio_dif, "Importe (€)": precio_dif,
+    })
+
+    subtotal_materiales = sum(f["Importe (€)"] for f in filas)
+
+    fila_acc = otros_conceptos.loc[otros_conceptos["Concepto"].str.startswith("Accesorios")]
+    pct_acc = float(fila_acc.iloc[0]["Precio unitario (€)"]) if not fila_acc.empty else 0.0
+    importe_acc = round(subtotal_materiales * pct_acc / 100.0, 2)
+    filas.append({
+        "Concepto": "Accesorios y pequeño material", "Unidad": f"{pct_acc:g}% s/materiales",
+        "Cantidad": 1, "Precio unitario (€)": importe_acc, "Importe (€)": importe_acc,
+    })
+
+    fila_mo = otros_conceptos.loc[otros_conceptos["Concepto"].str.startswith("Mano de obra")]
+    precio_mo = float(fila_mo.iloc[0]["Precio unitario (€)"]) if not fila_mo.empty else 0.0
+    importe_mo = round(longitud * precio_mo, 2)
+    filas.append({
+        "Concepto": "Mano de obra de instalación", "Unidad": "m",
+        "Cantidad": longitud, "Precio unitario (€)": precio_mo, "Importe (€)": importe_mo,
+    })
+
+    df = pd.DataFrame(filas)
+    subtotal_mo = importe_mo
+    total = round(df["Importe (€)"].sum(), 2)
+    return df, round(subtotal_materiales + importe_acc, 2), subtotal_mo, total
+
+
+def generar_excel_presupuesto(df_presupuesto: pd.DataFrame, inp: dict, res: dict, total: float) -> bytes:
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Presupuesto"
+
+    azul = "122340"
+    cobre = "E8A33D"
+
+    ws.merge_cells("A1:E1")
+    ws["A1"] = "PRESUPUESTO — SECCIÓN DE CONDUCTORES (REBT)"
+    ws["A1"].font = Font(bold=True, size=14, color="FFFFFF")
+    ws["A1"].fill = PatternFill("solid", fgColor=azul)
+    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 26
+
+    ws["A2"] = "Circuito:"
+    ws["B2"] = inp["tipo_circuito"]
+    ws["A3"] = "Sistema:"
+    ws["B3"] = f"{inp['sistema']} — {inp['tension']:g} V"
+    ws["A4"] = "Sección adoptada:"
+    ws["B4"] = f"{res['seccion_final']:g} mm² ({inp['conductor']} / {inp['aislamiento']})"
+    ws["A5"] = "Fecha:"
+    ws["B5"] = date.today().strftime("%d/%m/%Y")
+    for r in range(2, 6):
+        ws[f"A{r}"].font = Font(bold=True, color=azul)
+
+    header_row = 7
+    columnas = list(df_presupuesto.columns)
+    for j, col in enumerate(columnas, start=1):
+        c = ws.cell(row=header_row, column=j, value=col)
+        c.font = Font(bold=True, color="FFFFFF")
+        c.fill = PatternFill("solid", fgColor=azul)
+        c.alignment = Alignment(horizontal="center")
+
+    thin = Side(style="thin", color="C9CCD1")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    for i, row in enumerate(df_presupuesto.itertuples(index=False), start=header_row + 1):
+        for j, val in enumerate(row, start=1):
+            c = ws.cell(row=i, column=j, value=val)
+            c.border = border
+            if columnas[j - 1] in ("Precio unitario (€)", "Importe (€)"):
+                c.number_format = '#,##0.00 €'
+            if columnas[j - 1] == "Cantidad":
+                c.number_format = '#,##0.00'
+
+    total_row = header_row + len(df_presupuesto) + 1
+    ws.cell(row=total_row, column=len(columnas) - 1, value="TOTAL").font = Font(bold=True)
+    total_cell = ws.cell(row=total_row, column=len(columnas), value=total)
+    total_cell.font = Font(bold=True, color=azul)
+    total_cell.number_format = '#,##0.00 €'
+    total_cell.fill = PatternFill("solid", fgColor=cobre)
+
+    widths = [42, 14, 12, 16, 14]
+    for j, w in enumerate(widths[:len(columnas)], start=1):
+        ws.column_dimensions[get_column_letter(j)].width = w
+
+    ws_aviso = wb.create_sheet("Notas")
+    ws_aviso["A1"] = ("Los precios unitarios son orientativos (punto de partida editable), no precios de "
+                       "mercado en tiempo real. Sustitúyelos por los de tu proveedor antes de presupuestar "
+                       "en firme. El precio del cobre fluctúa con su cotización en el LME.")
+    ws_aviso["A1"].alignment = Alignment(wrap_text=True)
+    ws_aviso.column_dimensions["A"].width = 90
+    ws_aviso.row_dimensions[1].height = 60
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    return buffer.getvalue()
+
+
+# ==============================================================================
+# 8. INTERFAZ STREAMLIT
+# ==============================================================================
+
+def _fmt_eur(valor: float) -> str:
+    """Formatea un importe en estilo español: 1.234,56 €."""
+    texto = f"{valor:,.2f}"
+    texto = texto.replace(",", "TMP").replace(".", ",").replace("TMP", ".")
+    return f"{texto} €"
+
+
+def _render_inputs() -> dict:
     st.markdown('<p class="section-label">1 · Datos eléctricos del circuito</p>', unsafe_allow_html=True)
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -732,9 +1211,11 @@ def _render_calculadora():
     c4, c5, c6 = st.columns(3)
     with c4:
         conductor = st.selectbox("Material conductor", ["Cobre", "Aluminio"])
-        metodo = st.selectbox("Método de instalación", METODOS_DISPONIBLES,
-                               help="B1/B2 y C cubren la mayoría de vivienda/terciario; F es habitual en bandejas "
-                                    "de gran potencia en industria; D es para tramos enterrados.")
+        metodo = st.selectbox("Método de instalación", METODOS_DISPONIBLES, index=1,
+                               help="A1/B1/B2: tubo (empotrado o superficie). C/E: bandeja o superficie. "
+                                    "F: bandeja perforada de grandes secciones, típica en industria. "
+                                    "D: enterrado. A1 y B2 son estimaciones ancladas a B1 — ver pestaña "
+                                    "Metodología.")
     with c5:
         if metodo in (METODO_D, METODO_F):
             aislamiento = "XLPE/EPR"
@@ -769,8 +1250,6 @@ def _render_calculadora():
                         corrientes_motores = [float(x.strip()) for x in texto_motores.split(",") if x.strip()]
                     except ValueError:
                         corrientes_motores = []
-                        avisos.append("No se han podido interpretar las intensidades de motores introducidas; "
-                                       "revisa el formato (usa comas y punto decimal).")
                 ascensor_grua = st.checkbox("Ascensor / grúa (factor adicional ITC-BT-47, ×1,3)")
         with cc2:
             alumbrado_descarga = st.checkbox(
@@ -818,89 +1297,22 @@ def _render_calculadora():
                 tiempo_s = st.number_input("Tiempo de actuación de la protección (s)", min_value=0.001,
                                             value=0.1, step=0.01, format="%.3f")
 
-    st.divider()
+    return dict(
+        tipo_circuito=tipo_circuito, sistema=sistema, tension=tension, modo_entrada=modo_entrada,
+        potencia_kw=potencia_kw, cos_phi=cos_phi, intensidad_directa=intensidad_directa,
+        conductor=conductor, metodo=metodo, aislamiento=aislamiento, longitud=longitud,
+        delta_u_max=delta_u_max, es_motor=es_motor, corrientes_motores=corrientes_motores,
+        ascensor_grua=ascensor_grua, alumbrado_descarga=alumbrado_descarga, armonicos=armonicos,
+        temp_ambiente=temp_ambiente, usar_kappa_20c=usar_kappa_20c, disposicion=disposicion,
+        n_circuitos=n_circuitos, n_capas=n_capas, enterrado=enterrado, resistividad=resistividad,
+        verificar_cc=verificar_cc, icc_ka=icc_ka, tiempo_s=tiempo_s,
+    )
 
-    # ============================ CÁLCULO ============================
-    n_cargados = 2 if sistema == SISTEMA_MONO else 3
 
-    if modo_entrada == "Potencia activa":
-        ib = calcular_intensidad_empleo(sistema, potencia_kw * 1000.0, tension, cos_phi)
-    else:
-        ib = intensidad_directa
-
-    ib_calculo = ib
-    if es_motor and corrientes_motores:
-        if len(corrientes_motores) == 1:
-            ib_motor = factor_motor_unico(corrientes_motores[0])
-        else:
-            ib_motor = factor_varios_motores(corrientes_motores)
-        if ascensor_grua:
-            ib_motor *= 1.3
-        ib_calculo = max(ib_calculo, ib_motor)
-        avisos.append(f"Corriente de cálculo ajustada según ITC-BT-47 (motores): {ib_motor:.2f} A.")
-
-    if alumbrado_descarga:
-        ib_calculo *= 1.8
-        avisos.append("Corriente de cálculo incrementada ×1,8 por alumbrado de descarga sin corregir (orientativo).")
-
-    f_temp = factor_correccion_temperatura(aislamiento, temp_ambiente, enterrado)
-    f_agrup = factor_correccion_agrupamiento(disposicion, int(n_circuitos))
-    f_capas = factor_correccion_capas(int(n_capas))
-    f_resist = factor_correccion_resistividad(resistividad) if enterrado else 1.0
-    factor_total = f_temp * f_agrup * f_capas * f_resist
-
-    if f_temp <= 0.05:
-        avisos.append("La temperatura ambiente introducida iguala o supera la temperatura máxima de servicio "
-                       "del aislamiento elegido: instalación no viable en estas condiciones.")
-
-    s_termica, iz_termica, necesita_paralelo, n_paralelo = seccion_por_criterio_termico(
-        ib_calculo, metodo, aislamiento, conductor, n_cargados, factor_total)
-
-    kappa = kappa_servicio(conductor, aislamiento, usar_kappa_20c)
-    ib_paralelo = ib_calculo / n_paralelo if necesita_paralelo else ib_calculo
-    s_du, e_voltios, e_pct = seccion_por_caida_tension(
-        sistema, ib_paralelo, longitud, tension, cos_phi, kappa, delta_u_max, conductor)
-
-    candidatos = [s for s in (s_termica, s_du) if s is not None]
-    seccion_final = max(candidatos) if candidatos else None
-    if s_termica is not None and s_du is None:
-        avisos.append("Ni siquiera 300 mm² cumple el criterio de caída de tensión con la longitud indicada: "
-                       "valora más conductores en paralelo, reducir la longitud o elevar el nivel de tensión.")
-
-    if seccion_final is not None:
-        e_final = caida_tension_voltios(sistema, ib_paralelo, longitud, seccion_final, cos_phi, kappa)
-        e_final_pct = e_final / tension * 100.0
-    else:
-        e_final, e_final_pct = e_voltios, e_pct
-
-    seccion_neutro = None
-    if sistema == SISTEMA_TRI and seccion_final is not None:
-        seccion_neutro = seccion_conductor_neutro(seccion_final, conductor, armonicos)
-
-    seccion_proteccion = seccion_conductor_proteccion(seccion_final) if seccion_final is not None else None
-
-    if seccion_final is not None:
-        if conductor == "Aluminio" and seccion_final < MINIMO_ALUMINIO_MM2:
-            seccion_final = MINIMO_ALUMINIO_MM2
-            avisos.append("Sección elevada a 16 mm² por ser el mínimo normativo del aluminio en instalación "
-                           "fija (ITC-BT-07).")
-        if tipo_circuito.startswith("LGA"):
-            minimo_lga = MINIMO_LGA_ALUMINIO_MM2 if conductor == "Aluminio" else MINIMO_LGA_COBRE_MM2
-            if seccion_final < minimo_lga:
-                seccion_final = minimo_lga
-                avisos.append(f"Sección elevada a {minimo_lga:g} mm² por ser el mínimo normativo de la LGA "
-                               "(ITC-BT-14).")
-
-    cumple_cc, s_min_cc = None, None
-    if verificar_cc and seccion_final is not None:
-        cumple_cc, s_min_cc = verificar_cortocircuito(seccion_final, icc_ka, tiempo_s, conductor, aislamiento)
-        if not cumple_cc:
-            avisos.append(f"La sección adoptada no soporta térmicamente el cortocircuito indicado: se "
-                           f"necesitarían ≥ {s_min_cc:g} mm² (o una protección más rápida/limitadora).")
-
-    # ============================ RESULTADOS ============================
+def _render_resultados(inp: dict, res: dict):
     st.markdown('<p class="section-label">Resultado</p>', unsafe_allow_html=True)
 
+    seccion_final = res["seccion_final"]
     if seccion_final is None:
         st.error("No se ha podido determinar una sección con los parámetros indicados. Revisa los valores.")
         return
@@ -910,45 +1322,46 @@ def _render_calculadora():
         st.markdown(f'''<div class="result-card hero">
             <div class="result-label">Sección de fase adoptada</div>
             <div class="result-value">{seccion_final:g} mm²</div>
-            <div class="result-sub">{conductor} · {aislamiento}</div>
+            <div class="result-sub">{inp['conductor']} · {inp['aislamiento']}</div>
         </div>''', unsafe_allow_html=True)
     with r2:
         st.markdown(f'''<div class="result-card">
             <div class="result-label">Ib de cálculo</div>
-            <div class="result-value small">{ib_calculo:.2f} A</div>
-            <div class="result-sub">Iz tabla: {iz_termica:.1f} A (S={s_termica:g} mm²)</div>
+            <div class="result-value small">{res['ib_calculo']:.2f} A</div>
+            <div class="result-sub">Iz tabla: {res['iz_termica']:.1f} A (S={res['s_termica']:g} mm²)</div>
         </div>''', unsafe_allow_html=True)
     with r3:
-        cumple_du = e_final_pct <= delta_u_max
+        cumple_du = res["e_final_pct"] <= inp["delta_u_max"]
         badge = "badge-ok" if cumple_du else "badge-fail"
         texto_badge = "Cumple" if cumple_du else "No cumple"
         st.markdown(f'''<div class="result-card">
             <div class="result-label">Caída de tensión</div>
-            <div class="result-value small">{e_final_pct:.2f} %</div>
-            <div class="result-sub"><span class="{badge}">{texto_badge}</span> · máx {delta_u_max:g}%</div>
+            <div class="result-value small">{res['e_final_pct']:.2f} %</div>
+            <div class="result-sub"><span class="{badge}">{texto_badge}</span> · máx {inp['delta_u_max']:g}%</div>
         </div>''', unsafe_allow_html=True)
     with r4:
-        neutro_txt = f"{seccion_neutro:g}" if seccion_neutro else "—"
+        neutro_txt = f"{res['seccion_neutro']:g}" if res.get("seccion_neutro") else "—"
         st.markdown(f'''<div class="result-card">
             <div class="result-label">Neutro / Protección (mm²)</div>
-            <div class="result-value small">{neutro_txt} / {seccion_proteccion:g}</div>
-            <div class="result-sub">Conductor de protección PE</div>
+            <div class="result-value small">{neutro_txt} / {res['seccion_proteccion']:g}</div>
+            <div class="result-sub">Interruptor sugerido: {res['calibre_magnetotermico']} A</div>
         </div>''', unsafe_allow_html=True)
 
-    if necesita_paralelo:
+    if res["necesita_paralelo"]:
         st.warning(f"La corriente de cálculo supera la capacidad de un único conductor de "
-                   f"{max(SECCIONES_NORMALIZADAS):g} mm². Se necesitan **{n_paralelo} conductores en "
+                   f"{max(SECCIONES_NORMALIZADAS):g} mm². Se necesitan **{res['n_paralelo']} conductores en "
                    f"paralelo** de {seccion_final:g} mm² por fase (mismo material, longitud y aislamiento, "
                    "condición del REBT para la puesta en paralelo de conductores).")
 
-    if verificar_cc:
-        if cumple_cc:
+    if inp["verificar_cc"]:
+        if res["cumple_cc"]:
             st.success(f"✅ Verificación de cortocircuito: {seccion_final:g} mm² soporta térmicamente "
-                       f"Icc={icc_ka:g} kA durante {tiempo_s:g} s (mínimo requerido: {s_min_cc:g} mm²).")
+                       f"Icc={inp['icc_ka']:g} kA durante {inp['tiempo_s']:g} s (mínimo requerido: "
+                       f"{res['s_min_cc']:g} mm²).")
         else:
             st.error(f"⚠️ Verificación de cortocircuito: {seccion_final:g} mm² NO soporta térmicamente "
-                     f"Icc={icc_ka:g} kA durante {tiempo_s:g} s. Se requieren ≥ {s_min_cc:g} mm², o una "
-                     "protección con actuación más rápida.")
+                     f"Icc={inp['icc_ka']:g} kA durante {inp['tiempo_s']:g} s. Se requieren ≥ "
+                     f"{res['s_min_cc']:g} mm², o una protección con actuación más rápida.")
 
     st.markdown('<p class="section-label">Secciones normalizadas evaluadas</p>', unsafe_allow_html=True)
     chips = "".join(
@@ -957,40 +1370,133 @@ def _render_calculadora():
     )
     st.markdown(f'<div class="regla-wrap">{chips}</div>', unsafe_allow_html=True)
 
-    for aviso in avisos:
+    for aviso in res["avisos"]:
         st.info(aviso)
 
     with st.expander("📋 Ver detalle del cálculo, sección por sección"):
         filas = []
         for s in SECCIONES_NORMALIZADAS:
-            base = iz_tabla(s, metodo, aislamiento, conductor, n_cargados)
+            base = iz_tabla(s, inp["metodo"], inp["aislamiento"], inp["conductor"], res["n_cargados"])
             if base is None:
                 continue
-            iz_real = base * factor_total
-            e = caida_tension_voltios(sistema, ib_calculo, longitud, s, cos_phi, kappa)
-            pct = e / tension * 100
+            iz_real = base * res["factor_total"]
+            e = caida_tension_voltios(inp["sistema"], res["ib_calculo"], inp["longitud"], s,
+                                       inp["cos_phi"], res["kappa"])
+            pct = e / inp["tension"] * 100
             filas.append({
                 "Sección (mm²)": s,
                 "Iz tabla (A)": base,
                 "Iz corregida (A)": round(iz_real, 1),
-                "Cumple térmico": "✅" if iz_real >= ib_calculo else "❌",
+                "Cumple térmico": "✅" if iz_real >= res["ib_calculo"] else "❌",
                 "ΔU (%)": round(pct, 2),
-                "Cumple ΔU": "✅" if pct <= delta_u_max else "❌",
+                "Cumple ΔU": "✅" if pct <= inp["delta_u_max"] else "❌",
             })
         st.dataframe(pd.DataFrame(filas), width='stretch', hide_index=True)
         st.caption("ΔU aquí calculada con la intensidad total (sin repartir en paralelo), para mostrar por "
                    "qué una sección concreta no bastaría por sí sola.")
 
-    inp = dict(tipo_circuito=tipo_circuito, sistema=sistema, tension=tension, conductor=conductor,
-               aislamiento=aislamiento, metodo=metodo, longitud=longitud)
-    res = dict(ib=ib, ib_calculo=ib_calculo, factor_total=factor_total, s_termica=s_termica,
-               iz_termica=iz_termica, delta_u_max=delta_u_max, e_pct=e_final_pct,
-               seccion_final=seccion_final, seccion_neutro=seccion_neutro,
-               seccion_proteccion=seccion_proteccion, necesita_paralelo=necesita_paralelo,
-               n_paralelo=n_paralelo, cumple_cc=cumple_cc, s_min_cc=s_min_cc, avisos=avisos)
-    memoria = _generar_memoria(inp, res)
-    st.download_button("⬇️ Descargar memoria de cálculo (.txt)", data=memoria,
-                        file_name="memoria_calculo_cable.txt", mime="text/plain")
+    pdf_bytes = generar_pdf_memoria(inp, res)
+    st.download_button("⬇️ Descargar memoria de cálculo (PDF)", data=pdf_bytes,
+                        file_name="memoria_calculo_cable.pdf", mime="application/pdf")
+
+
+def _render_formulas(inp: dict, res: dict):
+    st.markdown('<p class="section-label">Justificación del cálculo</p>', unsafe_allow_html=True)
+    st.caption("Mismas fórmulas que en la memoria PDF, con los valores de la pestaña Calculadora ya "
+               "sustituidos. Sirve para auditar de dónde sale cada cifra.")
+
+    if res["seccion_final"] is None:
+        st.warning("Ajusta los datos en la pestaña Calculadora para poder mostrar la justificación.")
+        return
+
+    st.markdown("##### 1 · Corriente de empleo")
+    if inp["sistema"] == SISTEMA_MONO:
+        st.latex(r"I_b = \dfrac{P}{V \cdot \cos\varphi}")
+    else:
+        st.latex(r"I_b = \dfrac{P}{\sqrt{3} \cdot V \cdot \cos\varphi}")
+    if inp["es_motor"] and inp["corrientes_motores"]:
+        st.latex(r"I_{b,\,motor} = 1{,}25 \cdot I_{n,\,mayor} + \sum I_{n,\,resto}")
+    if inp["alumbrado_descarga"]:
+        st.latex(r"I_{b,\,cálculo} = I_b \times 1{,}8 \quad \text{(descarga sin corregir f.d.p.)}")
+
+    st.markdown("##### 2 · Criterio térmico (ITC-BT-19 art. 19)")
+    st.latex(r"I_b \leq I_n \leq I_z \qquad I_z = I_{z,\,tabla} \cdot f_{temp} \cdot f_{agrup} \cdot f_{capas} \cdot f_{resist}")
+
+    st.markdown("##### 3 · Criterio de caída de tensión")
+    if inp["sistema"] == SISTEMA_MONO:
+        st.latex(r"\Delta U = 2 \cdot L \cdot I_b \cdot (R\cos\varphi + X\sin\varphi), \quad R = \dfrac{1}{\kappa \cdot S}")
+    else:
+        st.latex(r"\Delta U = \sqrt{3} \cdot L \cdot I_b \cdot (R\cos\varphi + X\sin\varphi), \quad R = \dfrac{1}{\kappa \cdot S}")
+    st.latex(r"\kappa(T) = \dfrac{\kappa_{20°C}}{1 + \alpha \cdot (T_{servicio} - 20)}")
+
+    if res.get("seccion_neutro") or res.get("seccion_proteccion"):
+        st.markdown("##### 4 · Neutro y conductor de protección")
+        st.latex(r"S_n = S_f \;\; (S_f \leq 16\,mm^2) \qquad S_n \geq S_f/2 \;\; (S_f > 16\,mm^2,\ \text{sin armónicos})")
+        st.latex(r"S_p = S_f \;(S_f\leq16) \quad S_p=16\,mm^2\;(16<S_f\leq35) \quad S_p=S_f/2\;(S_f>35)")
+
+    if res.get("cumple_cc") is not None:
+        st.markdown("##### 5 · Verificación de cortocircuito")
+        st.latex(r"S_{min} = \dfrac{I_{cc} \cdot \sqrt{t}}{k}")
+
+    st.markdown("##### Con los valores de este cálculo")
+    texto = "\n".join(_lineas_formulas_texto(inp, res))
+    st.code(texto, language=None)
+
+
+def _render_presupuesto(inp: dict, res: dict):
+    st.markdown('<p class="section-label">Presupuesto</p>', unsafe_allow_html=True)
+    st.caption("Base de precios orientativa y totalmente editable — no son precios de mercado en tiempo "
+               "real. Ajusta las tablas a los precios de tu proveedor antes de presupuestar en firme.")
+
+    if res["seccion_final"] is None:
+        st.warning("Ajusta los datos en la pestaña Calculadora para poder generar el presupuesto.")
+        return
+
+    with st.expander("💶 Precios unitarios (editables)", expanded=False):
+        st.markdown("**Cable por sección (€/m)**")
+        precios_cable = st.data_editor(
+            tabla_precios_cable_defecto(), key="precios_cable_editor",
+            width='stretch', hide_index=True, num_rows="fixed",
+        )
+        st.markdown("**Otros conceptos**")
+        otros_conceptos = st.data_editor(
+            tabla_otros_conceptos_defecto(inp["metodo"]), key="otros_conceptos_editor",
+            width='stretch', hide_index=True, num_rows="fixed",
+        )
+
+    df_presupuesto, subtotal_mat, subtotal_mo, total = calcular_presupuesto(
+        inp, res, precios_cable, otros_conceptos)
+
+    if df_presupuesto.empty:
+        st.warning("No se ha podido calcular el presupuesto.")
+        return
+
+    st.dataframe(df_presupuesto, width='stretch', hide_index=True)
+
+    p1, p2, p3 = st.columns(3)
+    with p1:
+        st.markdown(f'''<div class="result-card">
+            <div class="result-label">Subtotal materiales</div>
+            <div class="result-value small">{_fmt_eur(subtotal_mat)}</div>
+        </div>''', unsafe_allow_html=True)
+    with p2:
+        st.markdown(f'''<div class="result-card">
+            <div class="result-label">Mano de obra</div>
+            <div class="result-value small">{_fmt_eur(subtotal_mo)}</div>
+        </div>''', unsafe_allow_html=True)
+    with p3:
+        st.markdown(f'''<div class="result-card hero">
+            <div class="result-label">Total presupuesto</div>
+            <div class="result-value">{_fmt_eur(total)}</div>
+        </div>''', unsafe_allow_html=True)
+
+    st.caption("No incluye IVA. Cantidades de cable calculadas sobre la longitud, el nº de conductores del "
+               "sistema y, si aplica, el nº de conductores en paralelo determinados en la Calculadora.")
+
+    excel_bytes = generar_excel_presupuesto(df_presupuesto, inp, res, total)
+    st.download_button("⬇️ Descargar presupuesto (Excel)", data=excel_bytes,
+                        file_name="presupuesto_cable.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
 def _render_tablas():
@@ -998,17 +1504,24 @@ def _render_tablas():
                 'aire a 40°C</p>', unsafe_allow_html=True)
     filas = []
     for s, datos in TABLA_A_COBRE.items():
-        b1, c, f = datos["B1"], datos["C"], datos["F"]
+        b1, ce, f = datos["B1"], datos["CE"], datos["F"]
+        a1 = tuple(round(v * FACTOR_A1_SOBRE_B1, 1) for v in b1)
+        b2 = tuple(round(v * FACTOR_B2_SOBRE_B1, 1) for v in b1)
         filas.append({
             "Sección (mm²)": s,
-            "B1/B2 3×PVC": b1[0], "B1/B2 2×PVC": b1[1], "B1/B2 3×XLPE": b1[2], "B1/B2 2×XLPE": b1[3],
-            "C 3×PVC": c[0], "C 2×PVC": c[1], "C 3×XLPE": c[2], "C 2×XLPE": c[3],
+            "A1* 2×PVC": a1[IDX_2PVC], "A1* 2×XLPE": a1[IDX_2XLPE],
+            "B1 3×PVC": b1[IDX_3PVC], "B1 2×PVC": b1[IDX_2PVC],
+            "B1 3×XLPE": b1[IDX_3XLPE], "B1 2×XLPE": b1[IDX_2XLPE],
+            "B2* 2×PVC": b2[IDX_2PVC], "B2* 2×XLPE": b2[IDX_2XLPE],
+            "C/E 3×PVC": ce[IDX_3PVC], "C/E 2×PVC": ce[IDX_2PVC],
+            "C/E 3×XLPE": ce[IDX_3XLPE], "C/E 2×XLPE": ce[IDX_2XLPE],
             "F (S≥25, XLPE)": f"{f:g}" if f is not None else "—",
         })
     st.dataframe(pd.DataFrame(filas), width='stretch', hide_index=True)
-    st.caption("Fuente: Guía-BT-19 (Ministerio de Industria, Turismo y Comercio), Tabla A. Los valores de "
-               "aluminio en instalación NO enterrada se estiman con un ratio orientativo de 0,78 respecto "
-               "al cobre (la Guía-BT-19 remite a UNE-HD 60364-5-52 para esta combinación).")
+    st.caption("Columnas B1, C/E y F: directas de la Guía-BT-19, Tabla A. Columnas marcadas con * (A1, B2): "
+               "estimadas aplicando un ratio a B1, anclado a un valor real verificado en cada caso "
+               "(ver pestaña Metodología). Aluminio en instalación NO enterrada: ratio orientativo 0,78 "
+               "sobre el valor de cobre mostrado aquí (no se tabula aparte).")
 
     st.markdown('<p class="section-label">Tabla D — Enterrado bajo tubo, XLPE (terreno 25°C, '
                 'ρ=1,5 K·m/W, 0,70 m)</p>', unsafe_allow_html=True)
@@ -1047,7 +1560,7 @@ def _render_tablas():
 
 def _render_metodologia():
     st.markdown(
-        """
+        f"""
 ### Criterios de dimensionado aplicados
 
 Esta calculadora sigue el procedimiento de la **ITC-BT-19, artículo 19.2**, que exige que la sección de
@@ -1069,30 +1582,43 @@ Si se aportan la Icc en origen y el tiempo de actuación de la protección, se c
 La sección final adoptada es la mayor de las que exigen los criterios 1 y 2, redondeada a la sección
 normalizada superior.
 
+### Métodos de instalación — qué es dato directo y qué es estimación
+
+| Método | Origen de los valores |
+|---|---|
+| B1 — Tubo empotrado en obra o superficie | **Directo** de la Tabla A, Guía-BT-19 |
+| C/E — Bandeja no perforada/perforada, superficie | **Directo** de la Tabla A. La propia Guía-BT-19 indica que C y E comparten columna cuando sus valores son "prácticamente iguales" |
+| F — Bandeja perforada, unipolares (S≥25mm², XLPE) | **Directo** de la Tabla A |
+| D — Enterrado bajo tubo (XLPE) | **Directo** de la Tabla D, Guía-BT-19 |
+| A1 — Tubo empotrado en pared aislante | **Estimado**: A1 = B1 × {FACTOR_A1_SOBRE_B1:g}, ratio anclado a un valor real verificado de forma independiente (A1, 2,5 mm², 2 cargados, PVC = 17,5 A) |
+| B2 — Cable multiconductor en tubo | **Estimado**: B2 = B1 × {FACTOR_B2_SOBRE_B1:g}, ratio anclado a un ejercicio resuelto independiente (B2, 25 mm², 2 cargados, PVC = 77 A) |
+
 ### Casuística contemplada
 - Sistemas monofásico (230 V) y trifásico (400 V).
+- 6 métodos de instalación (ver tabla anterior).
 - Motores según ITC-BT-47: 125 % para motor único; 125 % del mayor + 100 % del resto para varios motores;
   +30 % adicional en ascensores/grúas.
 - Alumbrado de descarga sin corregir el factor de potencia (factor orientativo ×1,8).
 - Cargas con armónicos significativos → neutro a sección plena.
-- Métodos de instalación: tubo empotrado/superficie (B1/B2), bandeja no perforada (C), bandeja perforada
-  para grandes secciones (F, S≥25 mm²) y enterrado bajo tubo (D).
 - Cobre y aluminio, con la sección mínima de 16 mm² del aluminio en instalación fija (ITC-BT-07) y la
   mínima de la LGA (ITC-BT-14).
 - Conductores en paralelo cuando la intensidad supera la capacidad de un único conductor de 300 mm².
 - Sección del neutro (mitad de fase cuando aplica) y del conductor de protección (ITC-BT-18).
+- Justificación de fórmulas con los valores del cálculo sustituidos (pestaña "Fórmulas").
+- Memoria de cálculo en PDF con cajetín, y presupuesto orientativo exportable a Excel.
 
 ### Limitaciones conocidas — léelas antes de usar en un proyecto firmado
+- **A1 y B2 son estimaciones** derivadas de B1 mediante un ratio anclado a un único valor real cada una;
+  no son la columna oficial completa de la Guía-BT-19 para esos métodos. Verifica si tu proyecto depende
+  críticamente de ellos.
 - Los valores de **aluminio en instalación NO enterrada** son una estimación (ratio 0,78 respecto al
-  cobre); la Guía-BT-19 remite a UNE-HD 60364-5-52 para esa combinación, no reproducida aquí íntegra.
-- El factor de corrección por **resistividad térmica del terreno** es orientativo: la edición de la
-  Guía-BT-19 consultada no publica una tabla cerrada de esa corrección junto a la Tabla D.
-- Se excluyen los métodos A1/A2 (empotrado en pared térmicamente aislante) por ser poco habituales; si tu
-  instalación usa ese método, la sección resultante aquí será optimista.
-- La caída de tensión usa una reactancia lineal orientativa fija (0,08 Ω/km); en secciones muy grandes o
-  disposiciones especiales puede diferir ligeramente.
+  cobre); la Guía-BT-19 remite a UNE-HD 60364-5-52 para esa combinación.
+- El factor de corrección por **resistividad térmica del terreno** es orientativo.
+- La caída de tensión usa una reactancia lineal orientativa fija (0,08 Ω/km).
 - La verificación de cortocircuito comprueba el criterio **térmico** del conductor, no la coordinación de
-  protecciones (curvas, poder de corte, selectividad), que debe verificarse aparte.
+  protecciones (curvas, poder de corte, selectividad).
+- **Los precios del presupuesto son un punto de partida editable**, no precios de mercado en tiempo real;
+  el precio del cobre fluctúa con su cotización.
 
 **En definitiva:** esta herramienta acelera el predimensionado y documenta el criterio seguido, pero no
 sustituye la verificación de un técnico competente con la edición vigente de la Guía-BT-19 y el resto de
@@ -1102,7 +1628,7 @@ normativa aplicable antes de firmar un proyecto.
 
 
 # ==============================================================================
-# 6. PUNTO DE ENTRADA
+# 9. PUNTO DE ENTRADA
 # ==============================================================================
 
 def main():
@@ -1119,18 +1645,31 @@ def main():
             <div class="titleblock-meta">
                 <div><span>Norma</span><strong>REBT · ITC-BT-19</strong></div>
                 <div><span>Criterios</span><strong>Térmico · ΔU · Icc</strong></div>
-                <div><span>Rev.</span><strong>1.0</strong></div>
+                <div><span>Rev.</span><strong>2.0</strong></div>
             </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    tab_calc, tab_tablas, tab_metodo = st.tabs(["🔌 Calculadora", "📊 Tablas normativas", "📖 Metodología"])
+    tab_calc, tab_formulas, tab_presu, tab_tablas, tab_metodo = st.tabs(
+        ["🔌 Calculadora", "🧮 Fórmulas", "💰 Presupuesto", "📊 Tablas normativas", "📖 Metodología"]
+    )
+
     with tab_calc:
-        _render_calculadora()
+        inputs = _render_inputs()
+        resultado = calcular(inputs)
+        _render_resultados(inputs, resultado)
+
+    with tab_formulas:
+        _render_formulas(inputs, resultado)
+
+    with tab_presu:
+        _render_presupuesto(inputs, resultado)
+
     with tab_tablas:
         _render_tablas()
+
     with tab_metodo:
         _render_metodologia()
 
