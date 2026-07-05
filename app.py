@@ -1293,79 +1293,187 @@ def generar_excel_presupuesto(df_presupuesto: pd.DataFrame, inp: dict, res: dict
 
 
 # ==============================================================================
-# 8. ESQUEMA UNIFILAR — vista previa SVG + exportación DXF
+# 8. ESQUEMA UNIFILAR — vista previa SVG + exportación DXF + cálculo integrado
 # ==============================================================================
 # No es "arrastrar con el ratón": Streamlit no soporta de forma fiable drag&drop
 # libre sin un componente JS compilado aparte. En su lugar, cada circuito es
 # una secuencia ordenada de símbolos que se construye con botones (añadir /
-# subir / bajar / quitar), y se previsualiza igual que quedaría el DXF. Es el
-# mismo flujo de trabajo que un editor de bloques, sin necesitar un build JS.
+# subir / bajar / quitar). Al estilo Caneco/DMELECT: cada circuito lleva su
+# potencia, y la app calcula Ib, sección y calibre con el mismo motor que la
+# pestaña Calculadora, y los etiqueta sobre el propio esquema.
+#
+# Los símbolos se definen UNA sola vez como geometría abstracta (líneas,
+# puntos de contacto, círculos, rectángulos) inspirada en UNE-EN 60617/IEC
+# 60617 — el símbolo base "seccionador" es la cuchilla de corte con sus dos
+# puntos de contacto; el "interruptor automático" añade el cuadrado del
+# disparador; el "diferencial" añade el toroide; el "contactor" añade la
+# bobina de accionamiento. Esa misma geometría se traduce a SVG (preview) y a
+# DXF (exportación), así que ambos son siempre coherentes entre sí. No son
+# bloques certificados pixel a pixel contra la norma, pero sí la construcción
+# gráfica estándar que se usa en cualquier esquema unifilar español.
 
 _CODIGOS_SIMBOLO = {
     "Interruptor automático (magnetotérmico)": "IA",
     "Interruptor diferencial": "ID",
     "Interruptor general (IGA)": "IGA",
     "Seccionador": "SEC",
-    "Fusible": "FUS",
+    "Fusible": "F",
     "Contactor": "KM",
     "Guardamotor": "GM",
-    "Transformador": "TRAFO",
+    "Transformador": "T",
     "Motor": "M",
-    "Contador de energía": "kWh",
+    "Contador de energía": "Wh",
     "Condensador": "C",
     "Puesta a tierra": "PAT",
     "Lámpara / receptor": "REC",
 }
 
+_FAMILIA_RUPTOR = {"Interruptor automático (magnetotérmico)", "Interruptor general (IGA)", "Guardamotor"}
 
-def _svg_simbolo(simbolo: str, cx: float, cy: float) -> str:
+
+def _geometria_simbolo(simbolo: str):
+    """Primitivas abstractas centradas en (0,0), línea horizontal en y=0.
+    ('L',x1,y1,x2,y2) línea | ('D',x1,y1,x2,y2) línea discontinua |
+    ('C',cx,cy,r,relleno) círculo | ('R',x,y,w,h) rectángulo (esquina inf-izq) |
+    ('P',x,y) punto de contacto (círculo pequeño relleno) |
+    ('T',x,y,texto,tam,ancla) texto."""
     codigo = _CODIGOS_SIMBOLO.get(simbolo, "?")
-    trazo = "#e8edf4"
-    relleno = "#121b2e"
-    acento = "#e8a33d"
-    p = []
-    if simbolo == "Motor":
-        p.append(f'<circle cx="{cx}" cy="{cy}" r="14" fill="{relleno}" stroke="{trazo}" stroke-width="1.5"/>')
-        p.append(f'<text x="{cx}" y="{cy+4}" text-anchor="middle" font-size="11" fill="{acento}" '
-                 f'font-family="monospace">M</text>')
-    elif simbolo == "Contador de energía":
-        p.append(f'<circle cx="{cx}" cy="{cy}" r="14" fill="{relleno}" stroke="{trazo}" stroke-width="1.5"/>')
-        p.append(f'<text x="{cx}" y="{cy+3}" text-anchor="middle" font-size="7.5" fill="{acento}" '
-                 f'font-family="monospace">kWh</text>')
+    g = []
+    if simbolo == "Seccionador":
+        g += [("P", -11, 0), ("P", 11, 0), ("L", -11, 0, 5, -13)]
+    elif simbolo in _FAMILIA_RUPTOR:
+        g += [("P", -11, 0), ("P", 11, 0), ("L", -11, 0, 5, -13), ("R", -7, -10, 7, 7)]
+    elif simbolo == "Interruptor diferencial":
+        g += [("P", -11, 0), ("P", 11, 0), ("L", -11, 0, 5, -13), ("R", -7, -10, 7, 7),
+              ("C", -20, 0, 6, False)]
+    elif simbolo == "Fusible":
+        g += [("R", -4, -8, 8, 16)]
+    elif simbolo == "Contactor":
+        g += [("P", -11, 0), ("P", 11, 0), ("L", -11, 0, 5, -13),
+              ("D", -3, -6, -3, 9), ("C", -3, 13, 4, False)]
     elif simbolo == "Transformador":
-        p.append(f'<circle cx="{cx-6}" cy="{cy}" r="10" fill="none" stroke="{trazo}" stroke-width="1.5"/>')
-        p.append(f'<circle cx="{cx+6}" cy="{cy}" r="10" fill="none" stroke="{trazo}" stroke-width="1.5"/>')
+        g += [("C", -5, 0, 8, False), ("C", 5, 0, 8, False)]
+    elif simbolo == "Motor":
+        g += [("C", 0, 0, 12, False), ("T", 0, 0, "M", 10, "middle")]
+    elif simbolo == "Contador de energía":
+        g += [("C", 0, 0, 12, False), ("T", 0, 0, "Wh", 7.5, "middle")]
     elif simbolo == "Condensador":
-        p.append(f'<line x1="{cx-4}" y1="{cy-10}" x2="{cx-4}" y2="{cy+10}" stroke="{trazo}" stroke-width="2.2"/>')
-        p.append(f'<line x1="{cx+4}" y1="{cy-10}" x2="{cx+4}" y2="{cy+10}" stroke="{trazo}" stroke-width="2.2"/>')
+        g += [("L", -3, -9, -3, 9), ("L", 3, -9, 3, 9)]
     elif simbolo == "Puesta a tierra":
-        p.append(f'<line x1="{cx}" y1="{cy}" x2="{cx}" y2="{cy+9}" stroke="{trazo}" stroke-width="1.5"/>')
+        g += [("L", 0, 0, 0, 8)]
         for i, w in enumerate([16, 10, 5]):
-            yy = cy + 9 + i * 5
-            p.append(f'<line x1="{cx-w/2}" y1="{yy}" x2="{cx+w/2}" y2="{yy}" stroke="{trazo}" stroke-width="1.5"/>')
+            yy = 8 + i * 5
+            g.append(("L", -w / 2, yy, w / 2, yy))
     elif simbolo == "Lámpara / receptor":
-        p.append(f'<circle cx="{cx}" cy="{cy}" r="12" fill="none" stroke="{trazo}" stroke-width="1.5"/>')
-        p.append(f'<line x1="{cx-8}" y1="{cy-8}" x2="{cx+8}" y2="{cy+8}" stroke="{trazo}" stroke-width="1.2"/>')
-        p.append(f'<line x1="{cx-8}" y1="{cy+8}" x2="{cx+8}" y2="{cy-8}" stroke="{trazo}" stroke-width="1.2"/>')
+        g += [("C", 0, 0, 11, False), ("L", -7.5, -7.5, 7.5, 7.5), ("L", -7.5, 7.5, 7.5, -7.5)]
     else:
-        p.append(f'<rect x="{cx-15}" y="{cy-10}" width="30" height="20" fill="{relleno}" stroke="{trazo}" '
-                  f'stroke-width="1.5" rx="2"/>')
-        p.append(f'<text x="{cx}" y="{cy+4}" text-anchor="middle" font-size="8" fill="{acento}" '
-                 f'font-family="monospace">{codigo}</text>')
+        g += [("R", -14, -9, 28, 18), ("T", 0, 0, codigo, 8, "middle")]
+    return g
+
+
+def _svg_desde_geometria(geo, cx, cy, trazo="#e8edf4", acento="#e8a33d"):
+    p = []
+    for prim in geo:
+        if prim[0] == "L":
+            _, x1, y1, x2, y2 = prim
+            p.append(f'<line x1="{cx+x1}" y1="{cy+y1}" x2="{cx+x2}" y2="{cy+y2}" stroke="{trazo}" '
+                     f'stroke-width="1.4"/>')
+        elif prim[0] == "D":
+            _, x1, y1, x2, y2 = prim
+            p.append(f'<line x1="{cx+x1}" y1="{cy+y1}" x2="{cx+x2}" y2="{cy+y2}" stroke="{trazo}" '
+                     f'stroke-width="1.1" stroke-dasharray="2,2"/>')
+        elif prim[0] == "C":
+            _, ccx, ccy, r, relleno = prim
+            fill = trazo if relleno else "none"
+            p.append(f'<circle cx="{cx+ccx}" cy="{cy+ccy}" r="{r}" fill="{fill}" stroke="{trazo}" '
+                     f'stroke-width="1.4"/>')
+        elif prim[0] == "R":
+            _, x, y, w, h = prim
+            p.append(f'<rect x="{cx+x}" y="{cy+y}" width="{w}" height="{h}" fill="#121b2e" '
+                     f'stroke="{trazo}" stroke-width="1.4" rx="1.5"/>')
+        elif prim[0] == "P":
+            _, x, y = prim
+            p.append(f'<circle cx="{cx+x}" cy="{cy+y}" r="1.6" fill="{trazo}"/>')
+        elif prim[0] == "T":
+            _, x, y, texto, tam, _ancla = prim
+            p.append(f'<text x="{cx+x}" y="{cy+y+tam*0.35}" text-anchor="middle" font-size="{tam}" '
+                     f'fill="{acento}" font-family="monospace">{texto}</text>')
     return "\n".join(p)
 
 
-def construir_svg_unifilar(circuitos: list) -> str:
-    margen_izq, paso, fila_alto, y0 = 90, 95, 78, 46
+_ESCALA_DXF = 0.34  # convierte las unidades "SVG" de la geometría a mm razonables en DXF
+
+
+def _dxf_desde_geometria(msp, geo, cx, cy):
+    e = _ESCALA_DXF
+    for prim in geo:
+        if prim[0] in ("L", "D"):
+            _, x1, y1, x2, y2 = prim
+            msp.add_line((cx + x1 * e, cy - y1 * e), (cx + x2 * e, cy - y2 * e))
+        elif prim[0] == "C":
+            _, ccx, ccy, r, _relleno = prim
+            msp.add_circle((cx + ccx * e, cy - ccy * e), radius=r * e)
+        elif prim[0] == "R":
+            _, x, y, w, h = prim
+            x0, y0 = cx + x * e, cy - y * e
+            msp.add_lwpolyline(
+                [(x0, y0), (x0 + w * e, y0), (x0 + w * e, y0 - h * e), (x0, y0 - h * e)], close=True)
+        elif prim[0] == "P":
+            _, x, y = prim
+            msp.add_circle((cx + x * e, cy - y * e), radius=0.5 * e)
+        elif prim[0] == "T":
+            _, x, y, texto, tam, _ancla = prim
+            altura = max(tam * e * 0.9, 1.6)
+            msp.add_text(texto, dxfattribs={"height": altura}).set_placement(
+                (cx + x * e - altura * 0.3 * len(texto), cy - y * e - altura * 0.3))
+
+
+def calculo_rapido_circuito(potencia_kw: float, cos_phi: float, longitud: float, sistema: str) -> dict:
+    """Cálculo simplificado por circuito para el esquema unifilar: reutiliza el
+    MISMO motor de cálculo que la pestaña Calculadora, con hipótesis de
+    instalación estándar (Cu, PVC, B1, interior-otros usos) para no tener que
+    repetir el formulario completo por cada circuito del esquema."""
+    inp_mini = dict(
+        tipo_circuito="Instalación interior — Otros usos / fuerza", sistema=sistema,
+        tension=(230.0 if sistema == SISTEMA_MONO else 400.0),
+        modo_entrada="Potencia activa", potencia_kw=potencia_kw, cos_phi=cos_phi, intensidad_directa=None,
+        conductor="Cobre", metodo=METODO_B1, aislamiento="PVC", longitud=longitud, delta_u_max=3.0,
+        es_motor=False, corrientes_motores=[], ascensor_grua=False,
+        alumbrado_descarga=False, armonicos=False,
+        temp_ambiente=40.0, usar_kappa_20c=False, disposicion="Empotrados o embutidos",
+        n_circuitos=1, n_capas=1, enterrado=False, resistividad=1.5,
+        verificar_cc=False, icc_ka=None, tiempo_s=None,
+    )
+    return calcular(inp_mini)
+
+
+def _etiqueta_calculo_circuito(circuito: dict) -> str:
+    r = calculo_rapido_circuito(circuito["potencia_kw"], circuito["cos_phi"], circuito["longitud"],
+                                 circuito["sistema"])
+    designacion = "3G" if circuito["sistema"] == SISTEMA_TRI else "2x"
+    return (f"{circuito['potencia_kw']:g} kW · Ib={r['ib_calculo']:.1f} A · "
+            f"{designacion}{r['seccion_final']:g} Cu · PIA {r['calibre_magnetotermico']} A · "
+            f"ΔU={r['e_final_pct']:.1f}%")
+
+
+def construir_svg_unifilar(circuitos: list, iga_calibre: int = None) -> str:
+    margen_izq, paso, fila_alto, y0 = 100, 100, 86, 60
     n = max(len(circuitos), 1)
     max_elems = max((len(c["elementos"]) for c in circuitos), default=0)
-    ancho = max(560, margen_izq + paso * (max_elems + 1) + 60)
-    alto = y0 + fila_alto * n + 30
+    ancho = max(620, margen_izq + paso * (max_elems + 1) + 90)
+    alto = y0 + fila_alto * n + 40
 
     partes = [f'<svg viewBox="0 0 {ancho} {alto}" xmlns="http://www.w3.org/2000/svg" '
               f'style="background:#0b1220;border-radius:6px;width:100%;">']
-    y_top = y0 - 18
+
+    y_top = y0 - 30
     y_bottom = y0 + fila_alto * (n - 1) + 18
+    if iga_calibre:
+        partes.append(_svg_desde_geometria(
+            _geometria_simbolo("Interruptor general (IGA)"), margen_izq, y_top - 16))
+        partes.append(f'<text x="{margen_izq+20}" y="{y_top-13}" font-size="9" fill="#e8a33d" '
+                      f'font-family="monospace">IGA {iga_calibre} A</text>')
+        y_top -= 2
     partes.append(f'<line x1="{margen_izq}" y1="{y_top}" x2="{margen_izq}" y2="{y_bottom}" '
                   f'stroke="#e8a33d" stroke-width="3"/>')
     partes.append(f'<text x="{margen_izq}" y="{y_top-8}" text-anchor="middle" font-size="8" fill="#e8a33d" '
@@ -1374,57 +1482,36 @@ def construir_svg_unifilar(circuitos: list) -> str:
     for i, circuito in enumerate(circuitos):
         y = y0 + i * fila_alto
         x_fin = margen_izq + paso * (len(circuito["elementos"]) + 1)
-        partes.append(f'<text x="{margen_izq+8}" y="{y-14}" font-size="10" fill="#e8edf4" '
+        partes.append(f'<text x="{margen_izq+8}" y="{y-16}" font-size="10.5" fill="#e8edf4" '
                       f'font-family="monospace">{circuito["nombre"]}</text>')
         partes.append(f'<line x1="{margen_izq}" y1="{y}" x2="{x_fin}" y2="{y}" stroke="#8b96a8" '
                       f'stroke-width="1.5"/>')
         for j, simbolo in enumerate(circuito["elementos"]):
             cx = margen_izq + paso * (j + 1)
-            partes.append(_svg_simbolo(simbolo, cx, y))
-            partes.append(f'<text x="{cx}" y="{y+26}" text-anchor="middle" font-size="7.5" fill="#8b96a8" '
+            partes.append(_svg_desde_geometria(_geometria_simbolo(simbolo), cx, y))
+            partes.append(f'<text x="{cx}" y="{y+24}" text-anchor="middle" font-size="7.5" fill="#8b96a8" '
                           f'font-family="monospace">{_CODIGOS_SIMBOLO.get(simbolo, "?")}</text>')
+        if circuito.get("potencia_kw"):
+            partes.append(f'<text x="{margen_izq+8}" y="{y+38}" font-size="8.5" fill="#4fd1c5" '
+                          f'font-family="monospace">{_etiqueta_calculo_circuito(circuito)}</text>')
     partes.append("</svg>")
     return "\n".join(partes)
 
 
-def _dxf_simbolo(msp, simbolo: str, cx: float, cy: float):
-    codigo = _CODIGOS_SIMBOLO.get(simbolo, "?")
-    if simbolo == "Motor":
-        msp.add_circle((cx, cy), radius=7)
-        msp.add_text("M", dxfattribs={"height": 4}).set_placement((cx - 2, cy - 2))
-    elif simbolo == "Contador de energía":
-        msp.add_circle((cx, cy), radius=7)
-        msp.add_text("kWh", dxfattribs={"height": 2.5}).set_placement((cx - 4, cy - 1.2))
-    elif simbolo == "Transformador":
-        msp.add_circle((cx - 3, cy), radius=5)
-        msp.add_circle((cx + 3, cy), radius=5)
-    elif simbolo == "Condensador":
-        msp.add_line((cx - 2, cy - 5), (cx - 2, cy + 5))
-        msp.add_line((cx + 2, cy - 5), (cx + 2, cy + 5))
-    elif simbolo == "Puesta a tierra":
-        msp.add_line((cx, cy), (cx, cy + 4.5))
-        for i, w in enumerate([8, 5, 2.5]):
-            yy = cy + 4.5 + i * 2.5
-            msp.add_line((cx - w / 2, yy), (cx + w / 2, yy))
-    elif simbolo == "Lámpara / receptor":
-        msp.add_circle((cx, cy), radius=6)
-        msp.add_line((cx - 4, cy - 4), (cx + 4, cy + 4))
-        msp.add_line((cx - 4, cy + 4), (cx + 4, cy - 4))
-    else:
-        msp.add_lwpolyline(
-            [(cx - 7, cy - 5), (cx + 7, cy - 5), (cx + 7, cy + 5), (cx - 7, cy + 5)], close=True)
-        msp.add_text(codigo, dxfattribs={"height": 2.2}).set_placement((cx - 5, cy - 1))
-
-
-def generar_dxf_unifilar(circuitos: list) -> bytes:
+def generar_dxf_unifilar(circuitos: list, iga_calibre: int = None) -> bytes:
     import ezdxf
     doc = ezdxf.new("R2010")
     msp = doc.modelspace()
-    margen_izq, paso, fila_alto, y0 = 0.0, 25.0, 20.0, 0.0
+    margen_izq, paso, fila_alto, y0 = 0.0, 30.0, 22.0, 0.0
     n = max(len(circuitos), 1)
 
-    y_top = y0 + 6
-    y_bottom = y0 - fila_alto * (n - 1) - 6
+    y_top = y0 + 8
+    if iga_calibre:
+        _dxf_desde_geometria(msp, _geometria_simbolo("Interruptor general (IGA)"), margen_izq, y_top + 6)
+        msp.add_text(f"IGA {iga_calibre} A", dxfattribs={"height": 1.8}).set_placement(
+            (margen_izq + 3, y_top + 5))
+        y_top += 3
+    y_bottom = y0 - fila_alto * (n - 1) - 8
     msp.add_line((margen_izq, y_top), (margen_izq, y_bottom))
     msp.add_text("EMBARRADO", dxfattribs={"height": 2}).set_placement((margen_izq - 2, y_top + 2))
 
@@ -1435,7 +1522,12 @@ def generar_dxf_unifilar(circuitos: list) -> bytes:
         msp.add_text(circuito["nombre"], dxfattribs={"height": 2.2}).set_placement((margen_izq + 1, y + 3))
         for j, simbolo in enumerate(circuito["elementos"]):
             cx = margen_izq + paso * (j + 1)
-            _dxf_simbolo(msp, simbolo, cx, y)
+            _dxf_desde_geometria(msp, _geometria_simbolo(simbolo), cx, y)
+            msp.add_text(_CODIGOS_SIMBOLO.get(simbolo, "?"), dxfattribs={"height": 1.6}).set_placement(
+                (cx - 2, y - 6))
+        if circuito.get("potencia_kw"):
+            msp.add_text(_etiqueta_calculo_circuito(circuito), dxfattribs={"height": 1.8}).set_placement(
+                (margen_izq + 1, y - 9))
 
     buffer = io.StringIO()
     doc.write(buffer, fmt="asc")
@@ -1897,16 +1989,37 @@ def _render_presupuesto(inp: dict, res: dict):
 def _render_esquema_unifilar():
     st.markdown('<p class="section-label">Esquema unifilar</p>', unsafe_allow_html=True)
     st.caption(
-        "Constructor por bloques: añade símbolos a cada circuito con los botones (no hay arrastre libre "
-        "con el ratón — Streamlit no soporta eso de forma fiable sin un componente JS aparte — pero el "
-        "resultado de diseño es el mismo). La vista previa es exactamente lo que se exporta a DXF."
+        "Constructor por bloques con cálculo integrado (al estilo Caneco/DMELECT): defines la potencia de "
+        "cada circuito y la app calcula Ib, sección y calibre con el mismo motor que la pestaña Calculadora, "
+        "y los etiqueta sobre el esquema. Símbolos con la construcción normativa UNE-EN 60617 (cuchilla de "
+        "seccionamiento + disparador para los interruptores automáticos, toroide para el diferencial, bobina "
+        "para el contactor...). No hay arrastre libre con el ratón — Streamlit no lo soporta de forma fiable "
+        "sin un componente JS aparte — se añade por botones, pero el resultado de diseño es el mismo. La "
+        "vista previa es exactamente lo que se exporta a DXF."
     )
 
     st.session_state.setdefault("circuitos_unifilar", [
         {"nombre": "C1 - Alumbrado", "elementos": ["Interruptor automático (magnetotérmico)",
-                                                     "Interruptor diferencial", "Lámpara / receptor"]},
+                                                     "Interruptor diferencial", "Lámpara / receptor"],
+         "potencia_kw": 2.0, "cos_phi": 0.95, "longitud": 25.0, "sistema": SISTEMA_MONO},
     ])
     circuitos = st.session_state["circuitos_unifilar"]
+
+    with st.expander("⚡ Origen del cuadro (IGA)", expanded=True):
+        oc1, oc2 = st.columns(2)
+        potencia_total_defecto = round(sum(c.get("potencia_kw", 0) for c in circuitos), 2)
+        with oc1:
+            potencia_total = st.number_input(
+                "Potencia total prevista (kW)", min_value=0.0, value=potencia_total_defecto, step=0.5,
+                help="Por defecto, suma de la potencia de todos los circuitos del esquema.")
+        with oc2:
+            sistema_origen = st.selectbox("Sistema en cabecera", [SISTEMA_MONO, SISTEMA_TRI],
+                                           index=1, key="sistema_origen_iga")
+        iga_calibre = None
+        if potencia_total > 0:
+            r_iga = calculo_rapido_circuito(potencia_total, 0.9, 1.0, sistema_origen)
+            iga_calibre = r_iga["calibre_magnetotermico"]
+            st.markdown(f"**IGA sugerido: {iga_calibre} A**  (Ib ≈ {r_iga['ib_calculo']:.1f} A, cos φ=0,9 orientativo)")
 
     nc1, nc2 = st.columns([3, 1])
     with nc1:
@@ -1915,7 +2028,8 @@ def _render_esquema_unifilar():
     with nc2:
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("➕ Nuevo circuito"):
-            circuitos.append({"nombre": nuevo_nombre, "elementos": []})
+            circuitos.append({"nombre": nuevo_nombre, "elementos": [], "potencia_kw": 1.0,
+                               "cos_phi": 0.9, "longitud": 15.0, "sistema": SISTEMA_MONO})
             st.rerun()
 
     for idx, circuito in enumerate(circuitos):
@@ -1925,6 +2039,28 @@ def _render_esquema_unifilar():
             if tc2.button("🗑️", key=f"del_circuito_{idx}", help="Eliminar circuito"):
                 circuitos.pop(idx)
                 st.rerun()
+
+            cc1, cc2, cc3, cc4 = st.columns(4)
+            with cc1:
+                circuito["potencia_kw"] = st.number_input(
+                    "Potencia (kW)", min_value=0.0, value=float(circuito.get("potencia_kw", 1.0)),
+                    step=0.1, key=f"pot_{idx}")
+            with cc2:
+                circuito["cos_phi"] = st.number_input(
+                    "cos φ", min_value=0.1, max_value=1.0, value=float(circuito.get("cos_phi", 0.9)),
+                    step=0.01, key=f"cosphi_{idx}")
+            with cc3:
+                circuito["longitud"] = st.number_input(
+                    "Longitud (m)", min_value=0.1, value=float(circuito.get("longitud", 15.0)),
+                    step=1.0, key=f"long_{idx}")
+            with cc4:
+                circuito["sistema"] = st.selectbox(
+                    "Sistema", [SISTEMA_MONO, SISTEMA_TRI],
+                    index=0 if circuito.get("sistema", SISTEMA_MONO) == SISTEMA_MONO else 1,
+                    key=f"sist_{idx}")
+
+            if circuito["potencia_kw"] > 0:
+                st.caption(f"→ {_etiqueta_calculo_circuito(circuito)}")
 
             ac1, ac2 = st.columns([3, 1])
             with ac1:
@@ -1953,12 +2089,14 @@ def _render_esquema_unifilar():
 
     st.markdown('<p class="section-label">Vista previa</p>', unsafe_allow_html=True)
     if circuitos:
-        st.markdown(construir_svg_unifilar(circuitos), unsafe_allow_html=True)
-        dxf_bytes = generar_dxf_unifilar(circuitos)
+        st.markdown(construir_svg_unifilar(circuitos, iga_calibre), unsafe_allow_html=True)
+        dxf_bytes = generar_dxf_unifilar(circuitos, iga_calibre)
         st.download_button("⬇️ Descargar esquema (DXF)", data=dxf_bytes, file_name="esquema_unifilar.dxf",
                             mime="application/dxf")
-        st.caption("DXF con líneas, símbolos simplificados y etiquetas de texto — abre en AutoCAD/ZWCAD "
-                   "para escalar, sustituir por bloques normalizados de tu biblioteca y maquetar el plano.")
+        st.caption("DXF con líneas, símbolos y etiquetas de cálculo — abre en AutoCAD/ZWCAD para escalar, "
+                   "sustituir por los bloques normalizados de tu biblioteca y maquetar el plano definitivo. "
+                   "El cálculo de cada circuito usa hipótesis estándar (Cu, PVC, tubo empotrado B1); para el "
+                   "cálculo definitivo de cada línea usa la pestaña Calculadora.")
     else:
         st.info("Añade al menos un circuito para ver la vista previa.")
 
