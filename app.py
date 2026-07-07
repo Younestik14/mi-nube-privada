@@ -1143,7 +1143,7 @@ def generar_pdf_memoria(inp: dict, res: dict, config_prof: dict = None) -> bytes
     from reportlab.lib.units import cm
     from reportlab.platypus import Table, TableStyle, Paragraph, Spacer
 
-    buffer, doc, cajetin, AZUL, colors, h2, h3, normal, h1, COBRE = _preparar_doc_pdf(
+    buffer, doc, cajetin, AZUL, colors, h2, h3, normal, h1, COBRE, lista_item = _preparar_doc_pdf(
         "MEMORIA DE CALCULO - SECCION DE CONDUCTORES",
         f"Circuito: {inp['tipo_circuito']}", {"titular": (config_prof or {}).get("empresa", "")}, config_prof)
     from reportlab.lib.styles import ParagraphStyle
@@ -1557,18 +1557,22 @@ def _preparar_doc_pdf(titulo: str, subtitulo: str, datos_proyecto: dict, config_
     COBRE = colors.HexColor("#b3711f")
     GRIS = colors.HexColor("#5a6472")
     buffer = io.BytesIO()
-    margin = 1.6 * _cm
+    margin = 1.8 * _cm
     cajetin_h = 2.6 * _cm
     doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=margin, rightMargin=margin,
-                              topMargin=margin + cajetin_h + 0.3 * _cm, bottomMargin=margin + 0.6 * _cm)
+                              topMargin=margin + cajetin_h + 0.4 * _cm, bottomMargin=margin + 0.7 * _cm)
     doc._numbered_canvas = _crear_numbered_canvas(margin)
     cajetin = _cajetin_generico(titulo, subtitulo, datos_proyecto, margin, cajetin_h, AZUL, COBRE, GRIS, config_prof)
     styles = getSampleStyleSheet()
-    h1 = ParagraphStyle("h1doc", parent=styles["Title"], textColor=AZUL, fontSize=20, spaceAfter=8)
-    h2 = ParagraphStyle("h2doc", parent=styles["Heading2"], textColor=AZUL, fontSize=12, spaceBefore=10, spaceAfter=4)
-    h3 = ParagraphStyle("h3doc", parent=styles["Heading3"], textColor=COBRE, fontSize=10.5, spaceBefore=8, spaceAfter=3)
-    normal = ParagraphStyle("normaldoc", parent=styles["Normal"], fontSize=9.3, leading=13.5)
-    return buffer, doc, cajetin, AZUL, colors, h2, h3, normal, h1, COBRE
+    h1 = ParagraphStyle("h1doc", parent=styles["Title"], textColor=AZUL, fontSize=20, spaceAfter=10)
+    h2 = ParagraphStyle("h2doc", parent=styles["Heading2"], textColor=AZUL, fontSize=12.5, spaceBefore=16,
+                         spaceAfter=7, keepWithNext=True, borderWidth=0, leading=15)
+    h3 = ParagraphStyle("h3doc", parent=styles["Heading3"], textColor=COBRE, fontSize=10.8, spaceBefore=11,
+                         spaceAfter=5, keepWithNext=True, leading=13)
+    normal = ParagraphStyle("normaldoc", parent=styles["Normal"], fontSize=9.4, leading=14, spaceAfter=6,
+                             alignment=4)  # 4 = TA_JUSTIFY
+    lista_item = ParagraphStyle("listaitem", parent=normal, leftIndent=10, spaceAfter=5, bulletIndent=0)
+    return buffer, doc, cajetin, AZUL, colors, h2, h3, normal, h1, COBRE, lista_item
 
 
 def generar_pdf_mtd(datos_proyecto: dict, inputs_cable: dict, resultado_cable: dict,
@@ -1576,7 +1580,7 @@ def generar_pdf_mtd(datos_proyecto: dict, inputs_cable: dict, resultado_cable: d
                      config_prof: dict = None) -> bytes:
     from reportlab.platypus import Table, TableStyle, Paragraph, Spacer, PageBreak
 
-    buffer, doc, cajetin, AZUL, colors, h2, h3, normal, h1, COBRE = _preparar_doc_pdf(
+    buffer, doc, cajetin, AZUL, colors, h2, h3, normal, h1, COBRE, lista_item = _preparar_doc_pdf(
         "MEMORIA TECNICA DE DISENO (MTD)", "REBT - ITC-BT-04", datos_proyecto, config_prof)
 
     hay_cable = resultado_cable.get("seccion_final") is not None
@@ -1643,8 +1647,32 @@ def generar_pdf_mtd(datos_proyecto: dict, inputs_cable: dict, resultado_cable: d
         "recogidas en el apartado 3 de la ITC-BT-04 que no requieren de Proyecto firmado por técnico "
         "titulado competente.", normal))
 
+    story.append(Paragraph("D.2 Acometida", h3))
+    story.append(Paragraph(
+        "Es la parte de la instalación de la red de distribución que alimenta la caja general de protección "
+        "o unidad funcional equivalente, regulada por la ITC-BT-11. Según su trazado podrá ser aérea posada "
+        "sobre fachada, aérea tensada sobre postes, subterránea o aero-subterránea; en cualquier caso los "
+        "cables serán aislados, de tensión asignada no inferior a 0,6/1 kV. La acometida forma parte de la "
+        "instalación de la empresa distribuidora, por lo que su diseño se ajustará a las normas particulares "
+        "de esta.", normal))
+
+    story.append(Paragraph("D.3 Instalaciones de enlace", h3))
+    story.append(Paragraph(
+        "<b>Caja de Protección y Medida (CPM).</b> Para suministros a un único usuario, al no existir línea "
+        "general de alimentación, se instala un único elemento que agrupa la caja general de protección y "
+        "el equipo de medida (ITC-BT-13). Se ubicará en fachada, en lugar de libre y permanente acceso, "
+        "alojada en nicho con puerta de grado de protección IK10, e incluirá los fusibles de seguridad "
+        "correspondientes en todos los conductores de fase.", normal))
+    story.append(Paragraph(
+        "<b>Derivación individual.</b> Parte de la instalación que, desde la CPM, suministra energía "
+        "eléctrica al usuario, comprendiendo fusibles de seguridad, conjunto de medida y dispositivos "
+        "generales de mando y protección (ITC-BT-15). Los conductores serán de cobre o aluminio, aislados, "
+        "de tensión asignada mínima 450/750 V (0,6/1 kV para multiconductores o tubo enterrado), con sección "
+        "mínima de 6 mm² para fases, neutro y protección. La caída de tensión máxima admisible es del 1,5% "
+        "cuando no existe línea general de alimentación.", normal))
+
     if hay_cable:
-        story.append(Paragraph("D.2 Instalación de baja tensión calculada", h3))
+        story.append(Paragraph("D.4 Instalación de baja tensión calculada", h3))
         story.append(Paragraph(f"Circuito de referencia: <b>{inputs_cable['tipo_circuito']}</b>.", normal))
         story.append(tabla([
             ["Concepto", "Valor"],
@@ -1664,37 +1692,93 @@ def generar_pdf_mtd(datos_proyecto: dict, inputs_cable: dict, resultado_cable: d
             "directos e indirectos), garantizando la selectividad y el poder de corte necesarios frente a la "
             "intensidad de cortocircuito prevista en el punto de instalación.", normal))
     else:
-        story.append(Paragraph("D.2 Instalación de baja tensión", h3))
+        story.append(Paragraph("D.4 Instalación de baja tensión", h3))
         story.append(Paragraph("No se ha completado ningún cálculo de circuito en la pestaña Calculadora; "
                                 "esta sección se completará cuando se disponga de esos datos.", normal))
 
-    story.append(Paragraph("D.3 Cuadro general de mando y protección", h3))
+    story.append(Paragraph("D.5 Cuadro general de mando y protección", h3))
     story.append(Paragraph(
         "El cuadro general de mando y protección aloja, como mínimo: un interruptor general automático "
-        "(IGA) de corte omnipolar, un interruptor diferencial general (o varios, según la previsión de "
-        "cargas) y los interruptores automáticos individuales de cada circuito derivado, coordinados entre "
-        "sí para garantizar la selectividad. Se recomienda la instalación de un dispositivo de protección "
-        "contra sobretensiones (DPS) en cabecera cuando la acometida sea aérea o exista riesgo de "
-        "sobretensiones de origen atmosférico (ITC-BT-23).", normal))
+        "(IGA) de corte omnipolar, con poder de corte suficiente para la intensidad de cortocircuito "
+        "prevista (4,5 kA como mínimo en vivienda), que permita su accionamiento manual; un interruptor "
+        "diferencial general (o varios, según la previsión de cargas), destinado a la protección contra "
+        "contactos indirectos de todos los circuitos; y los interruptores automáticos individuales de cada "
+        "circuito derivado, coordinados entre sí para garantizar la selectividad. La altura de los "
+        "dispositivos, medida desde el suelo, estará comprendida entre 1 y 2 m. Se recomienda la instalación "
+        "de un dispositivo de protección contra sobretensiones (DPS) en cabecera cuando la acometida sea "
+        "aérea o exista riesgo de sobretensiones de origen atmosférico (ITC-BT-23).", normal))
 
-    story.append(Paragraph("D.4 Instalación interior. Canalizaciones", h3))
+    story.append(Paragraph("D.6 Conductores: materiales, dimensionado e identificación", h3))
+    story.append(Paragraph(
+        "Los conductores serán de cobre o aluminio, siempre aislados, con tensión asignada no inferior a "
+        "450/750 V. La sección se determina por el criterio más desfavorable entre intensidad máxima "
+        "admisible (ITC-BT-19) y caída de tensión (3% alumbrado / 5% otros usos en instalación interior; "
+        "1,5% en derivación individual sin LGA), tal y como se desarrolla en el Anexo de Cálculos. Salvo "
+        "justificación por cálculo, la sección del conductor neutro será como mínimo igual a la de las "
+        "fases, para tener en cuenta las corrientes armónicas de cargas no lineales. La identificación de "
+        "los conductores se realiza por el color de su aislamiento: azul claro para el neutro, "
+        "verde-amarillo exclusivamente para el conductor de protección, y marrón, negro o gris para las "
+        "fases.", normal))
+
+    story.append(Paragraph("D.7 Subdivisión, equilibrado de cargas y conexiones", h3))
+    story.append(Paragraph(
+        "La instalación se subdivide en circuitos independientes y adecuadamente protegidos, de forma que "
+        "una avería en un punto afecte solo a una parte de la instalación, facilitando además las "
+        "verificaciones y el mantenimiento. Se procurará mantener el mayor equilibrio posible de cargas "
+        "entre fases. Las conexiones entre conductores se realizan siempre en el interior de cajas de "
+        "empalme mediante bornes de conexión, regletas o sistemas equivalentes, sin permitirse la unión por "
+        "simple retorcimiento.", normal))
+
+    story.append(Paragraph("D.8 Sistemas de instalación (canalizaciones)", h3))
     metodo_txt = inputs_cable.get("metodo", "") if hay_cable else ""
     story.append(Paragraph(
         f"El sistema de canalización empleado se corresponde con el tipo {metodo_txt or '[a determinar]'} "
         "según la clasificación de la ITC-BT-19 y la norma UNE-HD 60364-5-52, seleccionado en función de "
         "las influencias externas del emplazamiento (humedad, temperatura, riesgo mecánico) conforme a la "
-        "clasificación de la norma UNE 20460-3.", normal))
+        "clasificación de la norma UNE 20460-3. Las características mínimas de los tubos protectores "
+        "(resistencia a la compresión, al impacto y rango de temperatura de servicio) se detallan en el "
+        "Pliego de Condiciones Técnicas, apartado 15, en función de si la instalación es superficial, "
+        "empotrada o enterrada.", normal))
 
-    story.append(Paragraph("D.5 Puesta a tierra", h3))
+    story.append(Paragraph("D.9 Protección contra sobreintensidades y sobretensiones", h3))
+    story.append(Paragraph(
+        "Todo circuito está protegido contra sobrecargas mediante interruptor automático con curva térmica "
+        "de corte, y contra cortocircuitos mediante dispositivo cuya capacidad de corte es acorde con la "
+        "intensidad de cortocircuito que puede presentarse en su punto de conexión (ITC-BT-22). Cuando la "
+        "instalación se alimenta, en todo o en parte, por una línea aérea, o se opta por una protección "
+        "adicional, se instala protección contra sobretensiones transitorias de origen atmosférico "
+        "(ITC-BT-23), seleccionada según la categoría de sobretensión soportada por los equipos:", normal))
+    story.append(tabla([
+        ["Categoría", "Tensión soportada a impulsos 230/400V", "Equipos típicos"],
+        ["IV", "6 kV", "Contadores, equipos principales de protección, origen de la instalación"],
+        ["III", "4 kV", "Cuadros de distribución, aparamenta fija, canalizaciones"],
+        ["II", "2,5 kV", "Electrodomésticos, herramientas portátiles"],
+        ["I", "1,5 kV", "Equipos electrónicos muy sensibles"],
+    ], colw=(2.2, 5.3, 8.5)))
+
+    story.append(Paragraph("D.10 Protección contra contactos directos e indirectos", h3))
+    story.append(Paragraph(
+        "La protección contra contactos directos se confía al aislamiento de las partes activas y, "
+        "complementariamente, a interruptores diferenciales de sensibilidad no superior a 30 mA. La "
+        "protección contra contactos indirectos se realiza mediante corte automático de la alimentación: "
+        "todas las masas protegidas por un mismo dispositivo se interconectan a un mismo conductor de "
+        "protección y toma de tierra, cumpliéndose la condición Ra·Ia ≤ U (siendo U la tensión de contacto "
+        "límite convencional: 50 V en locales secos, 24 V en locales húmedos).", normal))
+
+    story.append(Paragraph("D.11 Puesta a tierra", h3))
     story.append(Paragraph(
         "La puesta a tierra de la instalación se ejecutará conforme a la ITC-BT-18, mediante electrodo(s) "
         "(picas y/o conductor enterrado) conectado al borne principal de tierra, del que partirá el "
         "conductor de protección hacia todas las masas metálicas de la instalación. La resistencia de tierra "
         "resultante será compatible con la sensibilidad de las protecciones diferenciales instaladas, de "
-        "forma que la tensión de contacto no supere los límites de seguridad de la ITC-BT-24.", normal))
+        "forma que la tensión de contacto no supere los límites de seguridad de la ITC-BT-24. La instalación "
+        "de puesta a tierra se comprobará, como mínimo, en el momento de dar de alta la instalación y "
+        "periódicamente por personal técnicamente competente.", normal))
 
+    contador_d = 11
     if hay_fv:
-        story.append(Paragraph("D.6 Instalación generadora fotovoltaica", h3))
+        contador_d += 1
+        story.append(Paragraph(f"D.{contador_d} Instalación generadora fotovoltaica", h3))
         story.append(tabla([
             ["Concepto", "Valor"],
             ["Modalidad de autoconsumo (RD 244/2019)", inputs_fv["tipo_autoconsumo"]],
@@ -1713,12 +1797,34 @@ def generar_pdf_mtd(datos_proyecto: dict, inputs_cable: dict, resultado_cable: d
                                 "las protecciones diferenciales necesarias, y de un mecanismo antivertido si "
                                 "la modalidad es sin excedentes, conforme al Anexo I de la ITC-BT-40.", normal))
 
-    story.append(Paragraph("D.7 Influencias externas", h3))
+    contador_d += 1
+    story.append(Paragraph(f"D.{contador_d} Receptores de alumbrado", h3))
+    story.append(Paragraph(
+        "Las luminarias empleadas cumplen los requisitos de la serie de normas UNE-EN 60598. Sus partes "
+        "metálicas accesibles, cuando no son de Clase II o III, disponen de conexión al conductor de "
+        "protección. Si se emplean receptores con lámparas de descarga, se prevé una carga mínima de 1,8 "
+        "veces la potencia en vatios de las lámparas (ITC-BT-44) y la compensación del factor de potencia "
+        "hasta un valor mínimo de 0,9.", normal))
+
+    if hay_cable and inputs_cable.get("es_motor"):
+        contador_d += 1
+        story.append(Paragraph(f"D.{contador_d} Receptores a motor", h3))
+        story.append(Paragraph(
+            "El circuito calculado corresponde a un receptor a motor. Conforme a la ITC-BT-47, el conductor "
+            "de conexión se ha dimensionado para el 125% de la intensidad a plena carga cuando se trata de "
+            "un motor único, o para el 125% del motor de mayor potencia más el 100% del resto cuando "
+            "alimenta a varios motores. El motor dispone de protección contra cortocircuitos y sobrecargas "
+            "en todas sus fases, y contra la falta de tensión cuando su arranque espontáneo pudiera provocar "
+            "accidentes o perjudicar el equipo.", normal))
+
+    contador_d += 1
+    story.append(Paragraph(f"D.{contador_d} Influencias externas", h3))
     story.append(Paragraph(
         "Salvo indicación expresa en contrario, se considera que el emplazamiento presenta condiciones "
         "ambientales normales (AD1, AA4, BA1 según UNE 20460-3), sin riesgo de incendio ni explosión, por lo "
         "que no son de aplicación las prescripciones adicionales de la ITC-BT-29 para locales de "
         "características especiales.", normal))
+
 
     # ---------------------------------------------------------------- E. Memoria Justificativa
     story.append(PageBreak())
@@ -2015,7 +2121,7 @@ def generar_pdf_anexo_calculos(datos_proyecto: dict, inputs_cable: dict, resulta
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.enums import TA_CENTER
 
-    buffer, doc, cajetin, AZUL, colors, h2, h3, normal, h1, COBRE = _preparar_doc_pdf(
+    buffer, doc, cajetin, AZUL, colors, h2, h3, normal, h1, COBRE, lista_item = _preparar_doc_pdf(
         "ANEXO DE CALCULOS Y MEDICIONES", "Justificacion tecnica y mediciones", datos_proyecto, config_prof)
     formula = ParagraphStyle("formula", parent=normal, alignment=TA_CENTER, textColor=COBRE,
                               fontSize=10, leading=15, spaceBefore=4, spaceAfter=8)
@@ -2048,26 +2154,40 @@ def generar_pdf_anexo_calculos(datos_proyecto: dict, inputs_cable: dict, resulta
     story.append(Paragraph("2. Mediciones", h2))
     story.append(Paragraph(
         "Relación de unidades de obra y materiales, agrupadas por capítulo, que dan origen al Presupuesto "
-        "de la instalación:", normal))
+        "de la instalación. El precio unitario (Pu) incluye ya el beneficio industrial y la amortización de "
+        "medios auxiliares aplicados en el documento de Presupuesto.", normal))
     if capitulos_presupuesto:
         for cap in capitulos_presupuesto:
             if not cap["items"]:
                 continue
             story.append(Paragraph(cap["nombre"], h3))
-            filas = [["Partida", "Designación", "Ud.", "Cantidad"]]
+            filas = [["Partida", "Designación", "Ud.", "Cantidad", "Pu (€)", "Importe (€)"]]
+            total_cap = 0.0
             for it in cap["items"]:
-                filas.append([it.get("partida", "-"), it["designacion"][:70], it["unidades"], f"{it['cantidad']:g}"])
-            t = Table(filas, colWidths=[1.6 * _cm, 9.5 * _cm, 1.5 * _cm, 2.4 * _cm])
+                pu = calcular_precio_venta(it["precio_base"], pct_beneficio, pct_amortizacion)
+                importe = round(it["cantidad"] * pu, 2)
+                total_cap += importe
+                filas.append([it.get("partida", "-"), it["designacion"][:62], it["unidades"],
+                              f"{it['cantidad']:g}", f"{pu:,.2f}".replace(",", "."),
+                              f"{importe:,.2f}".replace(",", ".")])
+            filas.append(["", "", "", "", "TOTAL", f"{total_cap:,.2f} €".replace(",", ".")])
+            t = Table(filas, colWidths=[1.5 * _cm, 6.8 * _cm, 1.3 * _cm, 1.9 * _cm, 2.1 * _cm, 2.4 * _cm],
+                      repeatRows=1)
             t.setStyle(TableStyle([
-                ("FONTSIZE", (0, 0), (-1, -1), 8), ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#c9ccd1")),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("BACKGROUND", (0, 0), (-1, 0), AZUL),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white), ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 7.8), ("GRID", (0, 0), (-1, -2), 0.4, colors.HexColor("#c9ccd1")),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("ALIGN", (3, 0), (-1, -1), "RIGHT"),
+                ("TOPPADDING", (0, 0), (-1, -1), 3.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 3.5),
+                ("BACKGROUND", (0, 0), (-1, 0), AZUL), ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTNAME", (4, -1), (-1, -1), "Helvetica-Bold"), ("TEXTCOLOR", (4, -1), (-1, -1), COBRE),
+                ("LINEABOVE", (0, -1), (-1, -1), 0.8, COBRE),
             ]))
             story.append(t)
-        story.append(Spacer(1, 6))
-        story.append(Paragraph(f"Porcentajes aplicados en el presupuesto: Beneficio industrial {pct_beneficio:g}%, "
-                                f"Amortización de medios auxiliares {pct_amortizacion:g}%. El desglose económico "
-                                "completo (precios y totales) se encuentra en el documento de Presupuesto.", normal))
+            story.append(Spacer(1, 4))
+        story.append(Paragraph(f"Porcentajes aplicados: Beneficio industrial {pct_beneficio:g}%, "
+                                f"Amortización de medios auxiliares {pct_amortizacion:g}%. El desglose "
+                                "económico completo, con IVA y capítulos agrupados, se encuentra en el "
+                                "documento de Presupuesto.", normal))
     else:
         story.append(Paragraph("No se han definido capítulos en la pestaña Presupuesto.", normal))
 
@@ -2082,134 +2202,330 @@ def generar_pdf_anexo_calculos(datos_proyecto: dict, inputs_cable: dict, resulta
 
 
 def generar_pdf_condiciones_generales(datos_proyecto: dict, hay_fv: bool, config_prof: dict = None) -> bytes:
-    from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
+    from reportlab.platypus import Paragraph, Spacer, Table, TableStyle, PageBreak
     from reportlab.lib.units import cm as _cm
 
-    buffer, doc, cajetin, AZUL, colors, h2, h3, normal, h1, COBRE = _preparar_doc_pdf(
-        "PLIEGO DE CONDICIONES GENERALES", "Materiales, ejecución, pruebas y mantenimiento", datos_proyecto,
+    buffer, doc, cajetin, AZUL, colors, h2, h3, normal, h1, COBRE, lista_item = _preparar_doc_pdf(
+        "PLIEGO DE CONDICIONES", "Facultativas, económicas y técnicas particulares", datos_proyecto,
         config_prof)
 
-    def lista(items, style=normal):
-        return [Paragraph("• " + t, style) for t in items]
+    def lista(items, style=None):
+        return [Paragraph("• " + t, style or lista_item) for t in items]
 
-    def tabla(datos, colw=(6.0, 5.0, 5.0)):
-        t = Table(datos, colWidths=[c * _cm for c in colw])
+    def tabla(datos, colw=(6.0, 5.0, 5.0), fuente=8.3):
+        t = Table(datos, colWidths=[c * _cm for c in colw], repeatRows=1)
         t.setStyle(TableStyle([
-            ("FONTSIZE", (0, 0), (-1, -1), 8.5), ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#c9ccd1")),
+            ("FONTSIZE", (0, 0), (-1, -1), fuente), ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#c9ccd1")),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("LEFTPADDING", (0, 0), (-1, -1), 6),
-            ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("TOPPADDING", (0, 0), (-1, -1), 4.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 4.5),
             ("BACKGROUND", (0, 0), (-1, 0), AZUL), ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
             ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
         ]))
         return t
 
-    story = _bloque_portada("Pliego de Condiciones Generales", "Materiales, ejecución, pruebas y mantenimiento",
+    story = _bloque_portada("Pliego de Condiciones", "Facultativas, económicas y técnicas particulares",
                              datos_proyecto, config_prof, AZUL, COBRE, colors, h1, normal)
-    story.append(Paragraph("1. Objeto y alcance", h2))
-    story.append(Paragraph(
-        "El presente Pliego de Condiciones Generales establece las prescripciones técnicas mínimas que "
-        "deben cumplir los materiales, la ejecución, las pruebas y la puesta en servicio de la instalación "
-        "eléctrica objeto de la Memoria Técnica de Diseño y su Anexo de Cálculos, sin perjuicio de "
-        "condiciones particulares más restrictivas que pueda fijar la Dirección Facultativa, la empresa "
-        "distribuidora o las ordenanzas municipales y autonómicas de aplicación.", normal))
 
-    story.append(Paragraph("2. Normativa de aplicación", h2))
+    story.append(Paragraph("0. Objeto y alcance", h2))
+    story.append(Paragraph(
+        "El presente Pliego de Condiciones establece las prescripciones facultativas, económicas y técnicas "
+        "particulares que rigen la ejecución de la instalación eléctrica descrita en la Memoria Técnica de "
+        "Diseño y su Anexo de Cálculos, sin perjuicio de condiciones particulares más restrictivas que pueda "
+        "fijar la Dirección Facultativa, la empresa distribuidora o las ordenanzas municipales y autonómicas "
+        "de aplicación. Se estructura en tres partes: condiciones facultativas (relaciones entre los agentes "
+        "que intervienen en la obra), condiciones económicas (valoración y abono de los trabajos) y "
+        "condiciones técnicas particulares de la instalación eléctrica de baja tensión.", normal))
+
+    story.append(Paragraph("1. Normativa de aplicación", h2))
     story.extend(lista([
         "Reglamento Electrotécnico para Baja Tensión (REBT), Real Decreto 842/2002, y sus Instrucciones "
         "Técnicas Complementarias (ITC-BT-01 a ITC-BT-53).",
         "Normas UNE armonizadas de materiales, cables (UNE-EN 50525, UNE-HD 60364-5-52) y aparamenta "
-        "(UNE-EN 60898, UNE-EN 61008/61009).",
+        "(UNE-EN 60898, UNE-EN 61008/61009, UNE-EN 61439).",
         "Real Decreto 244/2019, condiciones administrativas, técnicas y económicas del autoconsumo de "
         "energía eléctrica (cuando la instalación incluya generación fotovoltaica).",
-        "Código Técnico de la Edificación (CTE), en lo relativo a eficiencia energética (DB-HE) y "
-        "seguridad en caso de incendio (DB-SI), cuando resulte de aplicación.",
-        "Ordenanzas municipales y normas particulares de la empresa distribuidora de energía eléctrica.",
+        "Ley 31/1995 de Prevención de Riesgos Laborales y Real Decreto 1627/1997 sobre disposiciones "
+        "mínimas de seguridad y salud en las obras de construcción.",
+        "Código Técnico de la Edificación y ordenanzas municipales o autonómicas que resulten de aplicación.",
     ]))
 
-    story.append(Paragraph("3. Condiciones de los materiales", h2))
-    story.append(Paragraph("3.1 Conductores y cables", h3))
+    # ============================================================ PARTE I
+    story.append(PageBreak())
+    story.append(Paragraph("PARTE I — CONDICIONES FACULTATIVAS", h1))
+
+    story.append(Paragraph("2. Técnico director / instalador autorizado", h2))
+    story.append(Paragraph("Corresponde al técnico director o instalador autorizado que suscribe la "
+                            "documentación técnica:", normal))
     story.extend(lista([
-        "Serán de cobre electrolítico (salvo justificación expresa de aluminio en líneas de gran sección), "
-        "con aislamiento y cubierta adecuados al método de instalación definido en el Anexo de Cálculos "
-        "(PVC 450/750V para instalación interior, XLPE/EPR 0,6/1kV para acometidas, derivaciones "
-        "individuales e instalación fotovoltaica).",
-        "La identificación de conductores por color será: azul claro para el neutro, verde-amarillo "
-        "exclusivamente para el conductor de protección, y marrón/negro/gris para las fases (ITC-BT-19, "
-        "UNE 21089).",
-        "Los radios de curvatura mínimos y las tracciones máximas admisibles durante el tendido serán los "
-        "indicados por el fabricante del cable; no se admitirán empalmes salvo en cajas de registro "
-        "accesibles.",
-    ]))
-    story.append(Paragraph("3.2 Canalizaciones", h3))
-    story.extend(lista([
-        "Los tubos protectores (metálicos, PVC rígido o corrugado) cumplirán la norma UNE-EN 61386, con el "
-        "grado de protección IP adecuado al local (ITC-BT-30) y un diámetro tal que permita la incorporación "
-        "de conductores adicionales según la ITC-BT-21.",
-        "Las bandejas y canales portacables cumplirán la norma UNE-EN 61537, con la anchura y el grado de "
-        "ocupación indicados en el Anexo de Cálculos, dejando un margen mínimo del 20% para ampliaciones.",
-    ]))
-    story.append(Paragraph("3.3 Aparamenta de mando y protección", h3))
-    story.extend(lista([
-        "Los interruptores automáticos (PIA) cumplirán la norma UNE-EN 60898, con un poder de corte no "
-        "inferior a la intensidad de cortocircuito prevista en su punto de instalación.",
-        "Los interruptores diferenciales cumplirán la norma UNE-EN 61008/61009, siendo de tipo A o "
-        "superinmunizado en circuitos con receptores electrónicos o variadores de frecuencia, y de tipo B "
-        "en instalaciones fotovoltaicas cuando el inversor no garantice por diseño la ausencia de "
-        "componente continua de defecto (ITC-BT-24, guía UNE-HD 60364-5-53).",
-        "Todo el material de protección dispondrá del marcado CE y ficha técnica que acredite sus "
-        "características (intensidad nominal, poder de corte, curva de disparo, sensibilidad).",
-    ]))
-    story.append(Paragraph("3.4 Cuadros, mecanismos y receptores", h3))
-    story.extend(lista([
-        "Los cuadros eléctricos serán de material aislante autoextinguible o metálicos con puesta a tierra, "
-        "con grado de protección IP adecuado a su ubicación, y dispondrán de espacio de reserva no inferior "
-        "al 20% de los módulos instalados.",
-        "Los mecanismos (interruptores, bases de enchufe, tomas industriales) cumplirán las normas UNE-EN "
-        "60669 y UNE-EN 60309 según corresponda, con el grado de protección exigido en locales húmedos o "
-        "exteriores (mínimo IP44).",
+        "Redactar los complementos o rectificaciones del proyecto o memoria que se precisen.",
+        "Asistir a la obra cuantas veces lo requiera su naturaleza, resolviendo las incidencias que se "
+        "produzcan e impartiendo las órdenes complementarias necesarias.",
+        "Efectuar o supervisar el replanteo de la instalación.",
+        "Comprobar las instalaciones provisionales, medios auxiliares y condiciones de seguridad y salud.",
+        "Ordenar y dirigir la ejecución material con arreglo al proyecto, a las normas técnicas y a las "
+        "reglas de la buena práctica constructiva.",
+        "Realizar o disponer las pruebas y verificaciones de materiales e instalaciones necesarias para "
+        "asegurar la calidad de la ejecución.",
+        "Suscribir el Certificado de Instalación Eléctrica (CIE) o el certificado final que corresponda.",
     ]))
 
-    story.append(Paragraph("4. Condiciones de ejecución", h2))
+    story.append(Paragraph("3. Constructor o instalador", h2))
+    story.append(Paragraph("Corresponde al constructor o instalador:", normal))
     story.extend(lista([
-        "La instalación será ejecutada por instalador eléctrico autorizado en la categoría correspondiente, "
-        "o bajo la dirección de técnico titulado competente, siguiendo el orden y las prescripciones de la "
-        "ITC-BT-19 (prescripciones generales de instalaciones interiores).",
-        "Las canalizaciones se dispondrán separadas de otras instalaciones no eléctricas (agua, gas, "
-        "calefacción, telecomunicaciones) según las distancias mínimas de la ITC-BT-20/21, y de forma que "
-        "permitan su identificación, ampliación y mantenimiento.",
-        "Los circuitos se identificarán en el cuadro mediante etiquetas indelebles, indicando el receptor o "
-        "zona que alimentan y su calibre de protección.",
-        "En instalaciones con más de un cuadro secundario, se levantará un diagrama de bloques que refleje "
-        "la relación de dependencia entre ellos, conforme al modelo oficial de MTD.",
-        "Toda modificación respecto a lo indicado en la Memoria y el Anexo de Cálculos deberá quedar "
-        "reflejada en la documentación 'as built' entregada al titular.",
+        "Organizar los trabajos y disponer las instalaciones provisionales y medios auxiliares necesarios.",
+        "Elaborar, cuando se requiera, el Plan de Seguridad y Salud en aplicación del estudio "
+        "correspondiente, velando por su cumplimiento.",
+        "Ostentar la jefatura del personal que intervenga en la obra y coordinar a los subcontratistas.",
+        "Asegurar la idoneidad de todos los materiales y elementos que se utilicen, rechazando los "
+        "suministros que no cuenten con las garantías o documentos de idoneidad exigidos.",
+        "Facilitar al técnico director, con antelación suficiente, los datos precisos para el cumplimiento "
+        "de su cometido.",
+        "Suscribir con el titular las actas de recepción provisional y definitiva de la instalación.",
     ]))
+
+    story.append(Paragraph("4. Verificación de la documentación y replanteo", h2))
+    story.append(Paragraph(
+        "Antes de dar comienzo a los trabajos, el instalador consignará por escrito que la documentación "
+        "aportada (Memoria, Anexo de Cálculos, planos si los hubiera) le resulta suficiente para la "
+        "comprensión de la totalidad de la instalación contratada o, en caso contrario, solicitará las "
+        "aclaraciones pertinentes al técnico director. El instalador iniciará los trabajos con el replanteo "
+        "de la instalación, sometiéndolo a la aprobación del técnico director cuando este exista.", normal))
+
+    story.append(Paragraph("5. Orden y ritmo de ejecución de los trabajos", h2))
+    story.append(Paragraph(
+        "La determinación del orden de los trabajos es, con carácter general, facultad del instalador, "
+        "salvo que por circunstancias de orden técnico convenga su variación a juicio de la Dirección "
+        "Facultativa. Los trabajos se desarrollarán de forma que la ejecución total se lleve a efecto dentro "
+        "del plazo acordado con el titular, comunicando el instalador el inicio de los trabajos con la "
+        "antelación que se acuerde.", normal))
+
+    story.append(Paragraph("6. Trabajos no estipulados expresamente y modificaciones", h2))
+    story.append(Paragraph(
+        "Es obligación del instalador ejecutar cuanto sea necesario para la buena ejecución de la "
+        "instalación, aun cuando no se halle expresamente detallado en la Memoria o el Anexo de Cálculos, "
+        "siempre que, sin apartarse de su espíritu, lo disponga el técnico director. Cualquier modificación "
+        "sobre lo proyectado deberá quedar reflejada por escrito y, en su caso, en la documentación "
+        "'as built' entregada al titular a la finalización de los trabajos.", normal))
+
+    story.append(Paragraph("7. Obras y conexiones ocultas", h2))
+    story.append(Paragraph(
+        "De todos los tramos de canalización y conexiones que hayan de quedar ocultos (empotrados, "
+        "enterrados o bajo falso techo) se levantará, si el titular lo requiere, croquis suficientemente "
+        "acotado antes de proceder a su cierre, de forma que quede constancia de su trazado para futuras "
+        "intervenciones o ampliaciones.", normal))
+
+    story.append(Paragraph("8. Trabajos defectuosos y vicios ocultos", h2))
+    story.append(Paragraph(
+        "El instalador es responsable de la ejecución de los trabajos contratados y de los defectos que en "
+        "ellos puedan existir por su mala gestión o por deficiente calidad de los materiales empleados, sin "
+        "que le exima de responsabilidad el hecho de que los trabajos hayan sido facturados o certificados a "
+        "buena cuenta. Si el técnico director advirtiese vicios o defectos, podrá disponer que las partes "
+        "defectuosas sean demolidas y reconstruidas de acuerdo con lo contratado, a costa del instalador.",
+        normal))
+
+    story.append(Paragraph("9. Recepción y plazo de garantía", h2))
+    story.append(Paragraph(
+        "Concluidos los trabajos y realizadas con resultado favorable las verificaciones descritas en el "
+        "apartado 24, se procederá a la recepción de la instalación por el titular. El instalador garantizará "
+        "la instalación frente a defectos de ejecución durante el plazo legal aplicable (con carácter "
+        "general, doce meses), sin perjuicio de las garantías comerciales de cada fabricante sobre los "
+        "equipos suministrados (aparamenta, luminarias, inversor, paneles, baterías). Durante dicho plazo, "
+        "el instalador corregirá a su cargo los defectos observados y reparará las averías que por causa "
+        "imputable a la ejecución se produjeran.", normal))
+
+    # ============================================================ PARTE II
+    story.append(PageBreak())
+    story.append(Paragraph("PARTE II — CONDICIONES ECONÓMICAS", h1))
+
+    story.append(Paragraph("10. Composición de precios y presupuesto", h2))
+    story.append(Paragraph(
+        "El precio de cada partida del Presupuesto resulta de sumar el precio base del material o unidad de "
+        "obra (coste directo) más los porcentajes de beneficio industrial y amortización de medios "
+        "auxiliares que se detallan en el propio documento de Presupuesto. El IVA se aplica sobre dicha "
+        "suma y no está incluido en los precios unitarios.", normal))
+
+    story.append(Paragraph("11. Certificaciones y forma de pago", h2))
+    story.append(Paragraph(
+        "Cuando así se acuerde entre las partes, el instalador podrá presentar relaciones valoradas de la "
+        "instalación ejecutada en los plazos que se establezcan, tomando como base las mediciones "
+        "practicadas y los precios del Presupuesto. Los pagos se efectuarán por el titular en los plazos "
+        "acordados, correspondiendo su importe al de las certificaciones o facturas conformadas.", normal))
+
+    story.append(Paragraph("12. Precios contradictorios y revisión de precios", h2))
+    story.append(Paragraph(
+        "Si durante la ejecución fuese necesario introducir unidades no previstas en el Presupuesto, se "
+        "fijará un precio contradictorio antes de su ejecución, tomando como referencia los precios más "
+        "análogos del propio Presupuesto o, en su defecto, precios de mercado de uso habitual en la zona. "
+        "Salvo pacto en contrario, no se admitirá revisión de precios sobre las unidades ya contratadas.",
+        normal))
+
+    story.append(Paragraph("13. Seguro y conservación de la instalación", h2))
+    story.append(Paragraph(
+        "Durante el plazo de garantía, la conservación de la instalación corresponderá al instalador salvo "
+        "que el titular la hubiese asumido expresamente. Se recomienda que la instalación quede cubierta por "
+        "un seguro de responsabilidad civil y daños a terceros durante la ejecución de los trabajos, a "
+        "suscribir por el instalador conforme a la normativa vigente.", normal))
+
+    # ============================================================ PARTE III
+    story.append(PageBreak())
+    story.append(Paragraph("PARTE III — CONDICIONES TÉCNICAS PARTICULARES", h1))
+    story.append(Paragraph("Ejecución y montaje de instalaciones eléctricas en baja tensión", normal))
+
+    story.append(Paragraph("14. Condiciones generales de los materiales", h2))
+    story.extend(lista([
+        "Todos los materiales serán de primera calidad y reunirán las condiciones exigidas por el REBT y "
+        "demás disposiciones vigentes, disponiendo del marcado CE cuando sea de aplicación.",
+        "Podrán ser sometidos a los análisis o pruebas que se crean necesarios para acreditar su calidad, "
+        "por cuenta del instalador.",
+        "Los materiales no consignados expresamente que den lugar a precios contradictorios reunirán las "
+        "condiciones de idoneidad necesarias a juicio de la Dirección Facultativa.",
+        "Todos los trabajos se ejecutarán esmeradamente, con arreglo a las buenas prácticas de las "
+        "instalaciones eléctricas, cumpliendo estrictamente el REBT y las instrucciones de la Dirección "
+        "Facultativa.",
+    ]))
+
+    story.append(Paragraph("15. Canalizaciones eléctricas", h2))
+    story.append(Paragraph(
+        "Los cables se colocarán bajo tubo, fijados directamente sobre paredes, enterrados, empotrados en "
+        "estructuras, en huecos de la construcción, bajo canales o molduras, o en bandeja, según se haya "
+        "definido en la Memoria y el Anexo de Cálculos. Antes de iniciar el tendido deberán estar ejecutados "
+        "los elementos estructurales que hayan de soportar o alojar la canalización.", normal))
+    story.append(Paragraph("15.1 Tubos protectores — características mínimas según norma UNE-EN 61386",
+                            h3))
+    story.append(tabla([
+        ["Tipo de instalación", "Resist. compresión", "Resist. impacto", "Temp. mín / máx"],
+        ["Superficie", "Fuerte (4)", "Media (3)", "-5 ºC / +60 ºC"],
+        ["Empotrado en obra de fábrica", "Ligera (2)", "Ligera (2)", "-5 ºC / +60 ºC"],
+        ["Empotrado embebido en hormigón", "Media (3)", "Media (3)", "-5 ºC / +90 ºC"],
+        ["Aéreo / flexible", "Fuerte (4)", "Media (3)", "-5 ºC / +60 ºC"],
+        ["Enterrado", "250-750 N según terreno", "Ligero-Normal", "No aplicable"],
+    ], colw=(5.5, 4.2, 3.8, 4.5)))
+    story.append(Paragraph(
+        "El diámetro exterior mínimo de los tubos, en función del número y sección de los conductores, se "
+        "obtendrá de las tablas de la ITC-BT-21. En tramos rectos los registros no distarán más de 15 m "
+        "entre sí, ni habrá más de 3 curvas entre dos registros consecutivos. Los tubos metálicos accesibles "
+        "se pondrán a tierra y no se emplearán como conductor de protección o de neutro.", normal))
+    story.append(Paragraph("15.2 Otros sistemas de canalización", h3))
+    story.extend(lista([
+        "Conductores fijados directamente sobre paredes: cables de tensión asignada no inferior a 0,6/1 kV, "
+        "fijados con bridas o abrazaderas a una distancia máxima de 0,40 m entre puntos de fijación.",
+        "Conductores enterrados: bajo tubo salvo que dispongan de cubierta y tensión asignada 0,6/1 kV, "
+        "según ITC-BT-07 e ITC-BT-21.",
+        "Conductores en bandeja: unipolares o multipolares con cubierta, bandeja de acero galvanizado con "
+        "ancho mínimo de 100 mm, sujeta de forma que no se produzcan flechas superiores a 10 mm.",
+        "Conductores bajo canal protectora: canal con grado de protección IP4X mínimo, tapa desmontable "
+        "solo con herramienta, conectada a la red de tierra si es metálica.",
+    ]))
+
+    story.append(Paragraph("16. Conductores", h2))
+    story.append(Paragraph(
+        "Los conductores serán de cobre (o aluminio cuando lo justifique el cálculo) y siempre aislados, con "
+        "tensión asignada no inferior a 450/750 V en instalación interior y 0,6/1 kV en acometidas, "
+        "derivaciones individuales, enterrados o instalación fotovoltaica. Los conductores de sección igual "
+        "o superior a 6 mm² estarán constituidos por cable trenzado de hilo de cobre.", normal))
+    story.append(Paragraph(
+        "La sección se determinará por el criterio más desfavorable entre intensidad máxima admisible "
+        "(ITC-BT-19, con los factores de corrección que procedan) y caída de tensión (3% alumbrado / 5% "
+        "otros usos en instalación interior; 1,5% en derivación individual sin LGA), según se desarrolla en "
+        "el Anexo de Cálculos. La sección del conductor neutro y del conductor de protección seguirán, "
+        "respectivamente, el criterio general del REBT y la tabla de la ITC-BT-18.", normal))
+    story.append(Paragraph(
+        "Identificación: neutro en azul claro, protección en verde-amarillo, fases en marrón, negro o gris. "
+        "Todo conductor de fase, o aquel para el que no se prevea su paso posterior a neutro, se identificará "
+        "con estos últimos colores.", normal))
+
+    story.append(Paragraph("17. Cajas de empalme y derivación", h2))
+    story.append(Paragraph(
+        "Las conexiones entre conductores se realizarán en el interior de cajas de material aislante no "
+        "propagador de la llama o metálicas protegidas contra la corrosión, de dimensiones suficientes para "
+        "alojar holgadamente los conductores que deban contener (profundidad mínima 40 mm, lado o diámetro "
+        "mínimo 60-80 mm según el tipo de instalación). No se permitirá la unión de conductores por simple "
+        "retorcimiento; se utilizarán siempre bornes de conexión, regletas o sistemas equivalentes.", normal))
+
+    story.append(Paragraph("18. Mecanismos y tomas de corriente", h2))
+    story.append(Paragraph(
+        "Los interruptores y conmutadores cortarán la corriente máxima del circuito sin formación de arco "
+        "permanente, serán de tipo cerrado y material aislante, y soportarán un mínimo de 10.000 maniobras "
+        "con su carga nominal. Las tomas de corriente dispondrán, como norma general, de puesta a tierra e "
+        "irán instaladas en caja empotrada, quedando al exterior únicamente el mando y la tapa "
+        "embellecedora.", normal))
+
+    story.append(Paragraph("19. Aparamenta de mando y protección", h2))
+    story.append(Paragraph("19.1 Cuadros eléctricos", h3))
+    story.append(Paragraph(
+        "Serán nuevos, diseñados para servicio interior, ensamblados y cableados en fábrica, con estructura "
+        "adecuada para montaje mural o sobre el suelo y grado de protección acorde a su ubicación (mínimo "
+        "IP 30 según UNE-EN 60529). Cada circuito de salida estará protegido contra sobrecargas y "
+        "cortocircuitos, y contra corrientes de defecto mediante diferencial de sensibilidad adecuada "
+        "(ITC-BT-24). Dispondrán de un espacio de reserva no inferior al 20% de los módulos instalados y "
+        "todos sus componentes serán accesibles desde el frente.", normal))
+    story.append(Paragraph("19.2 Interruptores automáticos, diferenciales y fusibles", h3))
+    story.extend(lista([
+        "Los interruptores automáticos (PIA) cumplirán la norma UNE-EN 60898, con poder de corte no "
+        "inferior a la intensidad de cortocircuito prevista en su punto de instalación, y curva térmica y "
+        "electromagnética adecuadas a la carga protegida.",
+        "Los interruptores diferenciales cumplirán UNE-EN 61008/61009, siendo de tipo A o superinmunizado "
+        "en circuitos con receptores electrónicos, y de tipo B en instalación fotovoltaica cuando el "
+        "inversor no garantice por diseño la ausencia de componente continua de defecto.",
+        "Los fusibles serán de alta capacidad de ruptura; de acción lenta en protección de motores y de "
+        "acción rápida en protección de circuitos de consumidores óhmicos. Se montarán de forma que no "
+        "pueda proyectarse metal fundido al fundirse.",
+        "Los guardamotores dispondrán de protección térmica de rearme manual, con relé de característica "
+        "retardada en arranques de larga duración.",
+    ]))
+    story.append(Paragraph("19.3 Seccionadores y embarrados", h3))
+    story.append(Paragraph(
+        "Los seccionadores serán de conexión y desconexión brusca, independiente de la acción del operador, "
+        "adecuados para abrir y cerrar la corriente nominal a tensión nominal. El embarrado principal "
+        "constará de barras de cobre electrolítico de alta conductividad para las fases y una barra "
+        "(seccionable) para el neutro, más una barra independiente de puesta a tierra.", normal))
+
+    story.append(Paragraph("20. Receptores de alumbrado", h2))
+    story.append(Paragraph(
+        "Las luminarias cumplirán la serie de normas UNE-EN 60598. Sus partes metálicas accesibles, si no "
+        "son de Clase II o III, dispondrán de conexión al conductor de protección. Para receptores con "
+        "lámparas de descarga, la carga mínima prevista será de 1,8 veces la potencia en vatios de las "
+        "lámparas (ITC-BT-44), siendo obligatoria la compensación del factor de potencia hasta un valor "
+        "mínimo de 0,9.", normal))
+
+    story.append(Paragraph("21. Receptores a motor", h2))
+    story.append(Paragraph(
+        "Los conductores de conexión de un motor único se dimensionarán para el 125% de su intensidad a "
+        "plena carga; si alimentan varios motores, para el 125% del de mayor potencia más el 100% del resto "
+        "(ITC-BT-47). Los motores estarán protegidos contra cortocircuitos y sobrecargas en todas sus fases "
+        "y, cuando proceda, contra la falta de tensión. Los motores de potencia superior a 0,75 kW estarán "
+        "provistos de dispositivo de arranque que limite la relación entre la corriente de arranque y la "
+        "nominal, conforme a la tabla de la ITC-BT-47 según su potencia.", normal))
+
+    story.append(Paragraph("22. Puesta a tierra", h2))
+    story.append(Paragraph(
+        "La puesta a tierra se ejecutará conforme a la ITC-BT-18, mediante electrodo o grupo de electrodos "
+        "(picas, placas o conductor enterrado) conectados al borne principal de tierra, del que partirá el "
+        "conductor de protección hacia todas las masas metálicas de la instalación. Los conductores de "
+        "tierra enterrados sin protección mecánica ni contra la corrosión serán de cobre de 25 mm² mínimo. "
+        "El valor de la resistencia de tierra será tal que ninguna masa pueda dar lugar a tensiones de "
+        "contacto superiores a 24 V en locales húmedos o conductores y 50 V en los demás casos, condición "
+        "que se verificará mediante la relación Ra·Ia ≤ U.", normal))
 
     if hay_fv:
-        story.append(Paragraph("5. Condiciones específicas de la instalación fotovoltaica", h2))
+        story.append(Paragraph("23. Condiciones específicas de la instalación fotovoltaica", h2))
         story.extend(lista([
-            "La instalación generadora cumplirá la ITC-BT-40 y el Real Decreto 244/2019, disponiendo de "
-            "dispositivos que limiten la inyección de corriente continua y la generación de sobretensiones, "
-            "e impidan el funcionamiento en isla de la red de distribución.",
+            "La instalación generadora cumplirá la ITC-BT-40 y el Real Decreto 244/2019 sobre condiciones "
+            "administrativas, técnicas y económicas del autoconsumo de energía eléctrica.",
             "Los cables de conexión (tramos CC y CA) se dimensionarán para una intensidad no inferior al "
             "125% de la intensidad máxima del generador, con una caída de tensión conjunta no superior al "
             "1,5% entre el generador y el punto de interconexión.",
             "Las instalaciones de autoconsumo sin excedentes dispondrán de un mecanismo antivertido conforme "
-            "al Anexo I de la ITC-BT-40, verificado según los ensayos allí establecidos.",
+            "al Anexo I de la ITC-BT-40.",
             "Los conectores del lado de corriente continua serán del tipo normalizado para aplicaciones "
-            "fotovoltaicas (p. ej. MC4), estancos e inconfundibles con los de otros sistemas.",
-            "Las estructuras metálicas de soporte de los módulos, incluyendo canalizaciones metálicas, se "
-            "conectarán equipotencialmente a tierra; si son de aluminio, se emplearán dispositivos de "
-            "conexión que eviten pares electroquímicos.",
-            "Se dispondrá de un cuadro de mando y protección específico con las protecciones diferenciales "
-            "necesarias y los dispositivos de seccionamiento requeridos para las labores de mantenimiento "
-            "en condiciones de seguridad.",
+            "fotovoltaicas, estancos e inconfundibles con los de otros sistemas.",
+            "Las estructuras metálicas de soporte de los módulos se conectarán equipotencialmente a tierra.",
         ]))
-        num_seccion_pruebas = "6"
+        n = 24
     else:
-        num_seccion_pruebas = "5"
+        n = 23
 
-    story.append(Paragraph(f"{num_seccion_pruebas}. Pruebas y verificaciones antes de la puesta en servicio", h2))
+    story.append(Paragraph(f"{n}. Inspecciones y pruebas antes de la puesta en servicio", h2))
     story.append(Paragraph(
         "Antes de la puesta en servicio se realizarán, como mínimo, las siguientes comprobaciones "
         "(ITC-BT-05 y UNE-HD 60364-6):", normal))
@@ -2218,41 +2534,60 @@ def generar_pdf_condiciones_generales(datos_proyecto: dict, hay_fv: bool, config
         ["Continuidad de conductores de protección y equipotenciales", "Continuidad eléctrica verificada"],
         ["Resistencia de aislamiento (circuitos ≤500V, ensayo a 500V c.c.)", "≥ 0,50 MΩ"],
         ["Resistencia de aislamiento (circuitos MBTS/MBTP, ensayo a 250V c.c.)", "≥ 0,25 MΩ"],
+        ["Resistencia de aislamiento (circuitos >500V, ensayo a 1000V c.c.)", "≥ 1,00 MΩ"],
+        ["Rigidez dieléctrica (1 min a 2U+1000V, mínimo 1.500V)", "Sin perforación del aislamiento"],
         ["Resistencia de puesta a tierra", "Compatible con la sensibilidad del diferencial instalado"],
         ["Disparo de los interruptores diferenciales (botón de test e Idn)", "Disparo correcto"],
         ["Caída de tensión en los circuitos más desfavorables", "Conforme al Anexo de Cálculos"],
         ["Secuencia de fases y tensiones (instalación trifásica)", "Correcta y equilibrada"],
-    ], colw=(9.0, 7.0)))
+    ], colw=(9.5, 6.5)))
     story.append(Paragraph(
-        "Realizadas las comprobaciones con resultado favorable, se emitirá el correspondiente Certificado "
-        "de Instalación Eléctrica (CIE), que se presentará junto con la MTD ante el órgano competente de la "
-        "Comunidad Autónoma para su registro.", normal))
+        "En fábrica, la aparamenta habrá sido sometida a idénticos ensayos de aislamiento y rigidez "
+        "dieléctrica, además de comprobación visual y funcional de todas sus partes móviles; cuando se "
+        "exijan, el instalador aportará los certificados de ensayo del fabricante. Realizadas las "
+        "comprobaciones con resultado favorable, se emitirá el correspondiente Certificado de Instalación "
+        "Eléctrica (CIE), que se presentará ante el órgano competente de la Comunidad Autónoma para su "
+        "registro.", normal))
 
-    story.append(Paragraph(f"{int(num_seccion_pruebas)+1}. Garantías y recepción", h2))
+    story.append(Paragraph(f"{n+1}. Seguridad en los trabajos eléctricos", h2))
     story.append(Paragraph(
-        "El instalador garantizará la instalación frente a defectos de ejecución durante el plazo legal "
-        "aplicable, sin perjuicio de las garantías comerciales de cada fabricante sobre los equipos "
-        "suministrados (aparamenta, luminarias, inversor, paneles, baterías). La recepción de la instalación "
-        "por el titular no exime al instalador de sus responsabilidades legales y contractuales.", normal))
+        "Siempre que se intervenga en una instalación eléctrica, en su ejecución o mantenimiento, los "
+        "trabajos se realizarán sin tensión, verificando su ausencia mediante los aparatos de medición "
+        "correspondientes (las 'cinco reglas de oro'). Se utilizarán guantes y herramientas aislantes; las "
+        "herramientas y aparatos eléctricos portátiles dispondrán de aislamiento de clase II o se "
+        "alimentarán a tensión de seguridad. Los aparatos de protección, seccionamiento y maniobra se "
+        "bloquearán en posición de apertura durante la intervención, y no se restablecerá el servicio sin "
+        "haber comprobado que no existe peligro alguno. Se cumplirá, en lo que corresponda, la Ley 31/1995 "
+        "de Prevención de Riesgos Laborales y su normativa de desarrollo.", normal))
 
-    story.append(Paragraph(f"{int(num_seccion_pruebas)+2}. Mantenimiento", h2))
+    story.append(Paragraph(f"{n+2}. Limpieza y mantenimiento", h2))
     story.append(Paragraph(
-        "El titular de la instalación velará por su correcto mantenimiento, revisando periódicamente el "
-        "estado de conductores, protecciones y puesta a tierra (accionamiento del botón de test del "
-        "diferencial al menos una vez al mes), y encargando las inspecciones periódicas que, en su caso, "
-        "sean obligatorias según la potencia y el uso de la instalación (ITC-BT-05).", normal))
+        "Antes de la recepción, los cuadros y demás elementos se limpiarán de polvo, pintura y cualquier "
+        "material acumulado durante la ejecución de los trabajos. El titular velará por el correcto "
+        "mantenimiento de la instalación, revisando periódicamente el estado de conductores, protecciones y "
+        "puesta a tierra (accionamiento del botón de test del diferencial al menos una vez al mes), y "
+        "encargando las inspecciones periódicas que, en su caso, sean obligatorias según la potencia y el "
+        "uso de la instalación (ITC-BT-05). Cuando sea necesario intervenir nuevamente en la instalación, "
+        "por avería o modificación, se aplicarán las mismas condiciones de ejecución, control y seguridad "
+        "que si se tratase de una instalación nueva.", normal))
 
-    story.append(Paragraph(f"{int(num_seccion_pruebas)+3}. Seguridad y salud", h2))
+    story.append(Paragraph(f"{n+3}. Criterios de medición", h2))
     story.append(Paragraph(
-        "Durante la ejecución de los trabajos se cumplirá la normativa de prevención de riesgos laborales "
-        "aplicable (Ley 31/1995 y RD 1627/1997 en su caso), utilizando los equipos de protección individual "
-        "adecuados a los trabajos eléctricos y respetando en todo momento las cinco reglas de oro del "
-        "trabajo sin tensión cuando proceda.", normal))
+        "Los cables, bandejas y tubos se medirán por unidad de longitud (metro), según tipo y sección o "
+        "diámetro; en la medición se entienden incluidos los accesorios necesarios para el montaje (grapas, "
+        "terminales, bornes, prensaestopas, cajas de derivación) y la mano de obra de transporte interior, "
+        "montaje y pruebas de recepción. Los cuadros y receptores eléctricos se medirán por unidad montada y "
+        "conexionada. A las unidades medidas se aplicarán los precios del Presupuesto, en los que se "
+        "consideran incluidos los gastos generales del instalador; si fuese necesaria alguna unidad no "
+        "contemplada, se formalizará el correspondiente precio contradictorio conforme al apartado 12.",
+        normal))
 
     story.append(Spacer(1, 10))
     story.append(Paragraph(
-        "Este pliego es un documento de apoyo estándar; adáptalo a las particularidades de cada proyecto y "
-        "a las ordenanzas municipales o autonómicas que puedan resultar de aplicación.", normal))
+        "Este pliego es un documento de apoyo estándar, redactado a partir de la práctica habitual en "
+        "instalaciones de baja tensión; adáptalo a las particularidades de cada proyecto, al contrato "
+        "suscrito entre las partes y a las ordenanzas municipales o autonómicas que puedan resultar de "
+        "aplicación.", normal))
 
     doc.build(story, onFirstPage=cajetin, onLaterPages=cajetin, canvasmaker=doc._numbered_canvas)
     return buffer.getvalue()
