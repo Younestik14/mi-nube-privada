@@ -43,9 +43,11 @@ Autor: Younes — IDEA TSG
 
 from __future__ import annotations
 
+import base64
 import io
+import json
 import math
-from datetime import date
+from datetime import date, datetime
 
 import pandas as pd
 import streamlit as st
@@ -647,145 +649,316 @@ def calibre_magnetotermico_sugerido(ib_calculo: float) -> int:
 # 3. ESTILO VISUAL (CSS inyectado)
 # ==============================================================================
 
-CSS = """
+def generar_css(tema: str = "Oscuro") -> str:
+    """Genera el CSS de la app según el tema. Mantiene TODAS las clases ya
+    usadas en el resto del código (titleblock, section-label, result-card,
+    result-value, badge-ok/fail, regla-chip...) y añade el sistema nuevo
+    (sidebar, dashboard, tarjetas de estado, badges, ayuda contextual)."""
+    if tema == "Claro":
+        v = dict(
+            bg_primary="#f4f6fb", bg_panel="#ffffff", bg_panel_alt="#eef1f8", bg_sidebar="#111827",
+            border_subtle="rgba(37, 99, 235, 0.14)", border_strong="rgba(37, 99, 235, 0.35)",
+            text_primary="#0f172a", text_secondary="#5b6577", text_on_dark="#e5e9f5",
+            accent="#2563eb", accent_hover="#1d4ed8", accent_soft="rgba(37, 99, 235, 0.10)",
+            copper="#b3711f", success="#16a34a", success_soft="rgba(22,163,74,0.10)",
+            warning="#d97706", warning_soft="rgba(217,119,6,0.10)",
+            error="#dc2626", error_soft="rgba(220,38,38,0.10)",
+            grid_line="rgba(15, 23, 42, 0.035)", shadow_sm="0 1px 2px rgba(15,23,42,0.06)",
+            shadow_md="0 6px 16px rgba(15,23,42,0.08)", shadow_lg="0 16px 40px rgba(15,23,42,0.14)",
+        )
+    else:
+        v = dict(
+            bg_primary="#0b1220", bg_panel="#121b2e", bg_panel_alt="#16213a", bg_sidebar="#0a0f1a",
+            border_subtle="rgba(59, 130, 246, 0.16)", border_strong="rgba(59, 130, 246, 0.40)",
+            text_primary="#e8edf4", text_secondary="#8b96a8", text_on_dark="#e8edf4",
+            accent="#3b82f6", accent_hover="#60a5fa", accent_soft="rgba(59, 130, 246, 0.14)",
+            copper="#e8a33d", success="#22c55e", success_soft="rgba(34,197,94,0.14)",
+            warning="#f59e0b", warning_soft="rgba(245,158,11,0.14)",
+            error="#ef4444", error_soft="rgba(239,68,68,0.14)",
+            grid_line="rgba(232, 237, 244, 0.035)", shadow_sm="0 1px 2px rgba(0,0,0,0.3)",
+            shadow_md="0 6px 16px rgba(0,0,0,0.35)", shadow_lg="0 16px 40px rgba(0,0,0,0.45)",
+        )
+    return f"""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap');
 
-:root {
-    --bg-primary: #0b1220;
-    --bg-panel: #121b2e;
-    --bg-panel-alt: #16213a;
-    --border-subtle: rgba(232, 163, 61, 0.16);
-    --border-strong: rgba(232, 163, 61, 0.40);
-    --text-primary: #e8edf4;
-    --text-secondary: #8b96a8;
-    --accent-copper: #e8a33d;
-    --accent-ok: #4fd1c5;
-    --accent-fail: #f2545b;
-    --grid-line: rgba(232, 237, 244, 0.035);
-}
+:root {{
+    --bg-primary: {v['bg_primary']}; --bg-panel: {v['bg_panel']}; --bg-panel-alt: {v['bg_panel_alt']};
+    --bg-sidebar: {v['bg_sidebar']};
+    --border-subtle: {v['border_subtle']}; --border-strong: {v['border_strong']};
+    --text-primary: {v['text_primary']}; --text-secondary: {v['text_secondary']};
+    --text-on-dark: {v['text_on_dark']};
+    --accent-copper: {v['copper']};
+    --accent-primary: {v['accent']}; --accent-primary-hover: {v['accent_hover']}; --accent-soft: {v['accent_soft']};
+    --accent-ok: {v['success']}; --success-soft: {v['success_soft']};
+    --accent-warning: {v['warning']}; --warning-soft: {v['warning_soft']};
+    --accent-fail: {v['error']}; --error-soft: {v['error_soft']};
+    --grid-line: {v['grid_line']};
+    --shadow-sm: {v['shadow_sm']}; --shadow-md: {v['shadow_md']}; --shadow-lg: {v['shadow_lg']};
+    --radius: 14px; --radius-sm: 8px;
+}}
 
-.stApp {
+.stApp {{
     background-color: var(--bg-primary);
     background-image:
         linear-gradient(var(--grid-line) 1px, transparent 1px),
         linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
     background-size: 26px 26px;
-}
+}}
 
-html, body, [class*="css"], .stMarkdown, p, span, label, div {
-    font-family: 'IBM Plex Sans', sans-serif;
-}
-h1, h2, h3, h4 { font-family: 'JetBrains Mono', monospace; letter-spacing: -0.01em; }
+html, body, [class*="css"], .stMarkdown, p, span, label, div {{
+    font-family: 'Inter', 'IBM Plex Sans', sans-serif;
+    color: var(--text-primary);
+}}
+h1, h2, h3, h4 {{ font-family: 'Inter', sans-serif; letter-spacing: -0.02em; font-weight: 700; }}
+code, .stCode, [data-testid="stMetricValue"] {{ font-family: 'JetBrains Mono', monospace; }}
 
-.titleblock {
-    display: flex;
-    justify-content: space-between;
-    align-items: stretch;
+/* ============ Sidebar (navegación SaaS) ============ */
+section[data-testid="stSidebar"] {{
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border-subtle);
+}}
+section[data-testid="stSidebar"] * {{ color: var(--text-on-dark) !important; }}
+.sidebar-brand {{
+    display: flex; align-items: center; gap: 0.55rem;
+    padding: 0.9rem 0.2rem 1.1rem 0.2rem;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    margin-bottom: 0.8rem;
+}}
+.sidebar-brand .logo {{
+    width: 34px; height: 34px; border-radius: 9px;
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-copper));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.15rem; box-shadow: var(--shadow-sm); flex-shrink: 0;
+}}
+.sidebar-brand .name {{ font-weight: 800; font-size: 1.02rem; line-height: 1.15; }}
+.sidebar-brand .sub {{ font-size: 0.68rem; color: #93a0b8 !important; letter-spacing: 0.04em; }}
+.nav-group-label {{
+    font-size: 0.66rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+    color: #6b7690 !important; margin: 1.0rem 0 0.3rem 0.15rem;
+}}
+section[data-testid="stSidebar"] .stButton button {{
+    background: transparent; border: 1px solid transparent; text-align: left; justify-content: flex-start;
+    font-weight: 500; border-radius: var(--radius-sm); padding: 0.45rem 0.7rem;
+    transition: background 0.15s ease, border-color 0.15s ease; box-shadow: none;
+}}
+section[data-testid="stSidebar"] .stButton button:hover {{
+    background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.08);
+}}
+section[data-testid="stSidebar"] .stButton button[kind="primary"] {{
+    background: var(--accent-soft); border: 1px solid var(--accent-primary);
+    color: var(--accent-primary-hover) !important; font-weight: 700;
+}}
+section[data-testid="stSidebar"] .stButton button[kind="primary"] * {{ color: var(--accent-primary-hover) !important; }}
+
+/* ============ Cabecera tipo cajetín (documentos) ============ */
+.titleblock {{
+    display: flex; justify-content: space-between; align-items: stretch;
     border: 1px solid var(--border-strong);
     background: linear-gradient(180deg, var(--bg-panel), var(--bg-panel-alt));
-    border-radius: 6px;
-    margin-bottom: 1.6rem;
-    overflow: hidden;
-}
-.titleblock-main { padding: 1.1rem 1.4rem; flex: 1; }
-.titleblock-eyebrow {
-    font-family: 'JetBrains Mono', monospace;
-    color: var(--accent-copper);
-    font-size: 0.72rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-}
-.titleblock-main h1 {
-    color: var(--text-primary);
-    font-size: 1.55rem;
-    margin: 0.15rem 0 0 0;
-    font-weight: 700;
-}
-.titleblock-meta { display: flex; }
-.titleblock-meta > div {
-    border-left: 1px solid var(--border-subtle);
-    padding: 0.9rem 1.1rem;
-    min-width: 118px;
+    border-radius: var(--radius); margin-bottom: 1.6rem; overflow: hidden; box-shadow: var(--shadow-sm);
+}}
+.titleblock-main {{ padding: 1.1rem 1.4rem; flex: 1; }}
+.titleblock-eyebrow {{
+    font-family: 'JetBrains Mono', monospace; color: var(--accent-primary);
+    font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase;
+}}
+.titleblock-main h1 {{ color: var(--text-primary); font-size: 1.55rem; margin: 0.15rem 0 0 0; font-weight: 800; }}
+.titleblock-meta {{ display: flex; }}
+.titleblock-meta > div {{
+    border-left: 1px solid var(--border-subtle); padding: 0.9rem 1.1rem; min-width: 118px;
     display: flex; flex-direction: column; justify-content: center;
-}
-.titleblock-meta span {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.62rem;
-    color: var(--text-secondary);
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-}
-.titleblock-meta strong {
-    font-family: 'JetBrains Mono', monospace;
-    color: var(--text-primary);
-    font-size: 0.82rem;
-    margin-top: 0.15rem;
-}
+}}
+.titleblock-meta span {{
+    font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; color: var(--text-secondary);
+    letter-spacing: 0.12em; text-transform: uppercase;
+}}
+.titleblock-meta strong {{ font-family: 'JetBrains Mono', monospace; color: var(--text-primary); font-size: 0.82rem; margin-top: 0.15rem; }}
 
-.section-label {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.72rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--accent-copper);
-    border-bottom: 1px solid var(--border-subtle);
-    padding-bottom: 0.35rem;
-    margin: 0.4rem 0 0.9rem 0;
-}
+.section-label {{
+    font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--accent-primary); border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 0.35rem; margin: 0.4rem 0 0.9rem 0;
+}}
 
-.result-card {
-    background: var(--bg-panel);
-    border: 1px solid var(--border-subtle);
-    border-radius: 6px;
-    padding: 0.9rem 1.1rem;
-    margin-bottom: 0.6rem;
-}
-.result-card.hero {
+/* ============ Tarjetas de resultado (ya usadas en toda la app) ============ */
+.result-card {{
+    background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: var(--radius);
+    padding: 0.9rem 1.1rem; margin-bottom: 0.6rem; box-shadow: var(--shadow-sm);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}}
+.result-card:hover {{ box-shadow: var(--shadow-md); transform: translateY(-1px); }}
+.result-card.hero {{
     border: 1px solid var(--border-strong);
-    background: linear-gradient(135deg, rgba(232,163,61,0.10), var(--bg-panel));
-}
-.result-label {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.68rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text-secondary);
-}
-.result-value {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 1.7rem;
-    font-weight: 700;
-    color: var(--accent-copper);
-    line-height: 1.3;
-}
-.result-value.small { font-size: 1.15rem; color: var(--text-primary); }
-.result-sub { font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.15rem; }
-.badge-ok { color: var(--accent-ok); font-weight: 600; }
-.badge-fail { color: var(--accent-fail); font-weight: 600; }
+    background: linear-gradient(135deg, var(--accent-soft), var(--bg-panel));
+}}
+.result-label {{
+    font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--text-secondary);
+}}
+.result-value {{ font-family: 'JetBrains Mono', monospace; font-size: 1.7rem; font-weight: 700; color: var(--accent-primary); line-height: 1.3; }}
+.result-value.small {{ font-size: 1.15rem; color: var(--text-primary); }}
+.result-sub {{ font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.15rem; }}
+.badge-ok {{ color: var(--accent-ok); font-weight: 600; }}
+.badge-fail {{ color: var(--accent-fail); font-weight: 600; }}
 
-.regla-wrap { display: flex; gap: 4px; margin: 0.6rem 0 1rem 0; flex-wrap: wrap; }
-.regla-chip {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.72rem;
-    padding: 0.28rem 0.5rem;
-    border-radius: 4px;
-    border: 1px solid var(--border-subtle);
-    color: var(--text-secondary);
-    background: var(--bg-panel);
-}
-.regla-chip.activa {
-    border-color: var(--accent-copper);
-    color: #0b1220;
-    background: var(--accent-copper);
-    font-weight: 700;
-}
+.regla-wrap {{ display: flex; gap: 4px; margin: 0.6rem 0 1rem 0; flex-wrap: wrap; }}
+.regla-chip {{
+    font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; padding: 0.28rem 0.5rem; border-radius: 999px;
+    border: 1px solid var(--border-subtle); color: var(--text-secondary); background: var(--bg-panel);
+}}
+.regla-chip.activa {{ border-color: var(--accent-primary); color: #fff; background: var(--accent-primary); font-weight: 700; }}
 
-[data-testid="stMetricValue"] { font-family: 'JetBrains Mono', monospace; color: var(--accent-copper); }
-[data-testid="stExpander"] { border: 1px solid var(--border-subtle); border-radius: 6px; }
-hr { border-color: var(--border-subtle); }
+/* ============ Dashboard: tarjetas KPI, accesos rápidos, timeline ============ */
+.kpi-card {{
+    background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: var(--radius);
+    padding: 1.1rem 1.3rem; box-shadow: var(--shadow-sm); height: 100%;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}}
+.kpi-card:hover {{ transform: translateY(-2px); box-shadow: var(--shadow-md); }}
+.kpi-icon {{
+    width: 40px; height: 40px; border-radius: 11px; display: flex; align-items: center; justify-content: center;
+    font-size: 1.2rem; margin-bottom: 0.6rem;
+}}
+.kpi-icon.blue {{ background: var(--accent-soft); }}
+.kpi-icon.green {{ background: var(--success-soft); }}
+.kpi-icon.orange {{ background: var(--warning-soft); }}
+.kpi-icon.red {{ background: var(--error-soft); }}
+.kpi-value {{ font-size: 1.7rem; font-weight: 800; color: var(--text-primary); line-height: 1.15; }}
+.kpi-label {{ font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.15rem; }}
+
+.quick-card {{
+    display: block; background: var(--bg-panel); border: 1px solid var(--border-subtle);
+    border-radius: var(--radius); padding: 1rem 1.1rem; text-decoration: none !important;
+    transition: all 0.15s ease; height: 100%; box-shadow: var(--shadow-sm);
+}}
+.quick-card:hover {{ border-color: var(--accent-primary); box-shadow: var(--shadow-md); transform: translateY(-2px); }}
+.quick-card .qc-icon {{ font-size: 1.4rem; margin-bottom: 0.4rem; }}
+.quick-card .qc-title {{ font-weight: 700; color: var(--text-primary) !important; font-size: 0.92rem; }}
+.quick-card .qc-sub {{ font-size: 0.76rem; color: var(--text-secondary) !important; margin-top: 0.15rem; }}
+
+.timeline-item {{
+    display: flex; gap: 0.7rem; padding: 0.55rem 0; border-bottom: 1px solid var(--border-subtle);
+    font-size: 0.85rem;
+}}
+.timeline-item:last-child {{ border-bottom: none; }}
+.timeline-dot {{ width: 7px; height: 7px; border-radius: 50%; background: var(--accent-primary); margin-top: 0.4rem; flex-shrink: 0; }}
+.timeline-time {{ color: var(--text-secondary); font-size: 0.72rem; font-family: 'JetBrains Mono', monospace; }}
+
+/* ============ Badges de estado (éxito/aviso/error/info) ============ */
+.badge {{
+    display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.6rem; border-radius: 999px;
+    font-size: 0.72rem; font-weight: 700; letter-spacing: 0.02em;
+}}
+.badge.success {{ background: var(--success-soft); color: var(--accent-ok); }}
+.badge.warning {{ background: var(--warning-soft); color: var(--accent-warning); }}
+.badge.error {{ background: var(--error-soft); color: var(--accent-fail); }}
+.badge.info {{ background: var(--accent-soft); color: var(--accent-primary); }}
+
+/* ============ Botones y widgets nativos ============ */
+.stButton button {{
+    border-radius: var(--radius-sm); font-weight: 600; transition: all 0.15s ease; box-shadow: var(--shadow-sm);
+}}
+.stButton button:hover {{ transform: translateY(-1px); box-shadow: var(--shadow-md); }}
+.stButton button[kind="primary"] {{ background: var(--accent-primary); border-color: var(--accent-primary); }}
+.stButton button[kind="primary"]:hover {{ background: var(--accent-primary-hover); }}
+.stDownloadButton button {{ border-radius: var(--radius-sm); font-weight: 600; box-shadow: var(--shadow-sm); }}
+
+[data-testid="stMetricValue"] {{ color: var(--accent-primary); }}
+[data-testid="stExpander"] {{
+    border: 1px solid var(--border-subtle); border-radius: var(--radius); box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}}
+[data-testid="stVerticalBlockBorderWrapper"] {{ border-radius: var(--radius) !important; }}
+hr {{ border-color: var(--border-subtle); }}
+.stTabs [data-baseweb="tab-list"] {{ gap: 4px; }}
+.stTabs [data-baseweb="tab"] {{ border-radius: var(--radius-sm) var(--radius-sm) 0 0; }}
+
+/* ============ Ayuda contextual ============ */
+.ayuda-texto {{ font-size: 0.82rem; line-height: 1.5; color: var(--text-secondary); }}
+.ayuda-texto b {{ color: var(--text-primary); }}
+
+/* ============ Responsive ============ */
+@media (max-width: 900px) {{
+    .titleblock {{ flex-direction: column; }}
+    .titleblock-meta {{ border-top: 1px solid var(--border-subtle); }}
+    .kpi-value {{ font-size: 1.35rem; }}
+}}
 </style>
 """
+
+
+# ==============================================================================
+# 3B. INFRAESTRUCTURA DE LA APP — estado de sesión, ayuda contextual,
+# actividad reciente y sistema de proyectos (guardar/abrir como archivo).
+#
+# Nota de arquitectura: esta app no tiene backend propio ni base de datos.
+# Desplegada en Streamlit Cloud, el sistema de archivos es efímero (se borra
+# en cada reinicio), así que CUALQUIER "base de datos" ahí sería una falsa
+# promesa de persistencia. En su lugar: session_state para lo que dura la
+# sesión del navegador, y descarga/carga de un .json real para lo que debe
+# sobrevivir entre sesiones (eso sí es 100% fiable, lo guarda el usuario).
+# ==============================================================================
+
+PAGINAS_HERRAMIENTAS = ["Calculadora", "Fórmulas", "Fotovoltaica", "Cálculos BT", "Presupuesto", "Documentación"]
+CLAVES_PROYECTO = ["inputs_cable", "resultado_cable", "inputs_fv", "resultado_fv",
+                   "presupuesto_capitulos", "presupuesto_config", "datos_proyecto", "catalogo_precios"]
+
+
+def _inicializar_estado():
+    defaults = {
+        "pagina_actual": "Inicio",
+        "tema": "Oscuro",
+        "config_profesional": {"nombre": "", "empresa": "", "logo_b64": "", "firma": ""},
+        "historial_proyectos": [],
+        "actividad": [],
+        "inputs_cable": {}, "resultado_cable": {}, "inputs_fv": {}, "resultado_fv": {},
+        "nombre_proyecto_actual": "Proyecto sin guardar",
+    }
+    for k, v in defaults.items():
+        st.session_state.setdefault(k, v)
+
+
+def _registrar_actividad(icono: str, texto: str):
+    st.session_state.setdefault("actividad", [])
+    st.session_state["actividad"].insert(0, {
+        "icono": icono, "texto": texto, "hora": datetime.now().strftime("%H:%M"),
+    })
+    st.session_state["actividad"] = st.session_state["actividad"][:30]
+
+
+def _ayuda(texto: str, titulo: str = "Ayuda"):
+    """Botón de ayuda contextual (?) — usar junto a un campo o sección."""
+    with st.popover("❓"):
+        st.markdown(f"**{titulo}**")
+        st.markdown(f'<div class="ayuda-texto">{texto}</div>', unsafe_allow_html=True)
+
+
+def _campo_con_ayuda(etiqueta: str, texto_ayuda: str, titulo: str = "Ayuda"):
+    """Muestra una etiqueta con un botón (?) al lado, en una fila compacta."""
+    c1, c2 = st.columns([8, 1])
+    with c1:
+        st.markdown(f"**{etiqueta}**")
+    with c2:
+        _ayuda(texto_ayuda, titulo)
+
+
+def _serializar_proyecto(nombre: str) -> dict:
+    datos = {"__version__": 1, "__nombre__": nombre, "__fecha__": datetime.now().isoformat()}
+    for clave in CLAVES_PROYECTO:
+        datos[clave] = st.session_state.get(clave)
+    return datos
+
+
+def _cargar_proyecto(datos: dict):
+    for clave in CLAVES_PROYECTO:
+        if clave in datos:
+            st.session_state[clave] = datos[clave]
+    st.session_state["nombre_proyecto_actual"] = datos.get("__nombre__", "Proyecto importado")
+
+
+def _tamano_proyecto_kb(datos: dict) -> float:
+    return len(json.dumps(datos, default=str).encode("utf-8")) / 1024
 
 
 # ==============================================================================
@@ -918,78 +1091,15 @@ def _pdf_safe(texto: str) -> str:
     return texto
 
 
-def generar_pdf_memoria(inp: dict, res: dict) -> bytes:
-    from reportlab.lib.pagesizes import A4
+def generar_pdf_memoria(inp: dict, res: dict, config_prof: dict = None) -> bytes:
     from reportlab.lib.units import cm
-    from reportlab.lib import colors
-    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import Table, TableStyle, Paragraph, Spacer
 
-    AZUL = colors.HexColor("#122340")
-    COBRE = colors.HexColor("#b3711f")
-    GRIS = colors.HexColor("#5a6472")
-
-    buffer = io.BytesIO()
-    margin = 1.6 * cm
-    cajetin_h = 2.4 * cm
-
-    doc = SimpleDocTemplate(
-        buffer, pagesize=A4,
-        leftMargin=margin, rightMargin=margin,
-        topMargin=margin + cajetin_h + 0.3 * cm, bottomMargin=margin + 0.6 * cm,
-    )
-
-    fecha_hoy = date.today().strftime("%d/%m/%Y")
-
-    def _cajetin(c, d):
-        c.saveState()
-        width, height = A4
-        top = height - margin
-        c.setStrokeColor(AZUL)
-        c.setLineWidth(1.1)
-        c.rect(margin, top - cajetin_h, width - 2 * margin, cajetin_h)
-        divisor_x = width - margin - 5.2 * cm
-        c.line(divisor_x, top - cajetin_h, divisor_x, top)
-        c.setFillColor(AZUL)
-        c.setFont("Helvetica-Bold", 12.5)
-        c.drawString(margin + 0.35 * cm, top - 0.85 * cm, "MEMORIA DE CALCULO - SECCION DE CONDUCTORES")
-        c.setFont("Helvetica", 8.3)
-        c.setFillColor(GRIS)
-        c.drawString(margin + 0.35 * cm, top - 1.35 * cm, "Reglamento Electrotecnico de Baja Tension - ITC-BT-19")
-        c.setFont("Helvetica", 8.3)
-        c.drawString(margin + 0.35 * cm, top - 1.85 * cm, _pdf_safe(f"Circuito: {inp['tipo_circuito']}"))
-
-        campos = [
-            ("NORMA", "REBT - ITC-BT-19"),
-            ("FECHA", fecha_hoy),
-            ("REVISION", "1.0"),
-        ]
-        y = top - 0.55 * cm
-        for etiqueta, valor in campos:
-            c.setFont("Helvetica-Bold", 6.6)
-            c.setFillColor(GRIS)
-            c.drawString(divisor_x + 0.3 * cm, y, etiqueta)
-            c.setFont("Helvetica-Bold", 9)
-            c.setFillColor(AZUL)
-            c.drawString(divisor_x + 0.3 * cm, y - 0.34 * cm, valor)
-            y -= 0.72 * cm
-        c.setStrokeColor(COBRE)
-        c.setLineWidth(2.2)
-        c.line(margin, top - cajetin_h, width - margin, top - cajetin_h)
-
-        c.setFont("Helvetica-Oblique", 6.8)
-        c.setFillColor(GRIS)
-        c.drawCentredString(
-            width / 2, margin * 0.45,
-            "Herramienta de apoyo al diseno. Verificar contra la Guia-BT-19 vigente antes de firmar un proyecto.",
-        )
-        c.drawRightString(width - margin, margin * 0.45, f"Pag. {d.page}")
-        c.restoreState()
-
-    styles = getSampleStyleSheet()
-    h2 = ParagraphStyle("h2c", parent=styles["Heading2"], textColor=AZUL, fontSize=12, spaceBefore=10, spaceAfter=4)
-    normal = ParagraphStyle("normalc", parent=styles["Normal"], fontSize=9.3, leading=13)
-    aviso_style = ParagraphStyle("avisoc", parent=styles["Normal"], fontSize=9, leading=13, textColor=colors.HexColor("#8a4b00"))
+    buffer, doc, cajetin, AZUL, colors, h2, h3, normal, h1, COBRE = _preparar_doc_pdf(
+        "MEMORIA DE CALCULO - SECCION DE CONDUCTORES",
+        f"Circuito: {inp['tipo_circuito']}", {"titular": (config_prof or {}).get("empresa", "")}, config_prof)
+    from reportlab.lib.styles import ParagraphStyle
+    aviso_style = ParagraphStyle("avisoc", parent=normal, textColor=colors.HexColor("#8a4b00"))
 
     def fila_estilo(header=True):
         base = [
@@ -1005,7 +1115,9 @@ def generar_pdf_memoria(inp: dict, res: dict) -> bytes:
                       ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold")]
         return TableStyle(base)
 
-    story = []
+    story = _bloque_portada("Memoria de Cálculo", "Sección de conductores — ITC-BT-19",
+                             {"titular": (config_prof or {}).get("empresa", "")}, config_prof, AZUL, COBRE,
+                             colors, h1, normal)
 
     story.append(Paragraph("1. Datos del circuito", h2))
     datos = [
@@ -1086,7 +1198,7 @@ def generar_pdf_memoria(inp: dict, res: dict) -> bytes:
         "vigente de la Guia-BT-19 y la normativa UNE aplicable antes de incorporarse a un proyecto o "
         "memoria tecnica firmada.", normal))
 
-    doc.build(story, onFirstPage=_cajetin, onLaterPages=_cajetin)
+    doc.build(story, onFirstPage=cajetin, onLaterPages=cajetin, canvasmaker=doc._numbered_canvas)
     return buffer.getvalue()
 
 
@@ -1237,12 +1349,15 @@ def _lineas_formulas_fv_texto(inp: dict, res: dict) -> list:
     return L
 
 
-def _cajetin_generico(titulo: str, subtitulo: str, datos_proyecto: dict, margin, cajetin_h, AZUL, COBRE, GRIS):
+def _cajetin_generico(titulo: str, subtitulo: str, datos_proyecto: dict, margin, cajetin_h, AZUL, COBRE, GRIS,
+                       config_prof: dict = None):
     """Factoría de función de cajetín reutilizable por los distintos documentos
     (MTD, Anexo, Condiciones Generales), con el mismo estilo que la memoria de
-    cálculo de la Calculadora de cables."""
+    cálculo de la Calculadora de cables. Incluye el logotipo si hay uno
+    configurado en el modo profesional."""
     from reportlab.lib.units import cm
     fecha_hoy = date.today().strftime("%d/%m/%Y")
+    config_prof = config_prof or {}
 
     def _cajetin(c, d):
         from reportlab.lib.pagesizes import A4
@@ -1253,16 +1368,34 @@ def _cajetin_generico(titulo: str, subtitulo: str, datos_proyecto: dict, margin,
         c.setLineWidth(1.1)
         c.rect(margin, top - cajetin_h, width - 2 * margin, cajetin_h)
         divisor_x = width - margin - 5.2 * cm
+        logo_w = 0
+        if config_prof.get("logo_b64"):
+            try:
+                from reportlab.lib.utils import ImageReader
+                img_bytes = io.BytesIO(base64.b64decode(config_prof["logo_b64"]))
+                img = ImageReader(img_bytes)
+                iw, ih = img.getSize()
+                logo_h = cajetin_h - 0.5 * cm
+                logo_w = logo_h * iw / ih
+                c.drawImage(img, margin + 0.25 * cm, top - cajetin_h + 0.25 * cm, width=logo_w,
+                            height=logo_h, preserveAspectRatio=True, mask="auto")
+            except Exception:
+                logo_w = 0
+        text_x = margin + 0.35 * cm + (logo_w + 0.3 * cm if logo_w else 0)
         c.line(divisor_x, top - cajetin_h, divisor_x, top)
         c.setFillColor(AZUL)
         c.setFont("Helvetica-Bold", 12.5)
-        c.drawString(margin + 0.35 * cm, top - 0.85 * cm, _pdf_safe(titulo))
+        c.drawString(text_x, top - 0.85 * cm, _pdf_safe(titulo))
         c.setFont("Helvetica", 8.3)
         c.setFillColor(GRIS)
-        c.drawString(margin + 0.35 * cm, top - 1.35 * cm, _pdf_safe(subtitulo))
-        c.drawString(margin + 0.35 * cm, top - 1.85 * cm,
+        c.drawString(text_x, top - 1.35 * cm, _pdf_safe(subtitulo))
+        c.drawString(text_x, top - 1.85 * cm,
                       _pdf_safe(f"Titular: {datos_proyecto.get('titular') or '-'}  |  "
                                 f"Emplazamiento: {datos_proyecto.get('emplazamiento') or '-'}"))
+        empresa_txt = config_prof.get("empresa") or config_prof.get("nombre")
+        if empresa_txt:
+            c.setFont("Helvetica-Oblique", 7.2)
+            c.drawString(text_x, top - cajetin_h + 0.28 * cm, _pdf_safe(f"Elaborado por: {empresa_txt}"))
         campos = [("NORMA", "REBT - ITC-BT"), ("FECHA", fecha_hoy), ("REVISION", "1.0")]
         y = top - 0.55 * cm
         for etiqueta, valor in campos:
@@ -1279,15 +1412,93 @@ def _cajetin_generico(titulo: str, subtitulo: str, datos_proyecto: dict, margin,
         c.setFont("Helvetica-Oblique", 6.8)
         c.setFillColor(GRIS)
         c.drawCentredString(width / 2, margin * 0.45,
-                              "Documento generado con la Calculadora de Secciones de Cable. Revisar por un "
-                              "tecnico competente antes de su presentacion oficial.")
-        c.drawRightString(width - margin, margin * 0.45, f"Pag. {d.page}")
+                              "Documento generado con REBT Suite. Revisar por un tecnico competente antes "
+                              "de su presentacion oficial.")
         c.restoreState()
 
     return _cajetin
 
 
-def _preparar_doc_pdf(titulo: str, subtitulo: str, datos_proyecto: dict):
+def _crear_numbered_canvas(margin, GRIS_HEX="#5a6472"):
+    """Canvas que añade 'Página X de Y' al pie, con Y conocido tras construir
+    todo el documento (patrón estándar de reportlab de doble pasada)."""
+    from reportlab.pdfgen import canvas as canvas_module
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors as _colors
+
+    class NumberedCanvas(canvas_module.Canvas):
+        def __init__(self, *args, **kwargs):
+            canvas_module.Canvas.__init__(self, *args, **kwargs)
+            self._saved_page_states = []
+
+        def showPage(self):
+            self._saved_page_states.append(dict(self.__dict__))
+            self._startPage()
+
+        def save(self):
+            total = len(self._saved_page_states)
+            for state in self._saved_page_states:
+                self.__dict__.update(state)
+                self.setFont("Helvetica-Oblique", 6.8)
+                self.setFillColor(_colors.HexColor(GRIS_HEX))
+                width, _h = A4
+                self.drawRightString(width - margin, margin * 0.45,
+                                      f"Página {self._pageNumber} de {total}")
+                canvas_module.Canvas.showPage(self)
+            canvas_module.Canvas.save(self)
+
+    return NumberedCanvas
+
+
+def _bloque_portada(titulo_doc: str, subtitulo_doc: str, datos_proyecto: dict, config_prof: dict,
+                     AZUL, COBRE, colors, h1_style, normal_style):
+    """Portada: logo grande, título, datos del proyecto y 'elaborado por'."""
+    from reportlab.platypus import Paragraph, Spacer, Table, TableStyle, Image, PageBreak
+    from reportlab.lib.units import cm
+
+    config_prof = config_prof or {}
+    story = [Spacer(1, 2.5 * cm)]
+
+    if config_prof.get("logo_b64"):
+        try:
+            img_bytes = io.BytesIO(base64.b64decode(config_prof["logo_b64"]))
+            img = Image(img_bytes)
+            img._restrictSize(4 * cm, 3 * cm)
+            img.hAlign = "CENTER"
+            story.append(img)
+            story.append(Spacer(1, 0.8 * cm))
+        except Exception:
+            pass
+
+    story.append(Paragraph(titulo_doc, h1_style))
+    story.append(Paragraph(subtitulo_doc, normal_style))
+    story.append(Spacer(1, 1.2 * cm))
+
+    filas = [
+        ["Titular", datos_proyecto.get("titular") or "—"],
+        ["Emplazamiento", datos_proyecto.get("emplazamiento") or "—"],
+        ["Fecha", date.today().strftime("%d/%m/%Y")],
+    ]
+    if config_prof.get("empresa") or config_prof.get("nombre"):
+        filas.append(["Elaborado por", " / ".join(filter(None, [config_prof.get("nombre"),
+                                                                   config_prof.get("empresa")]))])
+    t = Table(filas, colWidths=[4.5 * cm, 9 * cm])
+    t.setStyle(TableStyle([
+        ("FONTSIZE", (0, 0), (-1, -1), 10), ("TEXTCOLOR", (0, 0), (0, -1), AZUL),
+        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"), ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ("LINEBELOW", (0, 0), (-1, -1), 0.4, colors.HexColor("#c9ccd1")),
+    ]))
+    story.append(t)
+    story.append(Spacer(1, 1.5 * cm))
+    story.append(Paragraph(
+        f'<para textColor="{COBRE.hexval() if hasattr(COBRE, "hexval") else "#b3711f"}">'
+        "Documento de apoyo generado con REBT Suite — verificar por un técnico competente antes de su "
+        "presentación oficial.</para>", normal_style))
+    story.append(PageBreak())
+    return story
+
+
+def _preparar_doc_pdf(titulo: str, subtitulo: str, datos_proyecto: dict, config_prof: dict = None):
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.units import cm as _cm
     from reportlab.lib import colors
@@ -1302,20 +1513,23 @@ def _preparar_doc_pdf(titulo: str, subtitulo: str, datos_proyecto: dict):
     cajetin_h = 2.6 * _cm
     doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=margin, rightMargin=margin,
                               topMargin=margin + cajetin_h + 0.3 * _cm, bottomMargin=margin + 0.6 * _cm)
-    cajetin = _cajetin_generico(titulo, subtitulo, datos_proyecto, margin, cajetin_h, AZUL, COBRE, GRIS)
+    doc._numbered_canvas = _crear_numbered_canvas(margin)
+    cajetin = _cajetin_generico(titulo, subtitulo, datos_proyecto, margin, cajetin_h, AZUL, COBRE, GRIS, config_prof)
     styles = getSampleStyleSheet()
+    h1 = ParagraphStyle("h1doc", parent=styles["Title"], textColor=AZUL, fontSize=20, spaceAfter=8)
     h2 = ParagraphStyle("h2doc", parent=styles["Heading2"], textColor=AZUL, fontSize=12, spaceBefore=10, spaceAfter=4)
     h3 = ParagraphStyle("h3doc", parent=styles["Heading3"], textColor=COBRE, fontSize=10.5, spaceBefore=8, spaceAfter=3)
     normal = ParagraphStyle("normaldoc", parent=styles["Normal"], fontSize=9.3, leading=13.5)
-    return buffer, doc, cajetin, AZUL, colors, h2, h3, normal
+    return buffer, doc, cajetin, AZUL, colors, h2, h3, normal, h1, COBRE
 
 
 def generar_pdf_mtd(datos_proyecto: dict, inputs_cable: dict, resultado_cable: dict,
-                     inputs_fv: dict, resultado_fv: dict, total_presupuesto: float) -> bytes:
+                     inputs_fv: dict, resultado_fv: dict, total_presupuesto: float,
+                     config_prof: dict = None) -> bytes:
     from reportlab.platypus import Table, TableStyle, Paragraph, Spacer, PageBreak
 
-    buffer, doc, cajetin, AZUL, colors, h2, h3, normal = _preparar_doc_pdf(
-        "MEMORIA TECNICA DE DISENO (MTD)", "REBT - ITC-BT-04", datos_proyecto)
+    buffer, doc, cajetin, AZUL, colors, h2, h3, normal, h1, COBRE = _preparar_doc_pdf(
+        "MEMORIA TECNICA DE DISENO (MTD)", "REBT - ITC-BT-04", datos_proyecto, config_prof)
 
     hay_cable = resultado_cable.get("seccion_final") is not None
     hay_fv = bool(resultado_fv) and resultado_fv.get("p_pico_kwp") is not None
@@ -1333,7 +1547,8 @@ def generar_pdf_mtd(datos_proyecto: dict, inputs_cable: dict, resultado_cable: d
         ]))
         return t
 
-    story = []
+    story = _bloque_portada("Memoria Técnica de Diseño", "Instalación de baja tensión — REBT / ITC-BT-04",
+                             datos_proyecto, config_prof, AZUL, COBRE, colors, h1, normal)
 
     # ---------------------------------------------------------------- A/B/C
     story.append(Paragraph("A. Datos del titular", h2))
@@ -1520,7 +1735,7 @@ def generar_pdf_mtd(datos_proyecto: dict, inputs_cable: dict, resultado_cable: d
         "Antes de su presentación ante el organismo competente, debe ser revisado, completado y firmado por "
         "el instalador autorizado o técnico competente responsable.", normal))
 
-    doc.build(story, onFirstPage=cajetin, onLaterPages=cajetin)
+    doc.build(story, onFirstPage=cajetin, onLaterPages=cajetin, canvasmaker=doc._numbered_canvas)
     return buffer.getvalue()
 
 
@@ -1745,19 +1960,20 @@ def _parrafos_calculo_fv_pdf(inp: dict, res: dict, normal, formula) -> list:
 
 def generar_pdf_anexo_calculos(datos_proyecto: dict, inputs_cable: dict, resultado_cable: dict,
                                  inputs_fv: dict, resultado_fv: dict, capitulos_presupuesto: list,
-                                 pct_beneficio: float, pct_amortizacion: float) -> bytes:
+                                 pct_beneficio: float, pct_amortizacion: float,
+                                 config_prof: dict = None) -> bytes:
     from reportlab.platypus import Table, TableStyle, Paragraph, Spacer
     from reportlab.lib.units import cm as _cm
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.enums import TA_CENTER
 
-    buffer, doc, cajetin, AZUL, colors, h2, h3, normal = _preparar_doc_pdf(
-        "ANEXO DE CALCULOS Y MEDICIONES", "Justificacion tecnica y mediciones", datos_proyecto)
-    COBRE = colors.HexColor("#8a5a1f")
+    buffer, doc, cajetin, AZUL, colors, h2, h3, normal, h1, COBRE = _preparar_doc_pdf(
+        "ANEXO DE CALCULOS Y MEDICIONES", "Justificacion tecnica y mediciones", datos_proyecto, config_prof)
     formula = ParagraphStyle("formula", parent=normal, alignment=TA_CENTER, textColor=COBRE,
                               fontSize=10, leading=15, spaceBefore=4, spaceAfter=8)
 
-    story = []
+    story = _bloque_portada("Anexo de Cálculos y Mediciones", "Justificación técnica y mediciones",
+                             datos_proyecto, config_prof, AZUL, COBRE, colors, h1, normal)
     hay_cable = resultado_cable.get("seccion_final") is not None
     hay_fv = bool(resultado_fv) and resultado_fv.get("p_pico_kwp") is not None
 
@@ -1813,16 +2029,17 @@ def generar_pdf_anexo_calculos(datos_proyecto: dict, inputs_cable: dict, resulta
         "idoneidad de las secciones, protecciones y demás elementos descritos en la Memoria Técnica de "
         "Diseño para el uso previsto de la instalación.", normal))
 
-    doc.build(story, onFirstPage=cajetin, onLaterPages=cajetin)
+    doc.build(story, onFirstPage=cajetin, onLaterPages=cajetin, canvasmaker=doc._numbered_canvas)
     return buffer.getvalue()
 
 
-def generar_pdf_condiciones_generales(datos_proyecto: dict, hay_fv: bool) -> bytes:
+def generar_pdf_condiciones_generales(datos_proyecto: dict, hay_fv: bool, config_prof: dict = None) -> bytes:
     from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
     from reportlab.lib.units import cm as _cm
 
-    buffer, doc, cajetin, AZUL, colors, h2, h3, normal = _preparar_doc_pdf(
-        "PLIEGO DE CONDICIONES GENERALES", "Materiales, ejecución, pruebas y mantenimiento", datos_proyecto)
+    buffer, doc, cajetin, AZUL, colors, h2, h3, normal, h1, COBRE = _preparar_doc_pdf(
+        "PLIEGO DE CONDICIONES GENERALES", "Materiales, ejecución, pruebas y mantenimiento", datos_proyecto,
+        config_prof)
 
     def lista(items, style=normal):
         return [Paragraph("• " + t, style) for t in items]
@@ -1838,7 +2055,9 @@ def generar_pdf_condiciones_generales(datos_proyecto: dict, hay_fv: bool) -> byt
         ]))
         return t
 
-    story = [Paragraph("1. Objeto y alcance", h2)]
+    story = _bloque_portada("Pliego de Condiciones Generales", "Materiales, ejecución, pruebas y mantenimiento",
+                             datos_proyecto, config_prof, AZUL, COBRE, colors, h1, normal)
+    story.append(Paragraph("1. Objeto y alcance", h2))
     story.append(Paragraph(
         "El presente Pliego de Condiciones Generales establece las prescripciones técnicas mínimas que "
         "deben cumplir los materiales, la ejecución, las pruebas y la puesta en servicio de la instalación "
@@ -1987,7 +2206,7 @@ def generar_pdf_condiciones_generales(datos_proyecto: dict, hay_fv: bool) -> byt
         "Este pliego es un documento de apoyo estándar; adáptalo a las particularidades de cada proyecto y "
         "a las ordenanzas municipales o autonómicas que puedan resultar de aplicación.", normal))
 
-    doc.build(story, onFirstPage=cajetin, onLaterPages=cajetin)
+    doc.build(story, onFirstPage=cajetin, onLaterPages=cajetin, canvasmaker=doc._numbered_canvas)
     return buffer.getvalue()
 
 
@@ -2695,13 +2914,26 @@ def _miles(valor: float, decimales: int = 0) -> str:
 
 
 def _render_inputs() -> dict:
+    plantilla = st.session_state.pop("plantilla_activa", None) or {}
+    if plantilla:
+        st.success("📋 Plantilla aplicada — ajusta lo que necesites, el resto de valores parten de aquí.")
+
     st.markdown('<p class="section-label">1 · Datos eléctricos del circuito</p>', unsafe_allow_html=True)
     c1, c2, c3 = st.columns(3)
     with c1:
+        cc1, cc2 = st.columns([6, 1])
         opciones_circuito = list(CAIDA_TENSION_MAX.keys())
-        tipo_circuito = st.selectbox("Tipo de circuito / tramo", opciones_circuito, index=6,
-                                      help="Determina la caída de tensión máxima admisible (ITC-BT-14/15/19/40).")
-        sistema = st.selectbox("Sistema", [SISTEMA_MONO, SISTEMA_TRI])
+        idx_circuito = opciones_circuito.index(plantilla["tipo_circuito"]) if plantilla.get("tipo_circuito") in opciones_circuito else 6
+        with cc1:
+            tipo_circuito = st.selectbox("Tipo de circuito / tramo", opciones_circuito, index=idx_circuito)
+        with cc2:
+            st.markdown("<div style='height:1.85rem;'></div>", unsafe_allow_html=True)
+            _ayuda("Determina la caída de tensión máxima admisible del tramo (ITC-BT-14/15/19/40). "
+                   "Ej.: una Derivación Individual admite solo 1-1,5%, mientras que un circuito interior "
+                   "de fuerza admite hasta el 5%. Si dudas, usa 'Instalación interior — Otros usos'.",
+                   "Tipo de circuito")
+        sistema = st.selectbox("Sistema", [SISTEMA_MONO, SISTEMA_TRI],
+                               index=0 if plantilla.get("sistema", SISTEMA_MONO) == SISTEMA_MONO else 1)
     with c2:
         tension_defecto = 230.0 if sistema == SISTEMA_MONO else 400.0
         tension = st.number_input("Tensión de servicio (V)", min_value=100.0, max_value=1000.0,
@@ -2709,8 +2941,17 @@ def _render_inputs() -> dict:
         modo_entrada = st.radio("Datos de partida", ["Potencia activa", "Intensidad directa"], horizontal=True)
     with c3:
         if modo_entrada == "Potencia activa":
-            potencia_kw = st.number_input("Potencia activa (kW)", min_value=0.01, value=5.0, step=0.1)
-            cos_phi = st.number_input("cos φ", min_value=0.10, max_value=1.00, value=0.90, step=0.01)
+            potencia_kw = st.number_input("Potencia activa (kW)", min_value=0.01,
+                                           value=float(plantilla.get("potencia_kw", 5.0)), step=0.1)
+            cc1, cc2 = st.columns([6, 1])
+            with cc1:
+                cos_phi = st.number_input("cos φ", min_value=0.10, max_value=1.00,
+                                           value=float(plantilla.get("cos_phi", 0.90)), step=0.01)
+            with cc2:
+                st.markdown("<div style='height:1.85rem;'></div>", unsafe_allow_html=True)
+                _ayuda("Factor de potencia de la carga. Orientativo: resistivo puro (calefacción, "
+                       "incandescencia) ≈ 1,0 · uso general/electrónica ≈ 0,90-0,95 · motores ≈ 0,80-0,85.",
+                       "cos φ")
             intensidad_directa = None
         else:
             potencia_kw = None
@@ -2721,7 +2962,8 @@ def _render_inputs() -> dict:
     c4, c5, c6 = st.columns(3)
     with c4:
         conductor = st.selectbox("Material conductor", ["Cobre", "Aluminio"])
-        metodo = st.selectbox("Método de instalación", METODOS_DISPONIBLES, index=1,
+        metodo = st.selectbox("Método de instalación", METODOS_DISPONIBLES,
+                               index=METODOS_DISPONIBLES.index(plantilla["metodo"]) if plantilla.get("metodo") in METODOS_DISPONIBLES else 1,
                                help="A1/B1/B2: tubo (empotrado o superficie). C/E: bandeja o superficie. "
                                     "F: bandeja perforada de grandes secciones, típica en industria. "
                                     "D: enterrado. A1 y B2 son estimaciones ancladas a B1 — ver pestaña "
@@ -2733,8 +2975,11 @@ def _render_inputs() -> dict:
                          help="Este método se modela sólo para XLPE/EPR, el estándar actual en enterrado y "
                               "bandejas de gran sección.")
         else:
-            aislamiento = st.selectbox("Aislamiento", ["PVC", "XLPE/EPR"])
-        longitud = st.number_input("Longitud del circuito (m)", min_value=0.1, value=20.0, step=1.0)
+            opciones_aisl = ["PVC", "XLPE/EPR"]
+            idx_aisl = opciones_aisl.index(plantilla["aislamiento"]) if plantilla.get("aislamiento") in opciones_aisl else 0
+            aislamiento = st.selectbox("Aislamiento", opciones_aisl, index=idx_aisl)
+        longitud = st.number_input("Longitud del circuito (m)", min_value=0.1,
+                                    value=float(plantilla.get("longitud", 20.0)), step=1.0)
     with c6:
         delta_u_defecto = CAIDA_TENSION_MAX[tipo_circuito]
         valor_defecto = float(delta_u_defecto) if delta_u_defecto is not None else 3.0
@@ -2905,9 +3150,10 @@ def _render_resultados(inp: dict, res: dict):
         st.caption("ΔU aquí calculada con la intensidad total (sin repartir en paralelo), para mostrar por "
                    "qué una sección concreta no bastaría por sí sola.")
 
-    pdf_bytes = generar_pdf_memoria(inp, res)
-    st.download_button("⬇️ Descargar memoria de cálculo (PDF)", data=pdf_bytes,
-                        file_name="memoria_calculo_cable.pdf", mime="application/pdf")
+    pdf_bytes = generar_pdf_memoria(inp, res, st.session_state.get("config_profesional"))
+    if st.download_button("⬇️ Descargar memoria de cálculo (PDF)", data=pdf_bytes,
+                        file_name="memoria_calculo_cable.pdf", mime="application/pdf"):
+        _registrar_actividad("📄", "Memoria de cálculo descargada")
 
 
 def _render_inputs_fv() -> dict:
@@ -3505,27 +3751,32 @@ def _render_documentacion(inputs_cable: dict, resultado_cable: dict, inputs_fv: 
     total_presupuesto = subtotal_presupuesto * (1 + cfg_presu["pct_iva"] / 100.0) if capitulos else 0.0
 
     st.divider()
+    cfg_prof = st.session_state.get("config_profesional", {})
     c1, c2, c3 = st.columns(3)
     with c1:
         st.markdown("**Memoria Técnica de Diseño**")
         st.caption("Memoria descriptiva + justificativa, ITC-BT-04. Documento extenso multi-página.")
         pdf_mtd = generar_pdf_mtd(datos, inputs_cable, resultado_cable, inputs_fv, resultado_fv,
-                                   total_presupuesto)
-        st.download_button("⬇️ Descargar MTD (PDF)", data=pdf_mtd, file_name="MTD.pdf",
-                            mime="application/pdf")
+                                   total_presupuesto, cfg_prof)
+        if st.download_button("⬇️ Descargar MTD (PDF)", data=pdf_mtd, file_name="MTD.pdf",
+                               mime="application/pdf"):
+            _registrar_actividad("📄", "MTD descargada")
     with c2:
         st.markdown("**Anexo de Cálculos y Mediciones**")
         st.caption("Justificación técnica completa + mediciones por capítulo.")
         pdf_anexo = generar_pdf_anexo_calculos(datos, inputs_cable, resultado_cable, inputs_fv, resultado_fv,
-                                                capitulos, cfg_presu["pct_beneficio"], cfg_presu["pct_amortizacion"])
-        st.download_button("⬇️ Descargar Anexo (PDF)", data=pdf_anexo, file_name="anexo_calculos.pdf",
-                            mime="application/pdf")
+                                                capitulos, cfg_presu["pct_beneficio"], cfg_presu["pct_amortizacion"],
+                                                cfg_prof)
+        if st.download_button("⬇️ Descargar Anexo (PDF)", data=pdf_anexo, file_name="anexo_calculos.pdf",
+                               mime="application/pdf"):
+            _registrar_actividad("📄", "Anexo de cálculos descargado")
     with c3:
         st.markdown("**Pliego de Condiciones**")
         st.caption("Condiciones generales de materiales, ejecución y pruebas.")
-        pdf_cond = generar_pdf_condiciones_generales(datos, hay_fv)
-        st.download_button("⬇️ Descargar Condiciones (PDF)", data=pdf_cond, file_name="condiciones_generales.pdf",
-                            mime="application/pdf")
+        pdf_cond = generar_pdf_condiciones_generales(datos, hay_fv, cfg_prof)
+        if st.download_button("⬇️ Descargar Condiciones (PDF)", data=pdf_cond, file_name="condiciones_generales.pdf",
+                               mime="application/pdf"):
+            _registrar_actividad("📄", "Pliego de condiciones descargado")
 
     if not hay_cable and not hay_fv:
         st.info("Todavía no hay ningún cálculo hecho: los documentos se generarán igualmente, pero con las "
@@ -3801,6 +4052,380 @@ def _render_calculos_bt():
         st.markdown(f"→ Vout = Vin·R2/(R1+R2) = **{vout_dt:.3f} V**")
 
 
+def _render_sidebar():
+    with st.sidebar:
+        st.markdown("""
+        <div class="sidebar-brand">
+            <div class="logo">⚡</div>
+            <div><div class="name">REBT Suite</div><div class="sub">Instalaciones eléctricas</div></div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        def nav_button(icono, nombre):
+            activo = st.session_state["pagina_actual"] == nombre
+            if st.button(f"{icono}  {nombre}", key=f"nav_{nombre}",
+                         type="primary" if activo else "secondary", width='stretch'):
+                st.session_state["pagina_actual"] = nombre
+                st.rerun()
+
+        st.markdown('<p class="nav-group-label">Principal</p>', unsafe_allow_html=True)
+        nav_button("🏠", "Inicio")
+        nav_button("📁", "Proyectos")
+        nav_button("📊", "Estadísticas")
+
+        st.markdown('<p class="nav-group-label">Herramientas</p>', unsafe_allow_html=True)
+        iconos_herr = {"Calculadora": "🔌", "Fórmulas": "🧮", "Fotovoltaica": "☀️", "Cálculos BT": "📐",
+                       "Presupuesto": "💰", "Documentación": "📄"}
+        for nombre in PAGINAS_HERRAMIENTAS:
+            nav_button(iconos_herr[nombre], nombre)
+
+        st.markdown('<p class="nav-group-label">Normativa</p>', unsafe_allow_html=True)
+        nav_button("📚", "Tablas normativas")
+        nav_button("📖", "Metodología")
+
+        st.markdown('<p class="nav-group-label">Sistema</p>', unsafe_allow_html=True)
+        nav_button("⚙️", "Configuración")
+        nav_button("ℹ️", "Acerca de")
+
+        st.markdown("<div style='margin-top:1.4rem;'></div>", unsafe_allow_html=True)
+        st.caption(f"📌 {st.session_state['nombre_proyecto_actual']}")
+
+
+def _tarjeta_kpi(col, icono: str, color: str, valor: str, etiqueta: str):
+    with col:
+        st.markdown(f'''<div class="kpi-card">
+            <div class="kpi-icon {color}">{icono}</div>
+            <div class="kpi-value">{valor}</div>
+            <div class="kpi-label">{etiqueta}</div>
+        </div>''', unsafe_allow_html=True)
+
+
+def _tarjeta_acceso_rapido(col, icono: str, titulo: str, subtitulo: str, pagina_destino: str):
+    with col:
+        st.markdown(f'''<div class="quick-card">
+            <div class="qc-icon">{icono}</div>
+            <div class="qc-title">{titulo}</div>
+            <div class="qc-sub">{subtitulo}</div>
+        </div>''', unsafe_allow_html=True)
+        if st.button("Abrir →", key=f"qa_{pagina_destino}", width='stretch'):
+            st.session_state["pagina_actual"] = pagina_destino
+            st.rerun()
+
+
+PLANTILLAS_CIRCUITO = {
+    "🏠 Vivienda — circuito de alumbrado": dict(
+        tipo_circuito="Instalación interior — Alumbrado", sistema=SISTEMA_MONO, potencia_kw=1.5,
+        cos_phi=0.95, metodo=METODO_B1, aislamiento="PVC", longitud=15.0),
+    "🏠 Vivienda — tomas de uso general": dict(
+        tipo_circuito="Instalación interior — Otros usos / fuerza", sistema=SISTEMA_MONO, potencia_kw=3.45,
+        cos_phi=0.90, metodo=METODO_B1, aislamiento="PVC", longitud=20.0),
+    "🏭 Nave industrial — línea de fuerza": dict(
+        tipo_circuito="Instalación interior — Otros usos / fuerza", sistema=SISTEMA_TRI, potencia_kw=15.0,
+        cos_phi=0.85, metodo=METODO_F, aislamiento="XLPE/EPR", longitud=40.0),
+    "🔋 Derivación individual estándar": dict(
+        tipo_circuito="Derivación Individual — usuario único (sin LGA)", sistema=SISTEMA_MONO, potencia_kw=5.75,
+        cos_phi=0.90, metodo=METODO_B1, aislamiento="PVC", longitud=12.0),
+}
+
+
+def _render_dashboard():
+    nombre_usuario = st.session_state["config_profesional"].get("nombre") or "ingeniero/a"
+    st.markdown(f"### 👋 Hola, {nombre_usuario}")
+    st.caption(f"Proyecto actual: **{st.session_state['nombre_proyecto_actual']}** · "
+               f"{datetime.now().strftime('%A, %d de %B de %Y')}")
+
+    hay_cable = st.session_state["resultado_cable"].get("seccion_final") is not None
+    hay_fv = bool(st.session_state["resultado_fv"]) and st.session_state["resultado_fv"].get("p_pico_kwp") is not None
+    n_capitulos = len(st.session_state.get("presupuesto_capitulos", []))
+    cfg_p = st.session_state.get("presupuesto_config", {"pct_beneficio": PORCENTAJE_BENEFICIO_DEFECTO,
+                                                          "pct_amortizacion": PORCENTAJE_AMORTIZACION_DEFECTO})
+    total_presu = sum(calcular_totales_capitulo(c["items"], cfg_p["pct_beneficio"], cfg_p["pct_amortizacion"])
+                       for c in st.session_state.get("presupuesto_capitulos", []))
+
+    st.markdown('<p class="section-label">Resumen del proyecto</p>', unsafe_allow_html=True)
+    k1, k2, k3, k4 = st.columns(4)
+    _tarjeta_kpi(k1, "🔌", "blue",
+                 f"{st.session_state['resultado_cable'].get('seccion_final', '—')} mm²" if hay_cable else "—",
+                 "Sección de cable calculada")
+    _tarjeta_kpi(k2, "☀️", "orange",
+                 f"{st.session_state['resultado_fv'].get('p_pico_kwp', 0):.1f} kWp" if hay_fv else "—",
+                 "Potencia fotovoltaica")
+    _tarjeta_kpi(k3, "💰", "green", _fmt_eur(total_presu) if n_capitulos else "—",
+                 f"Presupuesto ({n_capitulos} capítulos)")
+    _tarjeta_kpi(k4, "📁", "blue", f"{len(st.session_state.get('historial_proyectos', []))}",
+                 "Proyectos en el historial")
+
+    st.markdown('<p class="section-label">Accesos rápidos</p>', unsafe_allow_html=True)
+    q1, q2, q3, q4 = st.columns(4)
+    _tarjeta_acceso_rapido(q1, "🔌", "Calculadora de cables", "Sección, protecciones, ΔU", "Calculadora")
+    _tarjeta_acceso_rapido(q2, "☀️", "Fotovoltaica", "Dimensionado completo FV", "Fotovoltaica")
+    _tarjeta_acceso_rapido(q3, "💰", "Presupuesto", "Capítulos y mediciones", "Presupuesto")
+    _tarjeta_acceso_rapido(q4, "📄", "Documentación", "MTD, Anexo, Condiciones", "Documentación")
+
+    col_izq, col_der = st.columns([1.3, 1])
+    with col_izq:
+        st.markdown('<p class="section-label">Plantillas de circuito</p>', unsafe_allow_html=True)
+        st.caption("Aplica valores de partida habituales a la Calculadora — luego puedes ajustarlos.")
+        for nombre_plantilla, valores in PLANTILLAS_CIRCUITO.items():
+            pc1, pc2 = st.columns([4, 1])
+            pc1.markdown(f"**{nombre_plantilla}**  \n"
+                         f"<span style='color:var(--text-secondary); font-size:0.8rem;'>"
+                         f"{valores['potencia_kw']:g} kW · {valores['sistema']} · {valores['metodo'][:28]}...</span>",
+                         unsafe_allow_html=True)
+            if pc2.button("Usar", key=f"plantilla_{nombre_plantilla}"):
+                st.session_state["plantilla_activa"] = valores
+                st.session_state["pagina_actual"] = "Calculadora"
+                _registrar_actividad("📋", f"Plantilla aplicada: {nombre_plantilla}")
+                st.rerun()
+
+    with col_der:
+        st.markdown('<p class="section-label">Actividad reciente</p>', unsafe_allow_html=True)
+        actividad = st.session_state.get("actividad", [])
+        if actividad:
+            html_items = "".join(
+                f'<div class="timeline-item"><div class="timeline-dot"></div>'
+                f'<div><div class="timeline-time">{a["hora"]}</div>{a["icono"]} {a["texto"]}</div></div>'
+                for a in actividad[:10]
+            )
+            st.markdown(f'<div class="result-card">{html_items}</div>', unsafe_allow_html=True)
+        else:
+            st.info("Todavía no hay actividad registrada en esta sesión.")
+
+    if not hay_cable and not hay_fv:
+        st.markdown('<p class="section-label">Primeros pasos</p>', unsafe_allow_html=True)
+        st.info("👋 Empieza calculando un circuito en **Calculadora** o dimensionando una instalación en "
+                "**Fotovoltaica**. Desde ahí podrás generar presupuesto y documentación automáticamente.")
+
+
+def _render_proyectos():
+    st.markdown('<p class="section-label">Mis proyectos</p>', unsafe_allow_html=True)
+    st.caption("Guardar descarga un archivo .json a tu ordenador — eso es lo único que persiste de verdad "
+               "entre sesiones. El historial de abajo es solo de esta sesión del navegador (se pierde al "
+               "cerrar o recargar la pestaña).")
+
+    with st.container(border=True):
+        st.markdown("**💾 Guardar proyecto actual**")
+        c1, c2 = st.columns([3, 1])
+        nombre_nuevo = c1.text_input("Nombre del proyecto", st.session_state["nombre_proyecto_actual"])
+        c2.markdown("<br>", unsafe_allow_html=True)
+        if c2.button("Guardar", type="primary", width='stretch'):
+            st.session_state["nombre_proyecto_actual"] = nombre_nuevo
+            datos = _serializar_proyecto(nombre_nuevo)
+            st.session_state["historial_proyectos"].append(datos)
+            _registrar_actividad("💾", f"Proyecto guardado: {nombre_nuevo}")
+            st.success(f"Proyecto '{nombre_nuevo}' añadido al historial de la sesión. Descárgalo abajo para "
+                       "conservarlo de verdad.")
+        datos_actuales = _serializar_proyecto(st.session_state["nombre_proyecto_actual"])
+        st.download_button(
+            f"⬇️ Descargar '{st.session_state['nombre_proyecto_actual']}' (.json, "
+            f"{_tamano_proyecto_kb(datos_actuales):.1f} KB)",
+            data=json.dumps(datos_actuales, ensure_ascii=False, indent=2, default=str),
+            file_name=f"{st.session_state['nombre_proyecto_actual'].replace(' ', '_')}.json",
+            mime="application/json", width='stretch')
+
+    with st.container(border=True):
+        st.markdown("**📂 Abrir proyecto**")
+        archivo = st.file_uploader("Sube un .json guardado previamente", type=["json"])
+        if archivo is not None:
+            try:
+                datos_cargados = json.loads(archivo.read().decode("utf-8"))
+                if st.button("Cargar en la sesión actual", type="primary"):
+                    _cargar_proyecto(datos_cargados)
+                    _registrar_actividad("📂", f"Proyecto cargado: {datos_cargados.get('__nombre__', archivo.name)}")
+                    st.success("Proyecto cargado correctamente.")
+                    st.rerun()
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                st.error("El archivo no es un proyecto válido de esta aplicación.")
+
+    st.markdown('<p class="section-label">Historial de la sesión</p>', unsafe_allow_html=True)
+    historial = st.session_state.get("historial_proyectos", [])
+    if not historial:
+        st.info("Todavía no has guardado ningún proyecto en esta sesión.")
+        return
+
+    for i, proy in enumerate(reversed(historial)):
+        idx_real = len(historial) - 1 - i
+        with st.container(border=True):
+            hc1, hc2, hc3, hc4, hc5 = st.columns([3, 2, 1, 1, 1])
+            hc1.markdown(f"**{proy.get('__nombre__', 'Sin nombre')}**")
+            try:
+                fecha_fmt = datetime.fromisoformat(proy["__fecha__"]).strftime("%d/%m/%Y %H:%M")
+            except (KeyError, ValueError):
+                fecha_fmt = "—"
+            hc2.caption(fecha_fmt)
+            if hc3.button("Abrir", key=f"hist_abrir_{idx_real}"):
+                _cargar_proyecto(proy)
+                _registrar_actividad("📂", f"Proyecto reabierto: {proy.get('__nombre__')}")
+                st.rerun()
+            if hc4.button("Duplicar", key=f"hist_dup_{idx_real}"):
+                copia = dict(proy)
+                copia["__nombre__"] = f"{proy.get('__nombre__', 'Proyecto')} (copia)"
+                copia["__fecha__"] = datetime.now().isoformat()
+                st.session_state["historial_proyectos"].append(copia)
+                _registrar_actividad("📑", f"Proyecto duplicado: {copia['__nombre__']}")
+                st.rerun()
+            if hc5.button("🗑️", key=f"hist_del_{idx_real}"):
+                st.session_state["historial_proyectos"].pop(idx_real)
+                st.rerun()
+
+    if len(historial) >= 2:
+        st.markdown('<p class="section-label">Comparador de proyectos</p>', unsafe_allow_html=True)
+        nombres_hist = [f"{i}: {p.get('__nombre__', '-')}" for i, p in enumerate(historial)]
+        c1, c2 = st.columns(2)
+        sel_a = c1.selectbox("Proyecto A", nombres_hist, index=len(nombres_hist) - 2)
+        sel_b = c2.selectbox("Proyecto B", nombres_hist, index=len(nombres_hist) - 1)
+        proy_a = historial[int(sel_a.split(":")[0])]
+        proy_b = historial[int(sel_b.split(":")[0])]
+
+        def _resumen(p):
+            rc = p.get("resultado_cable") or {}
+            rf = p.get("resultado_fv") or {}
+            caps = p.get("presupuesto_capitulos") or []
+            cfg = p.get("presupuesto_config") or {"pct_beneficio": 15, "pct_amortizacion": 5}
+            total = sum(calcular_totales_capitulo(c["items"], cfg["pct_beneficio"], cfg["pct_amortizacion"])
+                        for c in caps)
+            return {
+                "Sección de cable": f"{rc.get('seccion_final', '—')} mm²" if rc.get("seccion_final") else "—",
+                "Potencia FV": f"{rf.get('p_pico_kwp', 0):.2f} kWp" if rf.get("p_pico_kwp") else "—",
+                "Capítulos de presupuesto": f"{len(caps)}",
+                "Total presupuesto": _fmt_eur(total) if caps else "—",
+            }
+
+        res_a, res_b = _resumen(proy_a), _resumen(proy_b)
+        df_comp = pd.DataFrame([{"Magnitud": k, "Proyecto A": res_a[k], "Proyecto B": res_b[k]} for k in res_a])
+        st.dataframe(df_comp, width='stretch', hide_index=True)
+
+
+def _render_estadisticas():
+    st.markdown('<p class="section-label">Estadísticas</p>', unsafe_allow_html=True)
+
+    capitulos = st.session_state.get("presupuesto_capitulos", [])
+    cfg_p = st.session_state.get("presupuesto_config", {"pct_beneficio": PORCENTAJE_BENEFICIO_DEFECTO,
+                                                          "pct_amortizacion": PORCENTAJE_AMORTIZACION_DEFECTO,
+                                                          "pct_iva": IVA_DEFECTO_PCT})
+    resultado_fv = st.session_state.get("resultado_fv", {})
+    hay_fv = bool(resultado_fv) and resultado_fv.get("p_pico_kwp") is not None
+
+    if not capitulos and not hay_fv:
+        st.info("Todavía no hay datos suficientes: calcula un circuito, dimensiona una instalación "
+                "fotovoltaica o añade capítulos al presupuesto para ver estadísticas.")
+        return
+
+    import plotly.graph_objects as go
+    import plotly.express as px
+    colores_plot = ["#3b82f6", "#e8a33d", "#22c55e", "#ef4444", "#a78bfa", "#06b6d4", "#f59e0b"]
+
+    if capitulos:
+        st.markdown("**Distribución del presupuesto por capítulo**")
+        c1, c2 = st.columns(2)
+        with c1:
+            nombres = [c["nombre"][:35] for c in capitulos]
+            valores = [calcular_totales_capitulo(c["items"], cfg_p["pct_beneficio"], cfg_p["pct_amortizacion"])
+                       for c in capitulos]
+            fig = go.Figure(data=[go.Pie(labels=nombres, values=valores, hole=0.55,
+                                          marker=dict(colors=colores_plot))])
+            fig.update_layout(margin=dict(t=10, b=10, l=10, r=10), height=320,
+                               paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#8b96a8"),
+                               legend=dict(orientation="h", y=-0.15))
+            st.plotly_chart(fig, width='stretch')
+        with c2:
+            subtotal = sum(valores)
+            desglose = {"PEM": subtotal,
+                        "Amortización": subtotal * cfg_p["pct_amortizacion"] / 100,
+                        "Beneficio": subtotal * cfg_p["pct_beneficio"] / 100}
+            desglose["IVA"] = (desglose["PEM"] + desglose["Amortización"] + desglose["Beneficio"]) * \
+                cfg_p.get("pct_iva", IVA_DEFECTO_PCT) / 100
+            fig2 = px.bar(x=list(desglose.keys()), y=list(desglose.values()), color=list(desglose.keys()),
+                          color_discrete_sequence=colores_plot)
+            fig2.update_layout(margin=dict(t=10, b=10, l=10, r=10), height=320, showlegend=False,
+                               paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                               font=dict(color="#8b96a8"), xaxis_title="", yaxis_title="€")
+            st.plotly_chart(fig2, width='stretch')
+
+    if hay_fv:
+        st.markdown("**Producción fotovoltaica mensual estimada**")
+        pesos_mes = [0.055, 0.065, 0.085, 0.095, 0.105, 0.11, 0.115, 0.105, 0.09, 0.075, 0.055, 0.045]
+        meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+        produccion_total = resultado_fv["produccion_anual_kwh"]
+        valores_mes = [produccion_total * p for p in pesos_mes]
+        fig3 = px.bar(x=meses, y=valores_mes, color=valores_mes, color_continuous_scale="Blues")
+        fig3.update_layout(margin=dict(t=10, b=10, l=10, r=10), height=300, showlegend=False,
+                           coloraxis_showscale=False, paper_bgcolor="rgba(0,0,0,0)",
+                           plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#8b96a8"),
+                           xaxis_title="", yaxis_title="kWh")
+        st.plotly_chart(fig3, width='stretch')
+        st.caption("Distribución mensual orientativa según el patrón estacional típico de irradiación en "
+                   "España (no son datos de PVGIS de tu ubicación exacta).")
+
+    actividad = st.session_state.get("actividad", [])
+    if actividad:
+        st.markdown("**Actividad de la sesión**")
+        st.metric("Acciones registradas", len(actividad))
+
+
+def _render_configuracion():
+    st.markdown('<p class="section-label">Configuración</p>', unsafe_allow_html=True)
+
+    tab_perfil, tab_apariencia = st.tabs(["🖋️ Modo profesional", "🎨 Apariencia"])
+
+    with tab_perfil:
+        st.caption("Estos datos se incluyen en la cabecera y portada de todos los PDF generados "
+                   "(memoria de cálculo, MTD, Anexo, Condiciones Generales).")
+        cfg = st.session_state["config_profesional"]
+        c1, c2 = st.columns(2)
+        with c1:
+            cfg["nombre"] = st.text_input("Nombre del técnico/instalador", cfg.get("nombre", ""))
+            cfg["empresa"] = st.text_input("Empresa / razón social", cfg.get("empresa", ""))
+        with c2:
+            cfg["firma"] = st.text_input("Texto de firma (p. ej. nº de colegiado)", cfg.get("firma", ""))
+            logo_file = st.file_uploader("Logotipo (PNG/JPG, opcional)", type=["png", "jpg", "jpeg"])
+            if logo_file is not None:
+                cfg["logo_b64"] = base64.b64encode(logo_file.read()).decode("ascii")
+                cfg["logo_mime"] = logo_file.type
+        if cfg.get("logo_b64"):
+            lc1, lc2 = st.columns([1, 4])
+            lc1.image(base64.b64decode(cfg["logo_b64"]), width=80)
+            if lc2.button("Quitar logotipo"):
+                cfg["logo_b64"] = ""
+                st.rerun()
+        st.session_state["config_profesional"] = cfg
+
+    with tab_apariencia:
+        st.caption("El tema se aplica a toda la aplicación (no afecta a los PDF, que mantienen un diseño "
+                   "fijo pensado para imprimir).")
+        tema_sel = st.radio("Tema", ["Oscuro", "Claro"],
+                            index=0 if st.session_state["tema"] == "Oscuro" else 1, horizontal=True)
+        if tema_sel != st.session_state["tema"]:
+            st.session_state["tema"] = tema_sel
+            st.rerun()
+
+
+def _render_acerca_de():
+    st.markdown('<p class="section-label">Acerca de</p>', unsafe_allow_html=True)
+    st.markdown("""
+### REBT Suite — Calculadora de Instalaciones Eléctricas
+
+Herramienta de apoyo al diseño de instalaciones de baja tensión conforme al REBT (RD 842/2002) y sus
+Instrucciones Técnicas Complementarias, con módulos independientes de cálculo de secciones de cable,
+dimensionado fotovoltaico, calculadoras de referencia rápida, presupuesto por capítulos y generación de
+documentación técnica (MTD, Anexo de Cálculos, Pliego de Condiciones).
+
+**Construida con:** Python, Streamlit, pandas, reportlab (PDF), openpyxl (Excel), plotly (gráficos).
+
+**Qué es y qué no es esta app:**
+- ✅ Herramienta de apoyo al predimensionado, con las fórmulas y tablas normativas documentadas en cada
+  pestaña (ver "Metodología").
+- ✅ Los proyectos se guardan como archivo `.json` que descargas tú — no hay servidor guardando tus datos.
+- ❌ No sustituye la verificación de un técnico competente antes de firmar un proyecto o memoria.
+- ❌ No es una base de datos persistente: recarga la página y el historial de sesión se pierde (por eso
+  existe la descarga de proyectos).
+
+**Aviso legal:** las tablas y fórmulas se han contrastado contra la Guía-BT-19 y las ITC-BT
+correspondientes, pero pueden existir erratas. Verifica los valores críticos antes de un uso profesional.
+    """)
+    st.caption("Versión 4.0 · Última actualización de este documento: sesión actual.")
+
+
 def _render_tablas():
     st.markdown('<p class="section-label">Tabla A — Intensidades admisibles (A), cobre, no enterrado, '
                 'aire a 40°C</p>', unsafe_allow_html=True)
@@ -3934,58 +4559,93 @@ normativa aplicable antes de firmar un proyecto.
 # ==============================================================================
 
 def main():
-    st.set_page_config(page_title="Instalaciones Eléctricas · REBT", page_icon="⚡", layout="wide")
-    st.markdown(CSS, unsafe_allow_html=True)
+    st.set_page_config(page_title="REBT Suite · Instalaciones Eléctricas", page_icon="⚡", layout="wide",
+                       initial_sidebar_state="expanded")
+    _inicializar_estado()
+    st.markdown(generar_css(st.session_state["tema"]), unsafe_allow_html=True)
+    _render_sidebar()
 
-    st.markdown(
-        """
+    pagina = st.session_state["pagina_actual"]
+
+    if pagina == "Inicio":
+        _render_dashboard()
+        return
+    if pagina == "Proyectos":
+        _render_proyectos()
+        return
+    if pagina == "Estadísticas":
+        _render_estadisticas()
+        return
+    if pagina == "Configuración":
+        _render_configuracion()
+        return
+    if pagina == "Acerca de":
+        _render_acerca_de()
+        return
+    if pagina == "Tablas normativas":
+        _render_tablas()
+        return
+    if pagina == "Metodología":
+        _render_metodologia()
+        return
+
+    # --- Páginas de herramientas: mismo cajetín de cabecera que antes ---
+    eyebrow = {"Calculadora": "Cálculo de secciones · Baja tensión", "Fórmulas": "Justificación de cálculo",
+               "Fotovoltaica": "Dimensionado de instalaciones solares", "Cálculos BT": "Calculadoras de referencia rápida",
+               "Presupuesto": "Mediciones y precios", "Documentación": "MTD · Anexo · Pliego"}.get(pagina, "")
+    st.markdown(f"""
         <div class="titleblock">
             <div class="titleblock-main">
-                <span class="titleblock-eyebrow">Cálculo de instalaciones · Baja tensión</span>
-                <h1>Calculadora de Instalaciones Eléctricas</h1>
+                <span class="titleblock-eyebrow">{eyebrow}</span>
+                <h1>{pagina}</h1>
             </div>
             <div class="titleblock-meta">
                 <div><span>Norma</span><strong>REBT · ITC-BT</strong></div>
-                <div><span>Módulos</span><strong>Cable · FV · Doc.</strong></div>
-                <div><span>Rev.</span><strong>3.0</strong></div>
+                <div><span>Proyecto</span><strong>{st.session_state['nombre_proyecto_actual'][:16]}</strong></div>
+                <div><span>Rev.</span><strong>4.0</strong></div>
             </div>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        """, unsafe_allow_html=True)
 
-    tab_calc, tab_formulas, tab_fv, tab_bt, tab_presu, tab_doc, tab_tablas, tab_metodo = st.tabs(
-        ["🔌 Calculadora", "🧮 Fórmulas", "☀️ Fotovoltaica", "📐 Cálculos BT", "💰 Presupuesto",
-         "📄 Documentación", "📊 Tablas normativas", "📖 Metodología"]
-    )
-
-    with tab_calc:
+    if pagina == "Calculadora":
         inputs_cable = _render_inputs()
         resultado_cable = calcular(inputs_cable)
+        st.session_state["inputs_cable"] = inputs_cable
+        st.session_state["resultado_cable"] = resultado_cable
+        seccion_previa = st.session_state.get("_ultima_seccion_cable")
+        if resultado_cable.get("seccion_final") and resultado_cable["seccion_final"] != seccion_previa:
+            st.session_state["_ultima_seccion_cable"] = resultado_cable["seccion_final"]
+            _registrar_actividad("🔌", f"Cable calculado: {resultado_cable['seccion_final']:g} mm²")
         _render_resultados(inputs_cable, resultado_cable)
 
-    with tab_formulas:
-        _render_formulas(inputs_cable, resultado_cable)
+    elif pagina == "Fórmulas":
+        ic, rc = st.session_state.get("inputs_cable", {}), st.session_state.get("resultado_cable", {})
+        if rc.get("seccion_final") is not None:
+            _render_formulas(ic, rc)
+        else:
+            st.info("Primero calcula un circuito en **Calculadora** para ver aquí su justificación.")
 
-    with tab_fv:
+    elif pagina == "Fotovoltaica":
         inputs_fv = _render_inputs_fv()
         resultado_fv = calcular_fv(inputs_fv)
+        st.session_state["inputs_fv"] = inputs_fv
+        st.session_state["resultado_fv"] = resultado_fv
+        potencia_previa = st.session_state.get("_ultima_potencia_fv")
+        if resultado_fv.get("p_pico_kwp") and resultado_fv["p_pico_kwp"] != potencia_previa:
+            st.session_state["_ultima_potencia_fv"] = resultado_fv["p_pico_kwp"]
+            _registrar_actividad("☀️", f"FV calculada: {resultado_fv['p_pico_kwp']:.1f} kWp")
         _render_resultados_fv(inputs_fv, resultado_fv)
 
-    with tab_bt:
+    elif pagina == "Cálculos BT":
         _render_calculos_bt()
 
-    with tab_presu:
-        _render_presupuesto(inputs_cable, resultado_cable, inputs_fv, resultado_fv)
+    elif pagina == "Presupuesto":
+        _render_presupuesto(st.session_state.get("inputs_cable", {}), st.session_state.get("resultado_cable", {}),
+                            st.session_state.get("inputs_fv", {}), st.session_state.get("resultado_fv", {}))
 
-    with tab_doc:
-        _render_documentacion(inputs_cable, resultado_cable, inputs_fv, resultado_fv)
-
-    with tab_tablas:
-        _render_tablas()
-
-    with tab_metodo:
-        _render_metodologia()
+    elif pagina == "Documentación":
+        _render_documentacion(st.session_state.get("inputs_cable", {}), st.session_state.get("resultado_cable", {}),
+                              st.session_state.get("inputs_fv", {}), st.session_state.get("resultado_fv", {}))
 
 
 if __name__ == "__main__":
