@@ -1,0 +1,13 @@
+# Tema base de los widgets NATIVOS de Streamlit (inputs, selects, tablas).
+# Esto es necesario además del CSS inyectado en la app: los componentes
+# nativos (number_input, selectbox, dataframe/data_editor) usan su propio
+# sistema de theming interno que el CSS de la página no puede sobreescribir
+# de forma fiable — en concreto, las tablas (data_editor) se renderizan con
+# un grid en canvas que lee el tema de aquí, no del CSS.
+[theme]
+base = "dark"
+primaryColor = "#3b82f6"
+backgroundColor = "#0b1220"
+secondaryBackgroundColor = "#16213a"
+textColor = "#e8edf4"
+font = "sans serif"
