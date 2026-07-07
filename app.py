@@ -3157,18 +3157,24 @@ def _render_resultados(inp: dict, res: dict):
 
 
 def _render_inputs_fv() -> dict:
+    plantilla = st.session_state.pop("plantilla_activa_fv", None) or {}
+    if plantilla:
+        st.success("📋 Plantilla aplicada — ajusta lo que necesites, el resto de valores parten de aquí.")
+
     st.markdown('<p class="section-label">1 · Dimensionado</p>', unsafe_allow_html=True)
     d1, d2, d3 = st.columns(3)
+    opciones_modo = ["Por consumo anual (kWh)", "Por potencia pico deseada (kWp)", "Por número de paneles"]
     with d1:
         modo_dimensionado = st.selectbox(
-            "Punto de partida", ["Por consumo anual (kWh)", "Por potencia pico deseada (kWp)",
-                                  "Por número de paneles"])
+            "Punto de partida", opciones_modo,
+            index=opciones_modo.index(plantilla["modo_dimensionado"]) if plantilla.get("modo_dimensionado") in opciones_modo else 0)
     consumo_anual_kwh = potencia_pico_deseada = n_paneles_manual = None
     with d2:
         if modo_dimensionado == "Por consumo anual (kWh)":
             consumo_anual_kwh = st.number_input("Consumo anual estimado (kWh)", min_value=1.0, value=4000.0, step=100.0)
         elif modo_dimensionado == "Por potencia pico deseada (kWp)":
-            potencia_pico_deseada = st.number_input("Potencia pico deseada (kWp)", min_value=0.1, value=5.0, step=0.5)
+            potencia_pico_deseada = st.number_input("Potencia pico deseada (kWp)", min_value=0.1,
+                                                     value=float(plantilla.get("potencia_pico_deseada", 5.0)), step=0.5)
         else:
             n_paneles_manual = st.number_input("Número de paneles", min_value=1, value=12, step=1)
     with d3:
@@ -3206,7 +3212,9 @@ def _render_inputs_fv() -> dict:
         degradacion_anual = st.number_input("Degradación anual del panel (%/año)", min_value=0.0, max_value=2.0,
                                              value=DEGRADACION_ANUAL_DEFECTO, step=0.05,
                                              help="Típico 0,3-0,8%/año según el fabricante.")
-        tipo_autoconsumo = st.selectbox("Modalidad (RD 244/2019)", TIPO_AUTOCONSUMO_FV)
+        tipo_autoconsumo = st.selectbox(
+            "Modalidad (RD 244/2019)", TIPO_AUTOCONSUMO_FV,
+            index=TIPO_AUTOCONSUMO_FV.index(plantilla["tipo_autoconsumo"]) if plantilla.get("tipo_autoconsumo") in TIPO_AUTOCONSUMO_FV else 0)
         precio_kwh = st.number_input("Precio kWh evitado (€/kWh)", min_value=0.01, value=0.18, step=0.01)
 
     st.markdown('<p class="section-label">3 · Módulo fotovoltaico (valores de ficha técnica STC)</p>',
@@ -3231,8 +3239,9 @@ def _render_inputs_fv() -> dict:
     i1, i2, i3, i4 = st.columns(4)
     with i1:
         potencia_inversor_kw = st.number_input("Potencia nominal inversor (kW)", min_value=0.1,
-                                                value=INVERSOR_DEFECTO["potencia_kw"], step=0.5)
-        sistema_ca = st.selectbox("Sistema CA de salida", [SISTEMA_MONO, SISTEMA_TRI])
+                                                value=float(plantilla.get("potencia_inversor_kw", INVERSOR_DEFECTO["potencia_kw"])), step=0.5)
+        sistema_ca = st.selectbox("Sistema CA de salida", [SISTEMA_MONO, SISTEMA_TRI],
+                                  index=0 if plantilla.get("sistema_ca", SISTEMA_MONO) == SISTEMA_MONO else 1)
     with i2:
         vmin_mppt = st.number_input("Tensión mínima MPPT (V)", min_value=1.0,
                                      value=float(INVERSOR_DEFECTO["vmin_mppt"]), step=5.0)
@@ -4072,6 +4081,7 @@ def _render_sidebar():
         nav_button("🏠", "Inicio")
         nav_button("📁", "Proyectos")
         nav_button("📊", "Estadísticas")
+        nav_button("🤖", "Asistente IA")
 
         st.markdown('<p class="nav-group-label">Herramientas</p>', unsafe_allow_html=True)
         iconos_herr = {"Calculadora": "🔌", "Fórmulas": "🧮", "Fotovoltaica": "☀️", "Cálculos BT": "📐",
@@ -4127,6 +4137,37 @@ PLANTILLAS_CIRCUITO = {
         cos_phi=0.90, metodo=METODO_B1, aislamiento="PVC", longitud=12.0),
 }
 
+PLANTILLAS_FV = {
+    "🏠 Vivienda unifamiliar — 5 kWp": dict(
+        modo_dimensionado="Por potencia pico deseada (kWp)", potencia_pico_deseada=5.0,
+        tipo_autoconsumo="Con excedentes acogido a compensación", potencia_inversor_kw=5.0,
+        sistema_ca=SISTEMA_MONO, con_bateria=False),
+    "🏭 Nave industrial — 20 kWp trifásica": dict(
+        modo_dimensionado="Por potencia pico deseada (kWp)", potencia_pico_deseada=20.0,
+        tipo_autoconsumo="Sin excedentes", potencia_inversor_kw=20.0,
+        sistema_ca=SISTEMA_TRI, con_bateria=False),
+    "🔋 Instalación aislada con batería": dict(
+        modo_dimensionado="Por potencia pico deseada (kWp)", potencia_pico_deseada=3.0,
+        tipo_autoconsumo="Instalación aislada (con batería)", potencia_inversor_kw=3.0,
+        sistema_ca=SISTEMA_MONO, con_bateria=True),
+    "☀️ Autoconsumo comercial — 10 kWp": dict(
+        modo_dimensionado="Por potencia pico deseada (kWp)", potencia_pico_deseada=10.0,
+        tipo_autoconsumo="Con excedentes no acogido a compensación", potencia_inversor_kw=10.0,
+        sistema_ca=SISTEMA_TRI, con_bateria=False),
+}
+
+PLANTILLAS_PRESUPUESTO = {
+    "🏠 Vivienda unifamiliar": ["CAPÍTULO I: DERIVACIÓN INDIVIDUAL", "CAPÍTULO II: CUADRO DE PROTECCIÓN",
+                                "CAPÍTULO III: CIRCUITO DE ALUMBRADO",
+                                "CAPÍTULO IV: CIRCUITO DE TOMAS DE USO GENERAL",
+                                "CAPÍTULO V: CIRCUITO DE COCINA Y HORNO", "CAPÍTULO VI: PUESTA A TIERRA"],
+    "🏭 Nave industrial": ["CAPÍTULO I: ACOMETIDA Y CGP", "CAPÍTULO II: CUADRO GENERAL DE DISTRIBUCIÓN",
+                           "CAPÍTULO III: FUERZA MOTRIZ", "CAPÍTULO IV: ILUMINACIÓN INDUSTRIAL",
+                           "CAPÍTULO V: PUESTA A TIERRA"],
+    "☀️ Instalación fotovoltaica": ["CAPÍTULO I: GENERADOR FOTOVOLTAICO",
+                                    "CAPÍTULO II: PROTECCIONES E INTERCONEXIÓN"],
+}
+
 
 def _render_dashboard():
     nombre_usuario = st.session_state["config_profesional"].get("nombre") or "ingeniero/a"
@@ -4164,19 +4205,50 @@ def _render_dashboard():
 
     col_izq, col_der = st.columns([1.3, 1])
     with col_izq:
-        st.markdown('<p class="section-label">Plantillas de circuito</p>', unsafe_allow_html=True)
-        st.caption("Aplica valores de partida habituales a la Calculadora — luego puedes ajustarlos.")
-        for nombre_plantilla, valores in PLANTILLAS_CIRCUITO.items():
-            pc1, pc2 = st.columns([4, 1])
-            pc1.markdown(f"**{nombre_plantilla}**  \n"
-                         f"<span style='color:var(--text-secondary); font-size:0.8rem;'>"
-                         f"{valores['potencia_kw']:g} kW · {valores['sistema']} · {valores['metodo'][:28]}...</span>",
-                         unsafe_allow_html=True)
-            if pc2.button("Usar", key=f"plantilla_{nombre_plantilla}"):
-                st.session_state["plantilla_activa"] = valores
-                st.session_state["pagina_actual"] = "Calculadora"
-                _registrar_actividad("📋", f"Plantilla aplicada: {nombre_plantilla}")
-                st.rerun()
+        st.markdown('<p class="section-label">Plantillas</p>', unsafe_allow_html=True)
+        st.caption("Aplican valores de partida habituales — luego puedes ajustarlos en cada pestaña.")
+        tab_pc, tab_pfv, tab_pp = st.tabs(["🔌 Cable", "☀️ Fotovoltaica", "💰 Presupuesto"])
+
+        with tab_pc:
+            for nombre_plantilla, valores in PLANTILLAS_CIRCUITO.items():
+                pc1, pc2 = st.columns([4, 1])
+                pc1.markdown(f"**{nombre_plantilla}**  \n"
+                             f"<span style='color:var(--text-secondary); font-size:0.8rem;'>"
+                             f"{valores['potencia_kw']:g} kW · {valores['sistema']} · {valores['metodo'][:28]}...</span>",
+                             unsafe_allow_html=True)
+                if pc2.button("Usar", key=f"plantilla_cable_{nombre_plantilla}"):
+                    st.session_state["plantilla_activa"] = valores
+                    st.session_state["pagina_actual"] = "Calculadora"
+                    _registrar_actividad("📋", f"Plantilla de cable aplicada: {nombre_plantilla}")
+                    st.rerun()
+
+        with tab_pfv:
+            for nombre_plantilla, valores in PLANTILLAS_FV.items():
+                pc1, pc2 = st.columns([4, 1])
+                pc1.markdown(f"**{nombre_plantilla}**  \n"
+                             f"<span style='color:var(--text-secondary); font-size:0.8rem;'>"
+                             f"{valores['potencia_pico_deseada']:g} kWp · {valores['sistema_ca']} · "
+                             f"{valores['tipo_autoconsumo'][:28]}...</span>", unsafe_allow_html=True)
+                if pc2.button("Usar", key=f"plantilla_fv_{nombre_plantilla}"):
+                    st.session_state["plantilla_activa_fv"] = valores
+                    st.session_state["pagina_actual"] = "Fotovoltaica"
+                    _registrar_actividad("📋", f"Plantilla FV aplicada: {nombre_plantilla}")
+                    st.rerun()
+
+        with tab_pp:
+            st.caption("Crea la estructura de capítulos típica — se añaden vacíos, listos para rellenar.")
+            for nombre_plantilla, capitulos_nombres in PLANTILLAS_PRESUPUESTO.items():
+                pc1, pc2 = st.columns([4, 1])
+                pc1.markdown(f"**{nombre_plantilla}**  \n"
+                             f"<span style='color:var(--text-secondary); font-size:0.8rem;'>"
+                             f"{len(capitulos_nombres)} capítulos</span>", unsafe_allow_html=True)
+                if pc2.button("Usar", key=f"plantilla_presu_{nombre_plantilla}"):
+                    st.session_state.setdefault("presupuesto_capitulos", [])
+                    for nombre_cap in capitulos_nombres:
+                        st.session_state["presupuesto_capitulos"].append({"nombre": nombre_cap, "items": []})
+                    st.session_state["pagina_actual"] = "Presupuesto"
+                    _registrar_actividad("📋", f"Plantilla de presupuesto aplicada: {nombre_plantilla}")
+                    st.rerun()
 
     with col_der:
         st.markdown('<p class="section-label">Actividad reciente</p>', unsafe_allow_html=True)
@@ -4426,6 +4498,256 @@ correspondientes, pero pueden existir erratas. Verifica los valores críticos an
     st.caption("Versión 4.0 · Última actualización de este documento: sesión actual.")
 
 
+# ==============================================================================
+# 9B. ASISTENTE IA — chat de electricidad/REBT con dos modos:
+# 1) Local (siempre disponible, sin coste): responde con la base de
+#    conocimiento REBT ya codificada en la app, y puede leer los resultados
+#    de la sesión actual para dar respuestas contextuales.
+# 2) API real (opcional): si el usuario introduce su propia clave de la API
+#    de Anthropic, las preguntas se envían a Claude con el contexto del
+#    proyecto. La clave vive solo en session_state — nunca se guarda en el
+#    proyecto .json ni en ningún sitio persistente.
+# ==============================================================================
+
+FAQ_ELECTRICIDAD = {
+    "REBT": (["rebt", "reglamento electrotecnico", "que es el rebt"],
+        "El REBT (Reglamento Electrotécnico para Baja Tensión, RD 842/2002) es la norma que regula las "
+        "instalaciones eléctricas de baja tensión en España. Se desarrolla en Instrucciones Técnicas "
+        "Complementarias (ITC-BT-01 a ITC-BT-53), cada una centrada en un aspecto: cables (ITC-BT-19), "
+        "puesta a tierra (ITC-BT-18), motores (ITC-BT-47), autoconsumo (ITC-BT-40), etc."),
+    "ITC-BT-19": (["itc-bt-19", "itc bt 19", "criterio termico", "ib in iz"],
+        "La ITC-BT-19 fija las prescripciones generales de instalaciones interiores. Su artículo 19.2 exige "
+        "que la sección de un conductor cumpla el criterio térmico (Ib ≤ In ≤ Iz: la intensidad admisible "
+        "del cable, corregida por temperatura/agrupamiento, no puede ser inferior a la corriente de empleo) "
+        "y el criterio de caída de tensión. Es justo lo que hace la pestaña Calculadora."),
+    "seccion_cable": (["seccion", "calcular seccion", "como se calcula la seccion", "que seccion necesito"],
+        "La sección de un cable se calcula por el mayor de dos criterios: (1) térmico, la Iz del cable "
+        "(tabla × factores de corrección) debe ser ≥ que tu intensidad de cálculo; (2) caída de tensión, la "
+        "ΔU% con esa sección no puede superar el máximo del tramo (ITC-BT-14/15/19/40). Usa la pestaña "
+        "Calculadora: metes potencia/longitud/método y te da la sección, el neutro, la protección y el PDF."),
+    "cos_phi": (["cos", "factor de potencia", "cosphi", "cos fi"],
+        "El factor de potencia (cos φ) mide qué proporción de la energía es realmente útil frente a la "
+        "reactiva. Orientativo: resistivo puro (calefacción, incandescencia) ≈ 1,0 · uso general/electrónica "
+        "≈ 0,90-0,95 · motores ≈ 0,80-0,85. Un cos φ bajo aumenta la intensidad para la misma potencia útil, "
+        "así que penaliza la sección de cable necesaria."),
+    "pvc_xlpe": (["pvc", "xlpe", "diferencia aislamiento", "epr"],
+        "PVC soporta hasta 70°C en servicio permanente; XLPE/EPR hasta 90°C, por eso admite más corriente "
+        "con la misma sección (aprox. 15-20% más). XLPE es el estándar actual para acometidas, derivaciones "
+        "individuales, enterrados e instalaciones fotovoltaicas; PVC sigue siendo habitual en instalación "
+        "interior de vivienda por precio."),
+    "caida_tension": (["caida de tension", "delta u", "du%", "caída"],
+        "Es la pérdida de tensión a lo largo del cable por su propia resistencia. Cuanto más largo o fino "
+        "el cable, mayor caída. El REBT fija máximos según el tramo: LGA 0,5-1%, Derivación Individual "
+        "1-1,5%, interior alumbrado 3%, interior otros usos 5%. Fotovoltaica: 1,5% combinado CC+CA "
+        "(ITC-BT-40) — ese matiz de 'combinado, no por separado' se me pasó la primera vez que lo implementé."),
+    "interruptor_automatico": (["interruptor automatico", "magnetotermico", "pia", "calibre proteccion"],
+        "El interruptor automático (PIA) protege contra sobrecargas y cortocircuitos. Su calibre In debe "
+        "cumplir Ib ≤ In ≤ Iz (ni tan pequeño que dispare con el uso normal, ni tan grande que no proteja el "
+        "cable). La Calculadora te sugiere el calibre normalizado adecuado automáticamente."),
+    "diferencial": (["diferencial", "id", "tipo a", "tipo ac", "tipo b"],
+        "El interruptor diferencial protege contra contactos indirectos, comparando la corriente de entrada "
+        "y salida. Tipo AC: defectos senoidales puros (uso general). Tipo A: además detecta componente "
+        "continua pulsante (electrónica, variadores). Tipo B: detecta también continua pura — obligatorio en "
+        "muchas instalaciones fotovoltaicas si el inversor no lo garantiza por diseño."),
+    "seccion_neutro": (["seccion neutro", "seccion del neutro", "neutro"],
+        "Regla general: si la sección de fase es ≤16 mm² (Cu) o ≤25 mm² (Al), el neutro va igual que la "
+        "fase. Si es mayor, el neutro puede reducirse a la mitad (redondeando a la sección normalizada "
+        "superior, nunca menos de 16 mm²) — salvo que haya armónicos de 3er orden significativos "
+        "(informática, variadores), en cuyo caso el neutro debe ir a sección plena."),
+    "conductor_proteccion": (["conductor de proteccion", "tierra seccion", "pe seccion", "itc-bt-18"],
+        "La sección del conductor de protección (PE) sigue la ITC-BT-18: igual que la fase si Sf≤16mm², "
+        "16mm² fijo si 16<Sf≤35mm², o la mitad de la fase si Sf>35mm² (redondeando a sección normalizada)."),
+    "autoconsumo_fv": (["autoconsumo", "itc-bt-40", "rd 244", "excedentes", "fotovoltaica normativa"],
+        "El autoconsumo fotovoltaico se regula por el RD 244/2019 y la ITC-BT-40. Modalidades: sin "
+        "excedentes (con mecanismo antivertido obligatorio), con excedentes acogido a compensación (los "
+        "excedentes vertidos se compensan económicamente), y con excedentes no acogido. Documentalmente: "
+        "≤10 kW con Certificado eléctrico del instalador, >10 kW necesita Proyecto firmado por técnico "
+        "competente."),
+    "performance_ratio": (["performance ratio", "pr fotovoltaico", "que es el pr"],
+        "El Performance Ratio (PR) mide cuánta de la producción teórica se aprovecha realmente, descontando "
+        "pérdidas (temperatura, cableado, suciedad, inversor...). Típico entre 0,75 y 0,85 en instalaciones "
+        "bien diseñadas. En el módulo Fotovoltaica lo desgloso en sus componentes en vez de usar un único "
+        "número, para que veas de dónde viene cada pérdida."),
+    "mtd_proyecto": (["mtd", "memoria tecnica de diseno", "diferencia proyecto"],
+        "La MTD (Memoria Técnica de Diseño) es el documento simplificado que exige la ITC-BT-04 para "
+        "instalaciones que no requieren Proyecto firmado por técnico titulado — la puede tramitar un "
+        "instalador autorizado. Para instalaciones de mayor entidad (o FV >10kW) hace falta Proyecto. La "
+        "pestaña Documentación te genera la MTD, el Anexo de Cálculos y el Pliego de Condiciones en PDF."),
+    "cortocircuito": (["cortocircuito", "icc", "verificacion termica"],
+        "La verificación de cortocircuito comprueba que el cable aguanta térmicamente la energía de un "
+        "fallo antes de que actúe la protección: S_mín = Icc·√t / k, donde k depende del conductor y "
+        "aislamiento (Cu-PVC=115, Cu-XLPE=143, Al-PVC=76, Al-XLPE=94). Si tu sección calculada por Ib/ΔU es "
+        "menor que S_mín, necesitas una protección más rápida o más sección."),
+    "modo_profesional": (["modo profesional", "logo", "firma", "configuracion empresa"],
+        "En Configuración → Modo profesional puedes poner tu nombre, empresa, un logotipo y tu firma. Esos "
+        "datos se incluyen automáticamente en la portada y el cajetín de todos los PDF (memoria, MTD, "
+        "Anexo, Pliego)."),
+    "guardar_proyecto": (["guardar proyecto", "abrir proyecto", "como guardo", "persistencia", "se pierde"],
+        "En Proyectos → Guardar descarga un archivo .json a tu ordenador — eso es lo único que persiste de "
+        "verdad entre sesiones, porque esta app no tiene servidor con base de datos (en Streamlit Cloud el "
+        "disco se borra en cada reinicio). El historial dentro de la app es solo de la sesión actual."),
+    "metodos_instalacion": (["metodo b1", "metodo c", "metodo f", "metodo d", "metodos de instalacion"],
+        "B1 = tubo empotrado en obra o superficie (lo más habitual en vivienda). C/E = bandeja no perforada "
+        "o directo sobre superficie. F = bandeja perforada con unipolares muy separados, típico en "
+        "industria para secciones grandes (≥25mm²). D = enterrado bajo tubo. A1 y B2 están marcados como "
+        "estimados en la app porque los derivé de B1 con un ratio anclado a un valor real, no son tabla "
+        "oficial completa — lo explico en la pestaña Metodología."),
+    "resistencia_tierra": (["resistencia de tierra", "picas", "electrodo"],
+        "Fórmulas de la ITC-BT-18: pica vertical R=ρ/L, placa enterrada R=0,8ρ/P, conductor enterrado "
+        "horizontal R=2ρ/L (ρ=resistividad del terreno, L=longitud, P=perímetro). Varias picas bien "
+        "separadas (≥2×L entre ellas) reducen la resistencia aproximadamente R_total≈R_una/n. Tienes "
+        "calculadoras para todo esto en Cálculos BT → Resistencia de tierras."),
+    "motor_itc47": (["motor factor", "itc-bt-47", "1.25 motor", "125%"],
+        "Para un motor único, el cable se dimensiona para el 125% de su intensidad nominal (ITC-BT-47). Con "
+        "varios motores: 125% del mayor + 100% del resto. Ascensores y grúas añaden un factor extra ×1,3. "
+        "Lo aplico automáticamente en Calculadora si marcas 'Circuito de motor'."),
+    "ratio_dc_ac": (["ratio dc/ac", "sobredimensionado inversor", "relacion paneles inversor"],
+        "El ratio DC/AC es la potencia pico de los paneles entre la potencia nominal del inversor. Habitual "
+        "entre 0,9 y 1,3 — un ratio algo mayor que 1 es normal y deseable (el inversor rara vez ve la "
+        "potencia pico real de los paneles), pero valores muy altos indican que estás recortando "
+        "producción en las horas centrales del día."),
+}
+
+
+def _contexto_proyecto_actual() -> str:
+    """Resume el estado de la sesión para dárselo como contexto al asistente
+    (tanto al modo local como a la API real)."""
+    partes = []
+    rc = st.session_state.get("resultado_cable", {})
+    ic = st.session_state.get("inputs_cable", {})
+    if rc.get("seccion_final") is not None:
+        partes.append(
+            f"Circuito de baja tensión calculado: {ic.get('tipo_circuito', '-')}, sistema "
+            f"{ic.get('sistema', '-')}, sección de fase {rc['seccion_final']:g} mm², "
+            f"Ib={rc.get('ib_calculo', 0):.2f} A, ΔU={rc.get('e_final_pct', 0):.2f}%, "
+            f"método {ic.get('metodo', '-')}, conductor {ic.get('conductor', '-')}/{ic.get('aislamiento', '-')}, "
+            f"protección sugerida {rc.get('calibre_magnetotermico', '-')} A."
+        )
+    rf = st.session_state.get("resultado_fv", {})
+    if rf.get("p_pico_kwp"):
+        partes.append(
+            f"Instalación fotovoltaica calculada: {rf['p_pico_kwp']:.2f} kWp, "
+            f"producción anual {rf.get('produccion_anual_kwh', 0):.0f} kWh, "
+            f"sección CC {rf.get('s_cc_final', '-')} mm², sección CA {rf.get('s_ca_final', '-')} mm²."
+        )
+    caps = st.session_state.get("presupuesto_capitulos", [])
+    if caps:
+        partes.append(f"Presupuesto con {len(caps)} capítulos definidos.")
+    if not partes:
+        return "El usuario todavía no ha realizado ningún cálculo en esta sesión."
+    return " ".join(partes)
+
+
+def _responder_fallback(pregunta: str, contexto: str) -> str:
+    """Modo local: empareja la pregunta por palabras clave contra la FAQ."""
+    pregunta_low = pregunta.lower()
+    mejor_tema, mejor_puntuacion = None, 0
+    for tema, (keywords, _respuesta) in FAQ_ELECTRICIDAD.items():
+        puntuacion = sum(1 for k in keywords if k in pregunta_low)
+        if puntuacion > mejor_puntuacion:
+            mejor_puntuacion, mejor_tema = puntuacion, tema
+
+    if mejor_tema and mejor_puntuacion > 0:
+        respuesta = FAQ_ELECTRICIDAD[mejor_tema][1]
+        if any(p in pregunta_low for p in ["mi ", "tengo", "he calculado", "por que", "por qué"]):
+            respuesta += f"\n\n📎 *Con tus datos actuales:* {contexto}"
+        return respuesta
+
+    return (
+        "No tengo una respuesta concreta para eso en el modo local (funciona por palabras clave, no "
+        "entiende lenguaje libre). Prueba a preguntar por alguno de estos temas: sección de cable, cos φ, "
+        "caída de tensión, PVC/XLPE, diferencial, sección de neutro, conductor de protección, autoconsumo "
+        "fotovoltaica, cortocircuito, resistencia de tierra, o factor de motores. \n\nSi quieres respuestas "
+        "abiertas de verdad (no solo estas palabras clave), configura tu propia clave de la API de Claude "
+        "en la sección de arriba — entonces sí puedo razonar libremente sobre tu pregunta."
+    )
+
+
+def _consultar_ia_real(api_key: str, modelo: str, mensaje: str, historial: list, contexto: str) -> str:
+    """Modo API real: consulta la API de Anthropic con el contexto del
+    proyecto actual. Requiere que el usuario aporte su propia clave."""
+    import anthropic
+    system_prompt = (
+        "Eres un asistente experto en electricidad y en el REBT (Reglamento Electrotécnico para Baja "
+        "Tensión español) y sus Instrucciones Técnicas Complementarias (ITC-BT), integrado en una "
+        "aplicación de cálculo de instalaciones eléctricas. Respondes en español, de forma clara, técnica "
+        "pero accesible, citando el artículo o ITC-BT relevante cuando proceda. Si no estás seguro de un "
+        "dato normativo concreto, dilo explícitamente en vez de inventarlo.\n\n"
+        f"Contexto del proyecto actual del usuario en la app: {contexto}"
+    )
+    mensajes = historial + [{"role": "user", "content": mensaje}]
+    client = anthropic.Anthropic(api_key=api_key)
+    respuesta = client.messages.create(
+        model=modelo, max_tokens=1024, system=system_prompt, messages=mensajes,
+    )
+    return respuesta.content[0].text
+
+
+def _render_asistente():
+    st.markdown('<p class="section-label">Asistente eléctrico</p>', unsafe_allow_html=True)
+    st.caption("Pregunta sobre electricidad, REBT o tu cálculo actual. Funciona en dos modos.")
+
+    st.session_state.setdefault("chat_ia_historial", [])
+    st.session_state.setdefault("api_key_ia", "")
+    st.session_state.setdefault("modelo_ia", "claude-sonnet-5")
+
+    with st.expander("🔑 Modo API real (opcional) — respuestas abiertas con Claude", expanded=False):
+        st.caption(
+            "Sin clave: el asistente responde con una base de conocimiento REBT programada en la propia "
+            "app (gratis, siempre disponible, pero solo reconoce ciertos temas). Con tu propia clave de la "
+            "API de Anthropic (console.anthropic.com), las preguntas se envían a Claude con el contexto de "
+            "tu proyecto — respuestas abiertas de verdad, pero consume tu saldo de API. **La clave se queda "
+            "solo en esta sesión del navegador: no se guarda en el proyecto .json, ni en ningún sitio "
+            "persistente, ni se envía a ningún otro sitio que no sea la API oficial de Anthropic.**"
+        )
+        c1, c2 = st.columns([3, 1])
+        st.session_state["api_key_ia"] = c1.text_input(
+            "Clave de la API de Anthropic", value=st.session_state["api_key_ia"], type="password",
+            placeholder="sk-ant-...")
+        st.session_state["modelo_ia"] = c2.selectbox(
+            "Modelo", ["claude-sonnet-5", "claude-haiku-4-5-20251001"],
+            index=0 if st.session_state["modelo_ia"] == "claude-sonnet-5" else 1,
+            help="Sonnet: más completo. Haiku: más rápido y económico.")
+
+    modo_real = bool(st.session_state["api_key_ia"].strip())
+    st.markdown(f'<span class="badge {"success" if modo_real else "info"}">'
+               f'{"🟢 Modo API real activo" if modo_real else "🔵 Modo local (base de conocimiento REBT)"}'
+               f'</span>', unsafe_allow_html=True)
+
+    for msg in st.session_state["chat_ia_historial"]:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    pregunta = st.chat_input("Escribe tu pregunta sobre electricidad o tu cálculo actual...")
+    if pregunta:
+        st.session_state["chat_ia_historial"].append({"role": "user", "content": pregunta})
+        with st.chat_message("user"):
+            st.markdown(pregunta)
+
+        contexto = _contexto_proyecto_actual()
+        with st.chat_message("assistant"):
+            if modo_real:
+                with st.spinner("Consultando la API de Claude..."):
+                    try:
+                        respuesta = _consultar_ia_real(
+                            st.session_state["api_key_ia"], st.session_state["modelo_ia"], pregunta,
+                            st.session_state["chat_ia_historial"][:-1], contexto)
+                    except Exception as e:
+                        respuesta = (f"⚠️ No se pudo consultar la API ({type(e).__name__}). Comprueba que "
+                                     "la clave es correcta y tiene saldo disponible. Mientras tanto, "
+                                     "respuesta en modo local:\n\n" + _responder_fallback(pregunta, contexto))
+            else:
+                respuesta = _responder_fallback(pregunta, contexto)
+            st.markdown(respuesta)
+        st.session_state["chat_ia_historial"].append({"role": "assistant", "content": respuesta})
+        _registrar_actividad("🤖", "Consulta al asistente")
+
+    if st.session_state["chat_ia_historial"]:
+        if st.button("🗑️ Borrar conversación"):
+            st.session_state["chat_ia_historial"] = []
+            st.rerun()
+
+
 def _render_tablas():
     st.markdown('<p class="section-label">Tabla A — Intensidades admisibles (A), cobre, no enterrado, '
                 'aire a 40°C</p>', unsafe_allow_html=True)
@@ -4575,6 +4897,9 @@ def main():
         return
     if pagina == "Estadísticas":
         _render_estadisticas()
+        return
+    if pagina == "Asistente IA":
+        _render_asistente()
         return
     if pagina == "Configuración":
         _render_configuracion()
