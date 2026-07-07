@@ -903,6 +903,7 @@ hr {{ border-color: var(--border-subtle); }}
 PAGINAS_HERRAMIENTAS = ["Calculadora", "Fórmulas", "Fotovoltaica", "Cálculos BT", "Presupuesto", "Documentación"]
 CLAVES_PROYECTO = ["inputs_cable", "resultado_cable", "inputs_fv", "resultado_fv",
                    "presupuesto_capitulos", "presupuesto_config", "datos_proyecto", "catalogo_precios"]
+MAX_HISTORIAL_PROYECTOS = 25  # evita que la sesión acumule memoria sin límite
 
 
 def _inicializar_estado():
@@ -3150,7 +3151,8 @@ def _render_resultados(inp: dict, res: dict):
         st.caption("ΔU aquí calculada con la intensidad total (sin repartir en paralelo), para mostrar por "
                    "qué una sección concreta no bastaría por sí sola.")
 
-    pdf_bytes = generar_pdf_memoria(inp, res, st.session_state.get("config_profesional"))
+    with st.spinner("Generando memoria en PDF..."):
+        pdf_bytes = generar_pdf_memoria(inp, res, st.session_state.get("config_profesional"))
     if st.download_button("⬇️ Descargar memoria de cálculo (PDF)", data=pdf_bytes,
                         file_name="memoria_calculo_cable.pdf", mime="application/pdf"):
         _registrar_actividad("📄", "Memoria de cálculo descargada")
@@ -3681,11 +3683,13 @@ def _render_presupuesto(inputs_cable: dict, resultado_cable: dict, inputs_fv: di
         <div class="result-value">{_fmt_eur(total)}</div></div>''', unsafe_allow_html=True)
     st.caption(numero_a_letras_euros(total).capitalize() + ".")
 
-    excel_bytes = generar_excel_presupuesto_capitulos(
-        capitulos, cfg["pct_beneficio"], cfg["pct_amortizacion"], cfg["pct_iva"], cfg["nombre_proyecto"])
-    st.download_button("⬇️ Descargar presupuesto (Excel, por capítulos)", data=excel_bytes,
+    with st.spinner("Generando Excel..."):
+        excel_bytes = generar_excel_presupuesto_capitulos(
+            capitulos, cfg["pct_beneficio"], cfg["pct_amortizacion"], cfg["pct_iva"], cfg["nombre_proyecto"])
+    if st.download_button("⬇️ Descargar presupuesto (Excel, por capítulos)", data=excel_bytes,
                         file_name="presupuesto.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"):
+        _registrar_actividad("💰", "Presupuesto descargado (Excel)")
 
 
 def _render_documentacion(inputs_cable: dict, resultado_cable: dict, inputs_fv: dict, resultado_fv: dict):
@@ -3765,24 +3769,27 @@ def _render_documentacion(inputs_cable: dict, resultado_cable: dict, inputs_fv: 
     with c1:
         st.markdown("**Memoria Técnica de Diseño**")
         st.caption("Memoria descriptiva + justificativa, ITC-BT-04. Documento extenso multi-página.")
-        pdf_mtd = generar_pdf_mtd(datos, inputs_cable, resultado_cable, inputs_fv, resultado_fv,
-                                   total_presupuesto, cfg_prof)
+        with st.spinner("Generando MTD..."):
+            pdf_mtd = generar_pdf_mtd(datos, inputs_cable, resultado_cable, inputs_fv, resultado_fv,
+                                       total_presupuesto, cfg_prof)
         if st.download_button("⬇️ Descargar MTD (PDF)", data=pdf_mtd, file_name="MTD.pdf",
                                mime="application/pdf"):
             _registrar_actividad("📄", "MTD descargada")
     with c2:
         st.markdown("**Anexo de Cálculos y Mediciones**")
         st.caption("Justificación técnica completa + mediciones por capítulo.")
-        pdf_anexo = generar_pdf_anexo_calculos(datos, inputs_cable, resultado_cable, inputs_fv, resultado_fv,
-                                                capitulos, cfg_presu["pct_beneficio"], cfg_presu["pct_amortizacion"],
-                                                cfg_prof)
+        with st.spinner("Generando Anexo..."):
+            pdf_anexo = generar_pdf_anexo_calculos(datos, inputs_cable, resultado_cable, inputs_fv, resultado_fv,
+                                                    capitulos, cfg_presu["pct_beneficio"], cfg_presu["pct_amortizacion"],
+                                                    cfg_prof)
         if st.download_button("⬇️ Descargar Anexo (PDF)", data=pdf_anexo, file_name="anexo_calculos.pdf",
                                mime="application/pdf"):
             _registrar_actividad("📄", "Anexo de cálculos descargado")
     with c3:
         st.markdown("**Pliego de Condiciones**")
         st.caption("Condiciones generales de materiales, ejecución y pruebas.")
-        pdf_cond = generar_pdf_condiciones_generales(datos, hay_fv, cfg_prof)
+        with st.spinner("Generando Pliego..."):
+            pdf_cond = generar_pdf_condiciones_generales(datos, hay_fv, cfg_prof)
         if st.download_button("⬇️ Descargar Condiciones (PDF)", data=pdf_cond, file_name="condiciones_generales.pdf",
                                mime="application/pdf"):
             _registrar_actividad("📄", "Pliego de condiciones descargado")
@@ -4081,7 +4088,6 @@ def _render_sidebar():
         nav_button("🏠", "Inicio")
         nav_button("📁", "Proyectos")
         nav_button("📊", "Estadísticas")
-        nav_button("🤖", "Asistente IA")
 
         st.markdown('<p class="nav-group-label">Herramientas</p>', unsafe_allow_html=True)
         iconos_herr = {"Calculadora": "🔌", "Fórmulas": "🧮", "Fotovoltaica": "☀️", "Cálculos BT": "📐",
@@ -4284,6 +4290,7 @@ def _render_proyectos():
             st.session_state["nombre_proyecto_actual"] = nombre_nuevo
             datos = _serializar_proyecto(nombre_nuevo)
             st.session_state["historial_proyectos"].append(datos)
+            st.session_state["historial_proyectos"] = st.session_state["historial_proyectos"][-MAX_HISTORIAL_PROYECTOS:]
             _registrar_actividad("💾", f"Proyecto guardado: {nombre_nuevo}")
             st.success(f"Proyecto '{nombre_nuevo}' añadido al historial de la sesión. Descárgalo abajo para "
                        "conservarlo de verdad.")
@@ -4334,6 +4341,7 @@ def _render_proyectos():
                 copia["__nombre__"] = f"{proy.get('__nombre__', 'Proyecto')} (copia)"
                 copia["__fecha__"] = datetime.now().isoformat()
                 st.session_state["historial_proyectos"].append(copia)
+                st.session_state["historial_proyectos"] = st.session_state["historial_proyectos"][-MAX_HISTORIAL_PROYECTOS:]
                 _registrar_actividad("📑", f"Proyecto duplicado: {copia['__nombre__']}")
                 st.rerun()
             if hc5.button("🗑️", key=f"hist_del_{idx_real}"):
@@ -4470,6 +4478,14 @@ def _render_configuracion():
         if tema_sel != st.session_state["tema"]:
             st.session_state["tema"] = tema_sel
             st.rerun()
+        if st.session_state["tema"] == "Claro":
+            st.info(
+                "⚠️ Limitación conocida: los campos y tablas nativos de Streamlit (números, desplegables, "
+                "editor de precios) mantienen un fondo oscuro incluso en modo claro. Streamlit fija ese "
+                "estilo a nivel de servidor (`.streamlit/config.toml`), no por sesión de usuario, así que "
+                "no hay forma fiable de sincronizarlo con el interruptor de tema de la app. El modo oscuro "
+                "es el que tiene el acabado completo."
+            )
 
 
 def _render_acerca_de():
@@ -4496,256 +4512,6 @@ documentación técnica (MTD, Anexo de Cálculos, Pliego de Condiciones).
 correspondientes, pero pueden existir erratas. Verifica los valores críticos antes de un uso profesional.
     """)
     st.caption("Versión 4.0 · Última actualización de este documento: sesión actual.")
-
-
-# ==============================================================================
-# 9B. ASISTENTE IA — chat de electricidad/REBT con dos modos:
-# 1) Local (siempre disponible, sin coste): responde con la base de
-#    conocimiento REBT ya codificada en la app, y puede leer los resultados
-#    de la sesión actual para dar respuestas contextuales.
-# 2) API real (opcional): si el usuario introduce su propia clave de la API
-#    de Anthropic, las preguntas se envían a Claude con el contexto del
-#    proyecto. La clave vive solo en session_state — nunca se guarda en el
-#    proyecto .json ni en ningún sitio persistente.
-# ==============================================================================
-
-FAQ_ELECTRICIDAD = {
-    "REBT": (["rebt", "reglamento electrotecnico", "que es el rebt"],
-        "El REBT (Reglamento Electrotécnico para Baja Tensión, RD 842/2002) es la norma que regula las "
-        "instalaciones eléctricas de baja tensión en España. Se desarrolla en Instrucciones Técnicas "
-        "Complementarias (ITC-BT-01 a ITC-BT-53), cada una centrada en un aspecto: cables (ITC-BT-19), "
-        "puesta a tierra (ITC-BT-18), motores (ITC-BT-47), autoconsumo (ITC-BT-40), etc."),
-    "ITC-BT-19": (["itc-bt-19", "itc bt 19", "criterio termico", "ib in iz"],
-        "La ITC-BT-19 fija las prescripciones generales de instalaciones interiores. Su artículo 19.2 exige "
-        "que la sección de un conductor cumpla el criterio térmico (Ib ≤ In ≤ Iz: la intensidad admisible "
-        "del cable, corregida por temperatura/agrupamiento, no puede ser inferior a la corriente de empleo) "
-        "y el criterio de caída de tensión. Es justo lo que hace la pestaña Calculadora."),
-    "seccion_cable": (["seccion", "calcular seccion", "como se calcula la seccion", "que seccion necesito"],
-        "La sección de un cable se calcula por el mayor de dos criterios: (1) térmico, la Iz del cable "
-        "(tabla × factores de corrección) debe ser ≥ que tu intensidad de cálculo; (2) caída de tensión, la "
-        "ΔU% con esa sección no puede superar el máximo del tramo (ITC-BT-14/15/19/40). Usa la pestaña "
-        "Calculadora: metes potencia/longitud/método y te da la sección, el neutro, la protección y el PDF."),
-    "cos_phi": (["cos", "factor de potencia", "cosphi", "cos fi"],
-        "El factor de potencia (cos φ) mide qué proporción de la energía es realmente útil frente a la "
-        "reactiva. Orientativo: resistivo puro (calefacción, incandescencia) ≈ 1,0 · uso general/electrónica "
-        "≈ 0,90-0,95 · motores ≈ 0,80-0,85. Un cos φ bajo aumenta la intensidad para la misma potencia útil, "
-        "así que penaliza la sección de cable necesaria."),
-    "pvc_xlpe": (["pvc", "xlpe", "diferencia aislamiento", "epr"],
-        "PVC soporta hasta 70°C en servicio permanente; XLPE/EPR hasta 90°C, por eso admite más corriente "
-        "con la misma sección (aprox. 15-20% más). XLPE es el estándar actual para acometidas, derivaciones "
-        "individuales, enterrados e instalaciones fotovoltaicas; PVC sigue siendo habitual en instalación "
-        "interior de vivienda por precio."),
-    "caida_tension": (["caida de tension", "delta u", "du%", "caída"],
-        "Es la pérdida de tensión a lo largo del cable por su propia resistencia. Cuanto más largo o fino "
-        "el cable, mayor caída. El REBT fija máximos según el tramo: LGA 0,5-1%, Derivación Individual "
-        "1-1,5%, interior alumbrado 3%, interior otros usos 5%. Fotovoltaica: 1,5% combinado CC+CA "
-        "(ITC-BT-40) — ese matiz de 'combinado, no por separado' se me pasó la primera vez que lo implementé."),
-    "interruptor_automatico": (["interruptor automatico", "magnetotermico", "pia", "calibre proteccion"],
-        "El interruptor automático (PIA) protege contra sobrecargas y cortocircuitos. Su calibre In debe "
-        "cumplir Ib ≤ In ≤ Iz (ni tan pequeño que dispare con el uso normal, ni tan grande que no proteja el "
-        "cable). La Calculadora te sugiere el calibre normalizado adecuado automáticamente."),
-    "diferencial": (["diferencial", "id", "tipo a", "tipo ac", "tipo b"],
-        "El interruptor diferencial protege contra contactos indirectos, comparando la corriente de entrada "
-        "y salida. Tipo AC: defectos senoidales puros (uso general). Tipo A: además detecta componente "
-        "continua pulsante (electrónica, variadores). Tipo B: detecta también continua pura — obligatorio en "
-        "muchas instalaciones fotovoltaicas si el inversor no lo garantiza por diseño."),
-    "seccion_neutro": (["seccion neutro", "seccion del neutro", "neutro"],
-        "Regla general: si la sección de fase es ≤16 mm² (Cu) o ≤25 mm² (Al), el neutro va igual que la "
-        "fase. Si es mayor, el neutro puede reducirse a la mitad (redondeando a la sección normalizada "
-        "superior, nunca menos de 16 mm²) — salvo que haya armónicos de 3er orden significativos "
-        "(informática, variadores), en cuyo caso el neutro debe ir a sección plena."),
-    "conductor_proteccion": (["conductor de proteccion", "tierra seccion", "pe seccion", "itc-bt-18"],
-        "La sección del conductor de protección (PE) sigue la ITC-BT-18: igual que la fase si Sf≤16mm², "
-        "16mm² fijo si 16<Sf≤35mm², o la mitad de la fase si Sf>35mm² (redondeando a sección normalizada)."),
-    "autoconsumo_fv": (["autoconsumo", "itc-bt-40", "rd 244", "excedentes", "fotovoltaica normativa"],
-        "El autoconsumo fotovoltaico se regula por el RD 244/2019 y la ITC-BT-40. Modalidades: sin "
-        "excedentes (con mecanismo antivertido obligatorio), con excedentes acogido a compensación (los "
-        "excedentes vertidos se compensan económicamente), y con excedentes no acogido. Documentalmente: "
-        "≤10 kW con Certificado eléctrico del instalador, >10 kW necesita Proyecto firmado por técnico "
-        "competente."),
-    "performance_ratio": (["performance ratio", "pr fotovoltaico", "que es el pr"],
-        "El Performance Ratio (PR) mide cuánta de la producción teórica se aprovecha realmente, descontando "
-        "pérdidas (temperatura, cableado, suciedad, inversor...). Típico entre 0,75 y 0,85 en instalaciones "
-        "bien diseñadas. En el módulo Fotovoltaica lo desgloso en sus componentes en vez de usar un único "
-        "número, para que veas de dónde viene cada pérdida."),
-    "mtd_proyecto": (["mtd", "memoria tecnica de diseno", "diferencia proyecto"],
-        "La MTD (Memoria Técnica de Diseño) es el documento simplificado que exige la ITC-BT-04 para "
-        "instalaciones que no requieren Proyecto firmado por técnico titulado — la puede tramitar un "
-        "instalador autorizado. Para instalaciones de mayor entidad (o FV >10kW) hace falta Proyecto. La "
-        "pestaña Documentación te genera la MTD, el Anexo de Cálculos y el Pliego de Condiciones en PDF."),
-    "cortocircuito": (["cortocircuito", "icc", "verificacion termica"],
-        "La verificación de cortocircuito comprueba que el cable aguanta térmicamente la energía de un "
-        "fallo antes de que actúe la protección: S_mín = Icc·√t / k, donde k depende del conductor y "
-        "aislamiento (Cu-PVC=115, Cu-XLPE=143, Al-PVC=76, Al-XLPE=94). Si tu sección calculada por Ib/ΔU es "
-        "menor que S_mín, necesitas una protección más rápida o más sección."),
-    "modo_profesional": (["modo profesional", "logo", "firma", "configuracion empresa"],
-        "En Configuración → Modo profesional puedes poner tu nombre, empresa, un logotipo y tu firma. Esos "
-        "datos se incluyen automáticamente en la portada y el cajetín de todos los PDF (memoria, MTD, "
-        "Anexo, Pliego)."),
-    "guardar_proyecto": (["guardar proyecto", "abrir proyecto", "como guardo", "persistencia", "se pierde"],
-        "En Proyectos → Guardar descarga un archivo .json a tu ordenador — eso es lo único que persiste de "
-        "verdad entre sesiones, porque esta app no tiene servidor con base de datos (en Streamlit Cloud el "
-        "disco se borra en cada reinicio). El historial dentro de la app es solo de la sesión actual."),
-    "metodos_instalacion": (["metodo b1", "metodo c", "metodo f", "metodo d", "metodos de instalacion"],
-        "B1 = tubo empotrado en obra o superficie (lo más habitual en vivienda). C/E = bandeja no perforada "
-        "o directo sobre superficie. F = bandeja perforada con unipolares muy separados, típico en "
-        "industria para secciones grandes (≥25mm²). D = enterrado bajo tubo. A1 y B2 están marcados como "
-        "estimados en la app porque los derivé de B1 con un ratio anclado a un valor real, no son tabla "
-        "oficial completa — lo explico en la pestaña Metodología."),
-    "resistencia_tierra": (["resistencia de tierra", "picas", "electrodo"],
-        "Fórmulas de la ITC-BT-18: pica vertical R=ρ/L, placa enterrada R=0,8ρ/P, conductor enterrado "
-        "horizontal R=2ρ/L (ρ=resistividad del terreno, L=longitud, P=perímetro). Varias picas bien "
-        "separadas (≥2×L entre ellas) reducen la resistencia aproximadamente R_total≈R_una/n. Tienes "
-        "calculadoras para todo esto en Cálculos BT → Resistencia de tierras."),
-    "motor_itc47": (["motor factor", "itc-bt-47", "1.25 motor", "125%"],
-        "Para un motor único, el cable se dimensiona para el 125% de su intensidad nominal (ITC-BT-47). Con "
-        "varios motores: 125% del mayor + 100% del resto. Ascensores y grúas añaden un factor extra ×1,3. "
-        "Lo aplico automáticamente en Calculadora si marcas 'Circuito de motor'."),
-    "ratio_dc_ac": (["ratio dc/ac", "sobredimensionado inversor", "relacion paneles inversor"],
-        "El ratio DC/AC es la potencia pico de los paneles entre la potencia nominal del inversor. Habitual "
-        "entre 0,9 y 1,3 — un ratio algo mayor que 1 es normal y deseable (el inversor rara vez ve la "
-        "potencia pico real de los paneles), pero valores muy altos indican que estás recortando "
-        "producción en las horas centrales del día."),
-}
-
-
-def _contexto_proyecto_actual() -> str:
-    """Resume el estado de la sesión para dárselo como contexto al asistente
-    (tanto al modo local como a la API real)."""
-    partes = []
-    rc = st.session_state.get("resultado_cable", {})
-    ic = st.session_state.get("inputs_cable", {})
-    if rc.get("seccion_final") is not None:
-        partes.append(
-            f"Circuito de baja tensión calculado: {ic.get('tipo_circuito', '-')}, sistema "
-            f"{ic.get('sistema', '-')}, sección de fase {rc['seccion_final']:g} mm², "
-            f"Ib={rc.get('ib_calculo', 0):.2f} A, ΔU={rc.get('e_final_pct', 0):.2f}%, "
-            f"método {ic.get('metodo', '-')}, conductor {ic.get('conductor', '-')}/{ic.get('aislamiento', '-')}, "
-            f"protección sugerida {rc.get('calibre_magnetotermico', '-')} A."
-        )
-    rf = st.session_state.get("resultado_fv", {})
-    if rf.get("p_pico_kwp"):
-        partes.append(
-            f"Instalación fotovoltaica calculada: {rf['p_pico_kwp']:.2f} kWp, "
-            f"producción anual {rf.get('produccion_anual_kwh', 0):.0f} kWh, "
-            f"sección CC {rf.get('s_cc_final', '-')} mm², sección CA {rf.get('s_ca_final', '-')} mm²."
-        )
-    caps = st.session_state.get("presupuesto_capitulos", [])
-    if caps:
-        partes.append(f"Presupuesto con {len(caps)} capítulos definidos.")
-    if not partes:
-        return "El usuario todavía no ha realizado ningún cálculo en esta sesión."
-    return " ".join(partes)
-
-
-def _responder_fallback(pregunta: str, contexto: str) -> str:
-    """Modo local: empareja la pregunta por palabras clave contra la FAQ."""
-    pregunta_low = pregunta.lower()
-    mejor_tema, mejor_puntuacion = None, 0
-    for tema, (keywords, _respuesta) in FAQ_ELECTRICIDAD.items():
-        puntuacion = sum(1 for k in keywords if k in pregunta_low)
-        if puntuacion > mejor_puntuacion:
-            mejor_puntuacion, mejor_tema = puntuacion, tema
-
-    if mejor_tema and mejor_puntuacion > 0:
-        respuesta = FAQ_ELECTRICIDAD[mejor_tema][1]
-        if any(p in pregunta_low for p in ["mi ", "tengo", "he calculado", "por que", "por qué"]):
-            respuesta += f"\n\n📎 *Con tus datos actuales:* {contexto}"
-        return respuesta
-
-    return (
-        "No tengo una respuesta concreta para eso en el modo local (funciona por palabras clave, no "
-        "entiende lenguaje libre). Prueba a preguntar por alguno de estos temas: sección de cable, cos φ, "
-        "caída de tensión, PVC/XLPE, diferencial, sección de neutro, conductor de protección, autoconsumo "
-        "fotovoltaica, cortocircuito, resistencia de tierra, o factor de motores. \n\nSi quieres respuestas "
-        "abiertas de verdad (no solo estas palabras clave), configura tu propia clave de la API de Claude "
-        "en la sección de arriba — entonces sí puedo razonar libremente sobre tu pregunta."
-    )
-
-
-def _consultar_ia_real(api_key: str, modelo: str, mensaje: str, historial: list, contexto: str) -> str:
-    """Modo API real: consulta la API de Anthropic con el contexto del
-    proyecto actual. Requiere que el usuario aporte su propia clave."""
-    import anthropic
-    system_prompt = (
-        "Eres un asistente experto en electricidad y en el REBT (Reglamento Electrotécnico para Baja "
-        "Tensión español) y sus Instrucciones Técnicas Complementarias (ITC-BT), integrado en una "
-        "aplicación de cálculo de instalaciones eléctricas. Respondes en español, de forma clara, técnica "
-        "pero accesible, citando el artículo o ITC-BT relevante cuando proceda. Si no estás seguro de un "
-        "dato normativo concreto, dilo explícitamente en vez de inventarlo.\n\n"
-        f"Contexto del proyecto actual del usuario en la app: {contexto}"
-    )
-    mensajes = historial + [{"role": "user", "content": mensaje}]
-    client = anthropic.Anthropic(api_key=api_key)
-    respuesta = client.messages.create(
-        model=modelo, max_tokens=1024, system=system_prompt, messages=mensajes,
-    )
-    return respuesta.content[0].text
-
-
-def _render_asistente():
-    st.markdown('<p class="section-label">Asistente eléctrico</p>', unsafe_allow_html=True)
-    st.caption("Pregunta sobre electricidad, REBT o tu cálculo actual. Funciona en dos modos.")
-
-    st.session_state.setdefault("chat_ia_historial", [])
-    st.session_state.setdefault("api_key_ia", "")
-    st.session_state.setdefault("modelo_ia", "claude-sonnet-5")
-
-    with st.expander("🔑 Modo API real (opcional) — respuestas abiertas con Claude", expanded=False):
-        st.caption(
-            "Sin clave: el asistente responde con una base de conocimiento REBT programada en la propia "
-            "app (gratis, siempre disponible, pero solo reconoce ciertos temas). Con tu propia clave de la "
-            "API de Anthropic (console.anthropic.com), las preguntas se envían a Claude con el contexto de "
-            "tu proyecto — respuestas abiertas de verdad, pero consume tu saldo de API. **La clave se queda "
-            "solo en esta sesión del navegador: no se guarda en el proyecto .json, ni en ningún sitio "
-            "persistente, ni se envía a ningún otro sitio que no sea la API oficial de Anthropic.**"
-        )
-        c1, c2 = st.columns([3, 1])
-        st.session_state["api_key_ia"] = c1.text_input(
-            "Clave de la API de Anthropic", value=st.session_state["api_key_ia"], type="password",
-            placeholder="sk-ant-...")
-        st.session_state["modelo_ia"] = c2.selectbox(
-            "Modelo", ["claude-sonnet-5", "claude-haiku-4-5-20251001"],
-            index=0 if st.session_state["modelo_ia"] == "claude-sonnet-5" else 1,
-            help="Sonnet: más completo. Haiku: más rápido y económico.")
-
-    modo_real = bool(st.session_state["api_key_ia"].strip())
-    st.markdown(f'<span class="badge {"success" if modo_real else "info"}">'
-               f'{"🟢 Modo API real activo" if modo_real else "🔵 Modo local (base de conocimiento REBT)"}'
-               f'</span>', unsafe_allow_html=True)
-
-    for msg in st.session_state["chat_ia_historial"]:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
-
-    pregunta = st.chat_input("Escribe tu pregunta sobre electricidad o tu cálculo actual...")
-    if pregunta:
-        st.session_state["chat_ia_historial"].append({"role": "user", "content": pregunta})
-        with st.chat_message("user"):
-            st.markdown(pregunta)
-
-        contexto = _contexto_proyecto_actual()
-        with st.chat_message("assistant"):
-            if modo_real:
-                with st.spinner("Consultando la API de Claude..."):
-                    try:
-                        respuesta = _consultar_ia_real(
-                            st.session_state["api_key_ia"], st.session_state["modelo_ia"], pregunta,
-                            st.session_state["chat_ia_historial"][:-1], contexto)
-                    except Exception as e:
-                        respuesta = (f"⚠️ No se pudo consultar la API ({type(e).__name__}). Comprueba que "
-                                     "la clave es correcta y tiene saldo disponible. Mientras tanto, "
-                                     "respuesta en modo local:\n\n" + _responder_fallback(pregunta, contexto))
-            else:
-                respuesta = _responder_fallback(pregunta, contexto)
-            st.markdown(respuesta)
-        st.session_state["chat_ia_historial"].append({"role": "assistant", "content": respuesta})
-        _registrar_actividad("🤖", "Consulta al asistente")
-
-    if st.session_state["chat_ia_historial"]:
-        if st.button("🗑️ Borrar conversación"):
-            st.session_state["chat_ia_historial"] = []
-            st.rerun()
 
 
 def _render_tablas():
@@ -4897,9 +4663,6 @@ def main():
         return
     if pagina == "Estadísticas":
         _render_estadisticas()
-        return
-    if pagina == "Asistente IA":
-        _render_asistente()
         return
     if pagina == "Configuración":
         _render_configuracion()
