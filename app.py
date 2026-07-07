@@ -878,11 +878,44 @@ hr {{ border-color: var(--border-subtle); }}
 .ayuda-texto {{ font-size: 0.82rem; line-height: 1.5; color: var(--text-secondary); }}
 .ayuda-texto b {{ color: var(--text-primary); }}
 
+/* ============ Guía de bienvenida ============ */
+.welcome-banner {{
+    background: linear-gradient(135deg, var(--accent-soft), var(--bg-panel));
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    padding: 1.5rem 1.7rem 1rem 1.7rem;
+    margin: 0.8rem 0 1.4rem 0;
+    box-shadow: var(--shadow-md);
+}}
+.welcome-banner h4 {{ margin-top: 0; }}
+
+/* ============ Accesibilidad ============ */
+/* Foco visible y consistente para navegación por teclado (no solo :hover) */
+a:focus-visible, button:focus-visible, [role="button"]:focus-visible,
+input:focus-visible, select:focus-visible, textarea:focus-visible,
+.stButton button:focus-visible, .stDownloadButton button:focus-visible {{
+    outline: 2px solid var(--accent-primary) !important;
+    outline-offset: 2px !important;
+}}
+/* Tamaño mínimo de objetivo táctil/clic recomendado (WCAG 2.5.5, ~44px) */
+.stButton button, .stDownloadButton button {{ min-height: 2.5rem; }}
+/* Respeta la preferencia del sistema de reducir animaciones */
+@media (prefers-reduced-motion: reduce) {{
+    *, *::before, *::after {{
+        animation-duration: 0.001ms !important;
+        transition-duration: 0.001ms !important;
+    }}
+    .result-card:hover, .kpi-card:hover, .quick-card:hover, .stButton button:hover {{
+        transform: none !important;
+    }}
+}}
+
 /* ============ Responsive ============ */
 @media (max-width: 900px) {{
     .titleblock {{ flex-direction: column; }}
     .titleblock-meta {{ border-top: 1px solid var(--border-subtle); }}
     .kpi-value {{ font-size: 1.35rem; }}
+    .welcome-banner {{ padding: 1.1rem 1.2rem 0.6rem 1.2rem; }}
 }}
 </style>
 """
@@ -942,6 +975,20 @@ def _campo_con_ayuda(etiqueta: str, texto_ayuda: str, titulo: str = "Ayuda"):
         st.markdown(f"**{etiqueta}**")
     with c2:
         _ayuda(texto_ayuda, titulo)
+
+
+def _estado_vacio(mensaje: str, pagina_destino: str, texto_boton: str, icono: str = "👋"):
+    """Estado vacío uniforme: mensaje amistoso + botón que lleva directo a
+    donde hay que ir, en vez de un aviso pasivo que hay que interpretar."""
+    st.markdown(f'''<div class="result-card" style="text-align:center; padding:2rem 1.5rem;">
+        <div style="font-size:2rem; margin-bottom:0.5rem;">{icono}</div>
+        <div style="color:var(--text-secondary); margin-bottom:1rem;">{mensaje}</div>
+    </div>''', unsafe_allow_html=True)
+    c1, c2, c3 = st.columns([1, 1, 1])
+    with c2:
+        if st.button(texto_boton, type="primary", width='stretch', key=f"estado_vacio_{pagina_destino}"):
+            st.session_state["pagina_actual"] = pagina_destino
+            st.rerun()
 
 
 def _serializar_proyecto(nombre: str) -> dict:
@@ -3659,7 +3706,9 @@ def _render_presupuesto(inputs_cable: dict, resultado_cable: dict, inputs_fv: di
 
     if not capitulos:
         st.info("Añade al menos un capítulo para empezar a presupuestar (por ejemplo, uno por cada circuito "
-                "o instalación: derivación individual, cuadro de protección, iluminación, fotovoltaica...).")
+                "o instalación: derivación individual, cuadro de protección, iluminación, fotovoltaica...). "
+                "💡 Atajo: en **Inicio → Plantillas → Presupuesto** puedes crear de golpe la estructura típica "
+                "de una vivienda, nave industrial o instalación FV.")
         return
 
     st.markdown('<p class="section-label">Resumen del presupuesto</p>', unsafe_allow_html=True)
@@ -4077,31 +4126,47 @@ def _render_sidebar():
         </div>
         """, unsafe_allow_html=True)
 
-        def nav_button(icono, nombre):
+        def nav_button(icono, nombre, ayuda=None):
             activo = st.session_state["pagina_actual"] == nombre
-            if st.button(f"{icono}  {nombre}", key=f"nav_{nombre}",
+            if st.button(f"{icono}  {nombre}", key=f"nav_{nombre}", help=ayuda,
                          type="primary" if activo else "secondary", width='stretch'):
                 st.session_state["pagina_actual"] = nombre
                 st.rerun()
 
+        AYUDA_NAV = {
+            "Inicio": "Panel principal: resumen del proyecto, accesos rápidos y plantillas.",
+            "Proyectos": "Guardar, abrir, duplicar y comparar tus proyectos.",
+            "Estadísticas": "Gráficos del presupuesto y de la producción fotovoltaica.",
+            "Calculadora": "Punto de partida: calcula la sección de un cable de baja tensión.",
+            "Fórmulas": "Justificación paso a paso del cálculo de la Calculadora.",
+            "Fotovoltaica": "Dimensiona una instalación solar de autoconsumo, de forma independiente.",
+            "Cálculos BT": "Calculadoras sueltas de referencia rápida (Ohm, tierras, cortocircuito...).",
+            "Presupuesto": "Mediciones y precios por capítulos, a partir de lo que hayas calculado.",
+            "Documentación": "Genera la MTD, el Anexo de Cálculos y el Pliego de Condiciones en PDF.",
+            "Tablas normativas": "Consulta las tablas de intensidades y factores de la Guía-BT-19.",
+            "Metodología": "Qué criterios y normativa aplica cada cálculo de la app.",
+            "Configuración": "Tu nombre, logo y firma (para los PDF) y el tema de la app.",
+            "Acerca de": "Qué es esta aplicación y sus limitaciones conocidas.",
+        }
+
         st.markdown('<p class="nav-group-label">Principal</p>', unsafe_allow_html=True)
-        nav_button("🏠", "Inicio")
-        nav_button("📁", "Proyectos")
-        nav_button("📊", "Estadísticas")
+        nav_button("🏠", "Inicio", AYUDA_NAV["Inicio"])
+        nav_button("📁", "Proyectos", AYUDA_NAV["Proyectos"])
+        nav_button("📊", "Estadísticas", AYUDA_NAV["Estadísticas"])
 
         st.markdown('<p class="nav-group-label">Herramientas</p>', unsafe_allow_html=True)
         iconos_herr = {"Calculadora": "🔌", "Fórmulas": "🧮", "Fotovoltaica": "☀️", "Cálculos BT": "📐",
                        "Presupuesto": "💰", "Documentación": "📄"}
         for nombre in PAGINAS_HERRAMIENTAS:
-            nav_button(iconos_herr[nombre], nombre)
+            nav_button(iconos_herr[nombre], nombre, AYUDA_NAV.get(nombre))
 
         st.markdown('<p class="nav-group-label">Normativa</p>', unsafe_allow_html=True)
-        nav_button("📚", "Tablas normativas")
-        nav_button("📖", "Metodología")
+        nav_button("📚", "Tablas normativas", AYUDA_NAV["Tablas normativas"])
+        nav_button("📖", "Metodología", AYUDA_NAV["Metodología"])
 
         st.markdown('<p class="nav-group-label">Sistema</p>', unsafe_allow_html=True)
-        nav_button("⚙️", "Configuración")
-        nav_button("ℹ️", "Acerca de")
+        nav_button("⚙️", "Configuración", AYUDA_NAV["Configuración"])
+        nav_button("ℹ️", "Acerca de", AYUDA_NAV["Acerca de"])
 
         st.markdown("<div style='margin-top:1.4rem;'></div>", unsafe_allow_html=True)
         st.caption(f"📌 {st.session_state['nombre_proyecto_actual']}")
@@ -4175,15 +4240,78 @@ PLANTILLAS_PRESUPUESTO = {
 }
 
 
+def _render_flujo_recomendado(hay_cable: bool, hay_fv: bool, n_capitulos: int, doc_generada: bool):
+    """Indicador de progreso permanente: no es solo para la primera visita,
+    orienta en cada visita sobre dónde va cada cosa y qué falta."""
+    st.markdown('<p class="section-label">Flujo recomendado</p>', unsafe_allow_html=True)
+    pasos = [
+        ("1", "Calcular", "Cable o fotovoltaica", hay_cable or hay_fv, "Calculadora"),
+        ("2", "Presupuestar", "Capítulos y mediciones", n_capitulos > 0, "Presupuesto"),
+        ("3", "Documentar", "MTD, Anexo, Pliego (PDF)", doc_generada, "Documentación"),
+    ]
+    cols = st.columns(3)
+    for col, (num, titulo, sub, hecho, destino) in zip(cols, pasos):
+        with col:
+            estado_icono = "✅" if hecho else "⬜"
+            estado_txt = "Hecho" if hecho else "Pendiente"
+            clase = "success" if hecho else "info"
+            st.markdown(f'''<div class="result-card">
+                <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.3rem;">
+                    <span style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:1.1rem;
+                        color:var(--accent-primary);">{num}</span>
+                    <span style="font-weight:700;">{titulo}</span>
+                </div>
+                <div class="result-sub">{sub}</div>
+                <span class="badge {clase}" style="margin-top:0.5rem;">{estado_icono} {estado_txt}</span>
+            </div>''', unsafe_allow_html=True)
+            if st.button("Ir →" if not hecho else "Revisar →", key=f"flujo_{destino}", width='stretch'):
+                st.session_state["pagina_actual"] = destino
+                st.rerun()
+
+
 def _render_dashboard():
     nombre_usuario = st.session_state["config_profesional"].get("nombre") or "ingeniero/a"
-    st.markdown(f"### 👋 Hola, {nombre_usuario}")
-    st.caption(f"Proyecto actual: **{st.session_state['nombre_proyecto_actual']}** · "
-               f"{datetime.now().strftime('%A, %d de %B de %Y')}")
+    st.session_state.setdefault("guia_bienvenida_oculta", False)
 
     hay_cable = st.session_state["resultado_cable"].get("seccion_final") is not None
     hay_fv = bool(st.session_state["resultado_fv"]) and st.session_state["resultado_fv"].get("p_pico_kwp") is not None
     n_capitulos = len(st.session_state.get("presupuesto_capitulos", []))
+    doc_generada = any("descargad" in a["texto"].lower() for a in st.session_state.get("actividad", []))
+    es_usuario_nuevo = not hay_cable and not hay_fv and n_capitulos == 0 and not st.session_state["historial_proyectos"]
+
+    st.markdown(f"### 👋 Hola, {nombre_usuario}")
+    st.caption(f"Proyecto actual: **{st.session_state['nombre_proyecto_actual']}** · "
+               f"{datetime.now().strftime('%A, %d de %B de %Y')}")
+
+    # ---------------------------------------------------------------- Guía de bienvenida
+    if es_usuario_nuevo and not st.session_state["guia_bienvenida_oculta"]:
+        st.markdown('<div class="welcome-banner">', unsafe_allow_html=True)
+        st.markdown("#### 🚀 ¿Primera vez por aquí? Así funciona en 3 pasos")
+        st.markdown(
+            "Esta aplicación calcula instalaciones eléctricas de baja tensión (REBT) y genera "
+            "automáticamente el presupuesto y la documentación técnica en PDF. No hace falta que uses "
+            "todo — con el paso 1 ya tienes un resultado útil."
+        )
+        b1, b2, b3 = st.columns(3)
+        with b1:
+            st.markdown("**① Calcula**  \nRellena un formulario simple: potencia, longitud, tipo de "
+                        "instalación. O usa una plantilla ya rellena, más abajo.")
+            if st.button("🔌 Empezar por aquí", key="bienvenida_ir_calc", type="primary", width='stretch'):
+                st.session_state["pagina_actual"] = "Calculadora"
+                st.rerun()
+        with b2:
+            st.markdown("**② Presupuesta**  \nCon un clic importas lo calculado a un capítulo de "
+                        "presupuesto, con precios editables.")
+        with b3:
+            st.markdown("**③ Documenta**  \nDescarga la memoria técnica, el anexo de cálculos y el "
+                        "pliego de condiciones, ya con portada y paginación.")
+        if st.button("Entendido, no volver a mostrar esto", key="ocultar_bienvenida"):
+            st.session_state["guia_bienvenida_oculta"] = True
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+    else:
+        _render_flujo_recomendado(hay_cable, hay_fv, n_capitulos, doc_generada)
+
     cfg_p = st.session_state.get("presupuesto_config", {"pct_beneficio": PORCENTAJE_BENEFICIO_DEFECTO,
                                                           "pct_amortizacion": PORCENTAJE_AMORTIZACION_DEFECTO})
     total_presu = sum(calcular_totales_capitulo(c["items"], cfg_p["pct_beneficio"], cfg_p["pct_amortizacion"])
@@ -4192,12 +4320,12 @@ def _render_dashboard():
     st.markdown('<p class="section-label">Resumen del proyecto</p>', unsafe_allow_html=True)
     k1, k2, k3, k4 = st.columns(4)
     _tarjeta_kpi(k1, "🔌", "blue",
-                 f"{st.session_state['resultado_cable'].get('seccion_final', '—')} mm²" if hay_cable else "—",
+                 f"{st.session_state['resultado_cable'].get('seccion_final', '—')} mm²" if hay_cable else "Sin calcular",
                  "Sección de cable calculada")
     _tarjeta_kpi(k2, "☀️", "orange",
-                 f"{st.session_state['resultado_fv'].get('p_pico_kwp', 0):.1f} kWp" if hay_fv else "—",
+                 f"{st.session_state['resultado_fv'].get('p_pico_kwp', 0):.1f} kWp" if hay_fv else "Sin calcular",
                  "Potencia fotovoltaica")
-    _tarjeta_kpi(k3, "💰", "green", _fmt_eur(total_presu) if n_capitulos else "—",
+    _tarjeta_kpi(k3, "💰", "green", _fmt_eur(total_presu) if n_capitulos else "Sin capítulos",
                  f"Presupuesto ({n_capitulos} capítulos)")
     _tarjeta_kpi(k4, "📁", "blue", f"{len(st.session_state.get('historial_proyectos', []))}",
                  "Proyectos en el historial")
@@ -4268,11 +4396,6 @@ def _render_dashboard():
             st.markdown(f'<div class="result-card">{html_items}</div>', unsafe_allow_html=True)
         else:
             st.info("Todavía no hay actividad registrada en esta sesión.")
-
-    if not hay_cable and not hay_fv:
-        st.markdown('<p class="section-label">Primeros pasos</p>', unsafe_allow_html=True)
-        st.info("👋 Empieza calculando un circuito en **Calculadora** o dimensionando una instalación en "
-                "**Fotovoltaica**. Desde ahí podrás generar presupuesto y documentación automáticamente.")
 
 
 def _render_proyectos():
@@ -4711,7 +4834,9 @@ def main():
         if rc.get("seccion_final") is not None:
             _render_formulas(ic, rc)
         else:
-            st.info("Primero calcula un circuito en **Calculadora** para ver aquí su justificación.")
+            _estado_vacio("Aún no has calculado ningún circuito. Hazlo en Calculadora y aquí verás la "
+                          "justificación completa, fórmula a fórmula.", "Calculadora",
+                          "🔌 Ir a Calculadora", "🧮")
 
     elif pagina == "Fotovoltaica":
         inputs_fv = _render_inputs_fv()
