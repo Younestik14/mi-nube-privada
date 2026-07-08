@@ -434,6 +434,94 @@ TARIFAS_MANO_OBRA_DEFECTO = {
     "Peón especialista": 14.50,
 }
 
+# Tipos de instalación y sus subpartes típicas, para el estimador de
+# cantidades del Presupuesto. Cada subparte de tipo "circuito" se calcula
+# con el mismo modelo (nº de elementos × longitud media × holgura → tubo,
+# cable, cajas); las de tipo "tierra" y "elemento" tienen su propio cálculo.
+# Valores por defecto orientativos — siempre editables en la propia UI.
+TIPOS_INSTALACION_ESTIMADOR = {
+    "🏠 Vivienda unifamiliar / piso": [
+        {"nombre": "C1 · Iluminación", "tipo": "circuito", "unidad_elem": "puntos de luz",
+         "n_defecto": 10, "long_defecto": 8.0, "conductores": 3},
+        {"nombre": "C2 · Tomas de uso general", "tipo": "circuito", "unidad_elem": "tomas",
+         "n_defecto": 12, "long_defecto": 10.0, "conductores": 3},
+        {"nombre": "C3 · Cocina y horno", "tipo": "circuito", "unidad_elem": "tomas",
+         "n_defecto": 2, "long_defecto": 6.0, "conductores": 3},
+        {"nombre": "C4 · Lavadora / lavavajillas / termo", "tipo": "circuito", "unidad_elem": "tomas",
+         "n_defecto": 3, "long_defecto": 8.0, "conductores": 3},
+        {"nombre": "C5 · Baño y tomas auxiliares de cocina", "tipo": "circuito", "unidad_elem": "tomas",
+         "n_defecto": 2, "long_defecto": 6.0, "conductores": 3},
+        {"nombre": "C7 · Climatización", "tipo": "circuito", "unidad_elem": "unidades",
+         "n_defecto": 1, "long_defecto": 12.0, "conductores": 3},
+        {"nombre": "Derivación individual", "tipo": "circuito", "unidad_elem": "líneas",
+         "n_defecto": 1, "long_defecto": 15.0, "conductores": 3},
+        {"nombre": "Cuadro general de mando y protección", "tipo": "elemento", "unidad_elem": "cuadros",
+         "n_defecto": 1, "precio_estimado": 48.0},
+        {"nombre": "Puesta a tierra", "tipo": "tierra", "unidad_elem": "picas", "n_defecto": 1,
+         "long_defecto": 20.0},
+    ],
+    "🏢 Local comercial / oficina": [
+        {"nombre": "Alumbrado general", "tipo": "circuito", "unidad_elem": "puntos de luz",
+         "n_defecto": 16, "long_defecto": 12.0, "conductores": 3},
+        {"nombre": "Alumbrado de emergencia", "tipo": "circuito", "unidad_elem": "aparatos autónomos",
+         "n_defecto": 6, "long_defecto": 12.0, "conductores": 3},
+        {"nombre": "Tomas de corriente", "tipo": "circuito", "unidad_elem": "tomas",
+         "n_defecto": 14, "long_defecto": 12.0, "conductores": 3},
+        {"nombre": "Climatización", "tipo": "circuito", "unidad_elem": "unidades",
+         "n_defecto": 2, "long_defecto": 15.0, "conductores": 3},
+        {"nombre": "Fuerza (maquinaria/electrodomésticos)", "tipo": "circuito", "unidad_elem": "tomas",
+         "n_defecto": 3, "long_defecto": 10.0, "conductores": 3},
+        {"nombre": "Escaparate / rótulo luminoso", "tipo": "circuito", "unidad_elem": "puntos",
+         "n_defecto": 2, "long_defecto": 8.0, "conductores": 3},
+        {"nombre": "Cuadro general de distribución", "tipo": "elemento", "unidad_elem": "cuadros",
+         "n_defecto": 1, "precio_estimado": 78.0},
+        {"nombre": "Puesta a tierra", "tipo": "tierra", "unidad_elem": "picas", "n_defecto": 1,
+         "long_defecto": 20.0},
+    ],
+    "🏭 Nave industrial": [
+        {"nombre": "Acometida y CGP", "tipo": "elemento", "unidad_elem": "conjuntos", "n_defecto": 1,
+         "precio_estimado": 85.0},
+        {"nombre": "Cuadro general de distribución", "tipo": "elemento", "unidad_elem": "cuadros",
+         "n_defecto": 1, "precio_estimado": 145.0},
+        {"nombre": "Fuerza motriz (motores)", "tipo": "circuito", "unidad_elem": "motores",
+         "n_defecto": 4, "long_defecto": 25.0, "conductores": 5},
+        {"nombre": "Alumbrado industrial general", "tipo": "circuito", "unidad_elem": "puntos de luz",
+         "n_defecto": 20, "long_defecto": 20.0, "conductores": 3},
+        {"nombre": "Alumbrado de emergencia", "tipo": "circuito", "unidad_elem": "aparatos autónomos",
+         "n_defecto": 10, "long_defecto": 20.0, "conductores": 3},
+        {"nombre": "Tomas de corriente industriales", "tipo": "circuito", "unidad_elem": "tomas",
+         "n_defecto": 8, "long_defecto": 18.0, "conductores": 5},
+        {"nombre": "Puesta a tierra", "tipo": "tierra", "unidad_elem": "picas", "n_defecto": 3,
+         "long_defecto": 40.0},
+    ],
+    "🅿️ Garaje / aparcamiento": [
+        {"nombre": "Alumbrado", "tipo": "circuito", "unidad_elem": "puntos de luz",
+         "n_defecto": 12, "long_defecto": 20.0, "conductores": 3},
+        {"nombre": "Alumbrado de emergencia", "tipo": "circuito", "unidad_elem": "aparatos autónomos",
+         "n_defecto": 6, "long_defecto": 20.0, "conductores": 3},
+        {"nombre": "Ventilación forzada (extractor)", "tipo": "circuito", "unidad_elem": "motores",
+         "n_defecto": 2, "long_defecto": 15.0, "conductores": 3},
+        {"nombre": "Detección de CO", "tipo": "circuito", "unidad_elem": "detectores",
+         "n_defecto": 3, "long_defecto": 15.0, "conductores": 3},
+        {"nombre": "Puerta automática / motor de puerta", "tipo": "circuito", "unidad_elem": "motores",
+         "n_defecto": 1, "long_defecto": 10.0, "conductores": 3},
+        {"nombre": "Puesta a tierra", "tipo": "tierra", "unidad_elem": "picas", "n_defecto": 1,
+         "long_defecto": 20.0},
+    ],
+    "☀️ Instalación fotovoltaica": [
+        {"nombre": "Cableado CC (generador → inversor)", "tipo": "circuito", "unidad_elem": "strings",
+         "n_defecto": 2, "long_defecto": 15.0, "conductores": 2},
+        {"nombre": "Cableado CA (inversor → cuadro)", "tipo": "circuito", "unidad_elem": "líneas",
+         "n_defecto": 1, "long_defecto": 10.0, "conductores": 3},
+        {"nombre": "Estructura y protecciones DC", "tipo": "elemento", "unidad_elem": "conjuntos",
+         "n_defecto": 1, "precio_estimado": 140.0},
+        {"nombre": "Cuadro de protecciones CA e interconexión", "tipo": "elemento", "unidad_elem": "cuadros",
+         "n_defecto": 1, "precio_estimado": 150.0},
+        {"nombre": "Puesta a tierra de estructura", "tipo": "tierra", "unidad_elem": "picas", "n_defecto": 1,
+         "long_defecto": 15.0},
+    ],
+}
+
 # Estructura clásica de presupuesto de instalaciones en España: sobre el
 # precio base de cada material/mano de obra se aplican estos dos porcentajes
 # para obtener el precio de venta (Precio_venta = Precio_base × (1 + %ben + %amort)).
@@ -775,6 +863,19 @@ section[data-testid="stSidebar"] .stButton button[kind="primary"] {{
     color: var(--accent-primary-hover) !important; font-weight: 700;
 }}
 section[data-testid="stSidebar"] .stButton button[kind="primary"] * {{ color: var(--accent-primary-hover) !important; }}
+
+.sidebar-credit {{
+    margin-top: 1rem; padding-top: 0.8rem; border-top: 1px solid rgba(255,255,255,0.08);
+    text-align: center;
+}}
+.sidebar-credit-name {{
+    font-size: 0.66rem; color: #6b7690 !important; letter-spacing: 0.02em; margin-bottom: 0.35rem;
+}}
+.sidebar-credit-links {{ display: flex; justify-content: center; gap: 0.7rem; }}
+.sidebar-credit-links a {{
+    font-size: 1.0rem; text-decoration: none; opacity: 0.7; transition: opacity 0.15s ease, transform 0.15s ease;
+}}
+.sidebar-credit-links a:hover {{ opacity: 1; transform: translateY(-1px); }}
 
 /* ============ Cabecera tipo cajetín (documentos) ============ */
 .titleblock {{
@@ -1506,47 +1607,11 @@ def _cajetin_generico(titulo: str, subtitulo: str, datos_proyecto: dict, margin,
         c.setStrokeColor(COBRE)
         c.setLineWidth(2.2)
         c.line(margin, top - cajetin_h, width - margin, top - cajetin_h)
-
-        # --- Marca de agua diagonal sutil (autoría de la app, no del proyecto) ---
-        c.saveState()
-        c.setFont("Helvetica-Bold", 34)
-        c.setFillColorRGB(0.5, 0.55, 0.62, alpha=0.06)
-        c.translate(width / 2, height / 2)
-        c.rotate(38)
-        c.drawCentredString(0, 0, "Younesse Tikent Tifaoui")
-        c.restoreState()
-
         c.setFont("Helvetica-Oblique", 6.8)
         c.setFillColor(GRIS)
-        c.drawCentredString(width / 2, margin * 0.62,
+        c.drawCentredString(width / 2, margin * 0.45,
                               "Documento generado con REBT Suite. Revisar por un tecnico competente antes "
                               "de su presentacion oficial.")
-
-        # --- Pie con enlaces reales a redes (clicables en el PDF) ---
-        c.setFont("Helvetica", 6.6)
-        c.setFillColor(GRIS)
-        y_redes = margin * 0.25
-        segmentos = [
-            ("REBT Suite · Younesse Tikent Tifaoui   ", None),
-            ("Instagram", "https://www.instagram.com/younes.tik/?hl=es"),
-            ("  ·  ", None),
-            ("LinkedIn", "https://www.linkedin.com/in/younesse-tikent-tifaoui-5b9aa3241/"),
-            ("  ·  ", None),
-            ("younessetikenttifaoui@gmail.com", "mailto:younessetikenttifaoui@gmail.com"),
-        ]
-        ancho_total = sum(c.stringWidth(txt, "Helvetica", 6.6) for txt, _ in segmentos)
-        x_cursor = width / 2 - ancho_total / 2
-        for texto_seg, url_seg in segmentos:
-            ancho_seg = c.stringWidth(texto_seg, "Helvetica", 6.6)
-            if url_seg:
-                c.setFillColor(COBRE)
-                c.drawString(x_cursor, y_redes, texto_seg)
-                c.linkURL(url_seg, (x_cursor, y_redes - 1, x_cursor + ancho_seg, y_redes + 6),
-                          relative=0, thickness=0)
-                c.setFillColor(GRIS)
-            else:
-                c.drawString(x_cursor, y_redes, texto_seg)
-            x_cursor += ancho_seg
         c.restoreState()
 
     return _cajetin
@@ -4213,61 +4278,109 @@ def _render_presupuesto(inputs_cable: dict, resultado_cable: dict, inputs_fv: di
                     st.session_state.pop("pc_nombre_final", None)
                     st.rerun()
 
-    with st.expander("📏 Estimador de cantidades — tubo, cable y cajas necesarios", expanded=False):
+    with st.expander("📏 Estimador de cantidades — por tipo de instalación", expanded=False):
         st.caption(
-            "⚠️ Estimación **paramétrica** a partir de nº de circuitos, puntos y una longitud media — no es "
-            "una medición real sobre plano. Útil para tener un punto de partida rápido antes de medir sobre "
-            "el terreno; ajusta luego las cantidades a mano si hace falta.")
-        em1, em2, em3 = st.columns(3)
-        with em1:
-            est_sistema = st.selectbox("Sistema", [SISTEMA_MONO, SISTEMA_TRI], key="est_sistema")
-            est_n_circuitos = st.number_input("Nº de circuitos", min_value=1, value=5, step=1, key="est_ncirc")
-        with em2:
-            est_long_media = st.number_input("Longitud media por circuito (m, cuadro→punto más alejado)",
-                                              min_value=1.0, value=12.0, step=1.0, key="est_longmedia")
-            est_holgura = st.number_input("Holgura por curvas/subidas (%)", min_value=0.0, max_value=50.0,
-                                           value=15.0, step=5.0, key="est_holgura")
-        with em3:
-            est_n_puntos_luz = st.number_input("Nº de puntos de luz", min_value=0, value=8, step=1, key="est_luz")
-            est_n_tomas = st.number_input("Nº de tomas de corriente", min_value=0, value=10, step=1, key="est_tomas")
-        est_n_mecanismos = st.number_input("Nº de interruptores/conmutadores", min_value=0, value=6, step=1,
-                                            key="est_mecanismos")
+            "⚠️ Estimación **paramétrica** a partir del tipo de instalación y sus subpartes típicas — no es "
+            "una medición real sobre plano. Desmarca las subpartes que no apliquen y ajusta las cantidades; "
+            "luego exporta el resultado a un capítulo del presupuesto.")
 
-        n_conductores = 3 if est_sistema == SISTEMA_MONO else 5  # F+N+T ó 3F+N+T (aprox.)
-        metros_tubo = est_n_circuitos * est_long_media * (1 + est_holgura / 100)
-        metros_cable = metros_tubo * n_conductores
-        n_cajas_derivacion = est_n_puntos_luz + est_n_tomas + est_n_mecanismos
-        n_cajas_mecanismo = est_n_tomas + est_n_mecanismos
+        tipo_inst_sel = st.selectbox("Tipo de instalación", list(TIPOS_INSTALACION_ESTIMADOR.keys()),
+                                      key="est_tipo_inst")
+        est_holgura = st.slider("Holgura por curvas/subidas en tubo, cable y conductor de tierra (%)",
+                                 0, 40, 15, key="est_holgura_global")
 
-        st.markdown("**Resultado estimado**")
-        re1, re2, re3, re4 = st.columns(4)
-        re1.metric("Metros de tubo", f"{metros_tubo:.0f} m")
-        re2.metric("Metros de cable (todos los conductores)", f"{metros_cable:.0f} m")
-        re3.metric("Cajas de derivación", f"{n_cajas_derivacion:.0f}")
-        re4.metric("Cajas de mecanismo", f"{n_cajas_mecanismo:.0f}")
+        subpartes = TIPOS_INSTALACION_ESTIMADOR[tipo_inst_sel]
+        st.markdown(f"**Subpartes de «{tipo_inst_sel}»**")
+        datos_subpartes = []
+        for i_sp, sp in enumerate(subpartes):
+            with st.container(border=True):
+                sc1, sc2, sc3, sc4 = st.columns([0.4, 2.6, 1.3, 1.3])
+                with sc1:
+                    incluido = st.checkbox("Incluir", value=True, label_visibility="collapsed",
+                                            key=f"est_incl_{tipo_inst_sel}_{i_sp}")
+                with sc2:
+                    st.markdown(f"**{sp['nombre']}**  \n"
+                                f"<span style='font-size:0.72rem; color:var(--text-secondary);'>"
+                                f"{sp['tipo']}</span>", unsafe_allow_html=True)
+                with sc3:
+                    n_val = st.number_input(f"Nº {sp['unidad_elem']}", min_value=0, value=sp["n_defecto"],
+                                             step=1, key=f"est_n_{tipo_inst_sel}_{i_sp}")
+                with sc4:
+                    if sp["tipo"] in ("circuito", "tierra"):
+                        long_val = st.number_input("Long. media (m)", min_value=0.0,
+                                                    value=float(sp.get("long_defecto", 10.0)), step=1.0,
+                                                    key=f"est_long_{tipo_inst_sel}_{i_sp}")
+                    else:
+                        long_val = None
+                        st.caption("(elemento único, sin tubo/cable)")
+                datos_subpartes.append((sp, incluido, n_val, long_val))
 
-        cap_destino_est = st.selectbox(
-            "Capítulo destino", [c["nombre"] for c in capitulos] if capitulos else ["— crea un capítulo primero —"],
-            key="est_cap_destino")
-        if st.button("📤 Exportar estas cantidades al capítulo", disabled=not capitulos):
-            idx_destino = next(i for i, c in enumerate(capitulos) if c["nombre"] == cap_destino_est)
-            nuevos_est = [
-                {"designacion": "Tubo corrugado empotrar Ø20mm (estimado)", "unidades": "m",
-                 "cantidad": round(metros_tubo, 1), "precio_base": catalogo["Canalizaciones"]["Tubo corrugado empotrar Ø20mm"]},
-                {"designacion": f"Cable H07V-K 2,5mm² (estimado, {n_conductores} conductores/circuito)", "unidades": "m",
-                 "cantidad": round(metros_cable, 1), "precio_base": catalogo["Cables (por tipo, además del cálculo automático)"]["Cable H07V-K 2,5mm²"]},
-                {"designacion": "Caja de derivación empotrar 100x100 (estimado)", "unidades": "ud",
-                 "cantidad": n_cajas_derivacion, "precio_base": catalogo["Cajas y mecanismos"]["Caja de derivación empotrar 100x100"]},
-                {"designacion": "Caja de mecanismo universal (estimado)", "unidades": "ud",
-                 "cantidad": n_cajas_mecanismo, "precio_base": catalogo["Cajas y mecanismos"]["Caja de mecanismo universal"]},
-            ]
-            cap_dest = capitulos[idx_destino]
-            for j, it in enumerate(nuevos_est):
-                it["partida"] = f"{idx_destino + 1}.{len(cap_dest['items']) + j + 1}"
-            cap_dest["items"].extend(nuevos_est)
-            _registrar_actividad("📏", f"Cantidades estimadas exportadas a {cap_destino_est}")
-            st.success(f"4 partidas añadidas a '{cap_destino_est}'.")
-            st.rerun()
+        filas_resumen, items_a_exportar = [], []
+        total_tubo = total_cable = total_cajas = 0.0
+        for sp, incluido, n_val, long_val in datos_subpartes:
+            if not incluido or n_val <= 0:
+                continue
+            if sp["tipo"] == "circuito":
+                tubo = n_val * long_val * (1 + est_holgura / 100)
+                cable = tubo * sp["conductores"]
+                cajas = n_val
+                total_tubo += tubo
+                total_cable += cable
+                total_cajas += cajas
+                filas_resumen.append({"Subparte": sp["nombre"], "Tubo (m)": f"{tubo:.1f}",
+                                      "Cable (m)": f"{cable:.1f}", "Cajas/uds": str(cajas)})
+                items_a_exportar.append({"designacion": f"Tubo corrugado Ø20mm — {sp['nombre']} (estimado)",
+                                         "unidades": "m", "cantidad": round(tubo, 1),
+                                         "precio_base": catalogo["Canalizaciones"]["Tubo corrugado empotrar Ø20mm"]})
+                items_a_exportar.append({"designacion": f"Cable H07V-K 2,5mm² — {sp['nombre']} (estimado)",
+                                         "unidades": "m", "cantidad": round(cable, 1),
+                                         "precio_base": catalogo["Cables (por tipo, además del cálculo automático)"]["Cable H07V-K 2,5mm²"]})
+                items_a_exportar.append({"designacion": f"Caja de derivación — {sp['nombre']} (estimado)",
+                                         "unidades": "ud", "cantidad": cajas,
+                                         "precio_base": catalogo["Cajas y mecanismos"]["Caja de derivación empotrar 100x100"]})
+            elif sp["tipo"] == "tierra":
+                conductor = long_val * (1 + est_holgura / 100)
+                filas_resumen.append({"Subparte": sp["nombre"], "Tubo (m)": "—", "Cable (m)": "—",
+                                      "Cajas/uds": f"{n_val} picas + {conductor:.0f} m cond."})
+                items_a_exportar.append({"designacion": f"Pica de tierra — {sp['nombre']} (estimado)",
+                                         "unidades": "ud", "cantidad": n_val,
+                                         "precio_base": catalogo["Puesta a tierra"]["Pica de acero cobreado 2m Ø14mm"]})
+                items_a_exportar.append({"designacion": f"Cable desnudo Cu 16mm² — {sp['nombre']} (estimado)",
+                                         "unidades": "m", "cantidad": round(conductor, 1),
+                                         "precio_base": catalogo["Puesta a tierra"]["Cable desnudo Cu 16mm² (tierra)"]})
+            else:  # elemento
+                filas_resumen.append({"Subparte": sp["nombre"], "Tubo (m)": "—", "Cable (m)": "—",
+                                      "Cajas/uds": f"{n_val} ud"})
+                items_a_exportar.append({"designacion": f"{sp['nombre']} (estimado)", "unidades": "ud",
+                                         "cantidad": n_val, "precio_base": sp["precio_estimado"]})
+
+        if filas_resumen:
+            st.markdown("**Resumen por subparte**")
+            st.dataframe(pd.DataFrame(filas_resumen), hide_index=True, width='stretch')
+            rt1, rt2, rt3 = st.columns(3)
+            rt1.metric("Total tubo", f"{total_tubo:.0f} m")
+            rt2.metric("Total cable", f"{total_cable:.0f} m")
+            rt3.metric("Total cajas de derivación", f"{total_cajas:.0f}")
+
+            exp1, exp2 = st.columns([2, 1])
+            with exp1:
+                cap_destino_est = st.selectbox(
+                    "Capítulo destino", [c["nombre"] for c in capitulos] if capitulos else ["— crea un capítulo primero —"],
+                    key="est_cap_destino")
+            with exp2:
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button("📤 Exportar al capítulo", disabled=not capitulos, key="est_exportar_btn"):
+                    idx_destino = next(i for i, c in enumerate(capitulos) if c["nombre"] == cap_destino_est)
+                    cap_dest = capitulos[idx_destino]
+                    for j, it in enumerate(items_a_exportar):
+                        it["partida"] = f"{idx_destino + 1}.{len(cap_dest['items']) + j + 1}"
+                    cap_dest["items"].extend(items_a_exportar)
+                    _registrar_actividad("📏", f"{len(items_a_exportar)} partidas de «{tipo_inst_sel}» "
+                                         f"exportadas a {cap_destino_est}")
+                    st.success(f"{len(items_a_exportar)} partidas añadidas a '{cap_destino_est}'.")
+                    st.rerun()
+        else:
+            st.info("Marca al menos una subparte con cantidad mayor que 0 para ver el resumen.")
 
     nc1, nc2 = st.columns([3, 1])
     with nc1:
@@ -4862,6 +4975,17 @@ def _render_sidebar():
 
         st.markdown("<div style='margin-top:1.4rem;'></div>", unsafe_allow_html=True)
         st.caption(f"📌 {st.session_state['nombre_proyecto_actual']}")
+
+        st.markdown("""
+        <div class="sidebar-credit">
+            <div class="sidebar-credit-name">Younesse Tikent Tifaoui</div>
+            <div class="sidebar-credit-links">
+                <a href="https://www.instagram.com/younes.tik/?hl=es" target="_blank" title="Instagram">📷</a>
+                <a href="https://www.linkedin.com/in/younesse-tikent-tifaoui-5b9aa3241/" target="_blank" title="LinkedIn">💼</a>
+                <a href="mailto:younessetikenttifaoui@gmail.com" title="Gmail">✉️</a>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 
 def _tarjeta_kpi(col, icono: str, color: str, valor: str, etiqueta: str):
