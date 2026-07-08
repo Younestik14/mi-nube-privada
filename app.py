@@ -407,6 +407,31 @@ CATALOGO_MATERIALES = {
         "Manguito termorretráctil": ("ud", 0.60),
         "Tapa ciega de mecanismo": ("ud", 1.10),
     },
+    "Mano de obra": {
+        "Encargado / jefe de equipo (hora)": ("h", 26.00),
+        "Oficial 1ª electricista (hora)": ("h", 22.00),
+        "Oficial 2ª electricista (hora)": ("h", 19.00),
+        "Ayudante electricista (hora)": ("h", 16.50),
+        "Peón especialista (hora)": ("h", 14.50),
+        "Montaje e instalación de punto de luz (unidad)": ("ud", 12.00),
+        "Montaje e instalación de toma de corriente (unidad)": ("ud", 10.00),
+        "Montaje e instalación de mecanismo de mando (unidad)": ("ud", 9.00),
+        "Tendido de cable bajo tubo (por metro)": ("m", 1.10),
+        "Montaje de cuadro eléctrico (según nº módulos, unidad)": ("ud", 65.00),
+        "Conexionado y etiquetado de cuadro (unidad)": ("ud", 45.00),
+        "Ejecución de puesta a tierra (electrodo + conexionado, unidad)": ("ud", 85.00),
+        "Puesta en servicio y pruebas reglamentarias (unidad)": ("ud", 120.00),
+    },
+}
+
+# Tarifas de mano de obra de referencia para el generador de partidas
+# compuestas (precios orientativos, no de convenio en tiempo real).
+TARIFAS_MANO_OBRA_DEFECTO = {
+    "Encargado / jefe de equipo": 26.00,
+    "Oficial 1ª electricista": 22.00,
+    "Oficial 2ª electricista": 19.00,
+    "Ayudante electricista": 16.50,
+    "Peón especialista": 14.50,
 }
 
 # Estructura clásica de presupuesto de instalaciones en España: sobre el
@@ -933,9 +958,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible,
 # sobrevivir entre sesiones (eso sí es 100% fiable, lo guarda el usuario).
 # ==============================================================================
 
-PAGINAS_HERRAMIENTAS = ["Calculadora", "Fórmulas", "Fotovoltaica", "Cálculos BT", "Presupuesto", "Documentación"]
+PAGINAS_HERRAMIENTAS = ["Calculadora", "Fórmulas", "Fotovoltaica", "Presupuesto", "Documentación"]
 CLAVES_PROYECTO = ["inputs_cable", "resultado_cable", "inputs_fv", "resultado_fv",
-                   "presupuesto_capitulos", "presupuesto_config", "datos_proyecto", "catalogo_precios"]
+                   "presupuesto_capitulos", "presupuesto_config", "datos_proyecto", "catalogo_precios",
+                   "partidas_compuestas", "calculos_guardados"]
 MAX_HISTORIAL_PROYECTOS = 25  # evita que la sesión acumule memoria sin límite
 
 
@@ -1397,6 +1423,24 @@ def _lineas_formulas_fv_texto(inp: dict, res: dict) -> list:
     return L
 
 
+def _truncar_ancho(c, texto: str, fuente: str, tamano: float, ancho_max: float) -> str:
+    """Trunca 'texto' con puntos suspensivos hasta que quepa en ancho_max,
+    midiendo el ancho REAL de la fuente (evita que el texto se salga de su
+    hueco y se solape con el bloque contiguo del cajetín)."""
+    texto = texto or ""
+    if c.stringWidth(texto, fuente, tamano) <= ancho_max:
+        return texto
+    elipsis = "…"
+    lo, hi = 0, len(texto)
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        if c.stringWidth(texto[:mid] + elipsis, fuente, tamano) <= ancho_max:
+            lo = mid
+        else:
+            hi = mid - 1
+    return texto[:lo].rstrip() + elipsis
+
+
 def _cajetin_generico(titulo: str, subtitulo: str, datos_proyecto: dict, margin, cajetin_h, AZUL, COBRE, GRIS,
                        config_prof: dict = None):
     """Factoría de función de cajetín reutilizable por los distintos documentos
@@ -1430,20 +1474,25 @@ def _cajetin_generico(titulo: str, subtitulo: str, datos_proyecto: dict, margin,
             except Exception:
                 logo_w = 0
         text_x = margin + 0.35 * cm + (logo_w + 0.3 * cm if logo_w else 0)
+        ancho_texto_disp = divisor_x - text_x - 0.2 * cm  # hueco real antes del panel derecho
         c.line(divisor_x, top - cajetin_h, divisor_x, top)
         c.setFillColor(AZUL)
         c.setFont("Helvetica-Bold", 12.5)
-        c.drawString(text_x, top - 0.85 * cm, _pdf_safe(titulo))
+        c.drawString(text_x, top - 0.85 * cm, _pdf_safe(_truncar_ancho(c, titulo, "Helvetica-Bold", 12.5, ancho_texto_disp)))
         c.setFont("Helvetica", 8.3)
         c.setFillColor(GRIS)
-        c.drawString(text_x, top - 1.35 * cm, _pdf_safe(subtitulo))
-        c.drawString(text_x, top - 1.85 * cm,
-                      _pdf_safe(f"Titular: {datos_proyecto.get('titular') or '-'}  |  "
-                                f"Emplazamiento: {datos_proyecto.get('emplazamiento') or '-'}"))
+        c.drawString(text_x, top - 1.35 * cm, _pdf_safe(_truncar_ancho(c, subtitulo, "Helvetica", 8.3, ancho_texto_disp)))
+        linea_titular = f"Titular: {datos_proyecto.get('titular') or '-'}"
+        linea_emplazamiento = f"Emplazamiento: {datos_proyecto.get('emplazamiento') or '-'}"
+        c.setFont("Helvetica", 7.6)
+        c.drawString(text_x, top - 1.80 * cm, _pdf_safe(_truncar_ancho(c, linea_titular, "Helvetica", 7.6, ancho_texto_disp)))
+        c.drawString(text_x, top - 2.18 * cm, _pdf_safe(_truncar_ancho(c, linea_emplazamiento, "Helvetica", 7.6, ancho_texto_disp)))
         empresa_txt = config_prof.get("empresa") or config_prof.get("nombre")
         if empresa_txt:
             c.setFont("Helvetica-Oblique", 7.2)
-            c.drawString(text_x, top - cajetin_h + 0.28 * cm, _pdf_safe(f"Elaborado por: {empresa_txt}"))
+            texto_empresa = _truncar_ancho(c, f"Elaborado por: {empresa_txt}", "Helvetica-Oblique", 7.2,
+                                            ancho_texto_disp)
+            c.drawString(text_x, top - cajetin_h + 0.28 * cm, _pdf_safe(texto_empresa))
         campos = [("NORMA", "REBT - ITC-BT"), ("FECHA", fecha_hoy), ("REVISION", "1.0")]
         y = top - 0.55 * cm
         for etiqueta, valor in campos:
@@ -1457,11 +1506,47 @@ def _cajetin_generico(titulo: str, subtitulo: str, datos_proyecto: dict, margin,
         c.setStrokeColor(COBRE)
         c.setLineWidth(2.2)
         c.line(margin, top - cajetin_h, width - margin, top - cajetin_h)
+
+        # --- Marca de agua diagonal sutil (autoría de la app, no del proyecto) ---
+        c.saveState()
+        c.setFont("Helvetica-Bold", 34)
+        c.setFillColorRGB(0.5, 0.55, 0.62, alpha=0.06)
+        c.translate(width / 2, height / 2)
+        c.rotate(38)
+        c.drawCentredString(0, 0, "Younesse Tikent Tifaoui")
+        c.restoreState()
+
         c.setFont("Helvetica-Oblique", 6.8)
         c.setFillColor(GRIS)
-        c.drawCentredString(width / 2, margin * 0.45,
+        c.drawCentredString(width / 2, margin * 0.62,
                               "Documento generado con REBT Suite. Revisar por un tecnico competente antes "
                               "de su presentacion oficial.")
+
+        # --- Pie con enlaces reales a redes (clicables en el PDF) ---
+        c.setFont("Helvetica", 6.6)
+        c.setFillColor(GRIS)
+        y_redes = margin * 0.25
+        segmentos = [
+            ("REBT Suite · Younesse Tikent Tifaoui   ", None),
+            ("Instagram", "https://www.instagram.com/younes.tik/?hl=es"),
+            ("  ·  ", None),
+            ("LinkedIn", "https://www.linkedin.com/in/younesse-tikent-tifaoui-5b9aa3241/"),
+            ("  ·  ", None),
+            ("younessetikenttifaoui@gmail.com", "mailto:younessetikenttifaoui@gmail.com"),
+        ]
+        ancho_total = sum(c.stringWidth(txt, "Helvetica", 6.6) for txt, _ in segmentos)
+        x_cursor = width / 2 - ancho_total / 2
+        for texto_seg, url_seg in segmentos:
+            ancho_seg = c.stringWidth(texto_seg, "Helvetica", 6.6)
+            if url_seg:
+                c.setFillColor(COBRE)
+                c.drawString(x_cursor, y_redes, texto_seg)
+                c.linkURL(url_seg, (x_cursor, y_redes - 1, x_cursor + ancho_seg, y_redes + 6),
+                          relative=0, thickness=0)
+                c.setFillColor(GRIS)
+            else:
+                c.drawString(x_cursor, y_redes, texto_seg)
+            x_cursor += ancho_seg
         c.restoreState()
 
     return _cajetin
@@ -1558,7 +1643,7 @@ def _preparar_doc_pdf(titulo: str, subtitulo: str, datos_proyecto: dict, config_
     GRIS = colors.HexColor("#5a6472")
     buffer = io.BytesIO()
     margin = 1.8 * _cm
-    cajetin_h = 2.6 * _cm
+    cajetin_h = 3.05 * _cm
     doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=margin, rightMargin=margin,
                               topMargin=margin + cajetin_h + 0.4 * _cm, bottomMargin=margin + 0.7 * _cm)
     doc._numbered_canvas = _crear_numbered_canvas(margin)
@@ -1637,15 +1722,32 @@ def generar_pdf_mtd(datos_proyecto: dict, inputs_cable: dict, resultado_cable: d
     story.append(Paragraph("D. Memoria descriptiva", h2))
 
     story.append(Paragraph("D.1 Objeto y normativa de aplicación", h3))
+    tipo_actuacion = d.get("tipo_instalacion") or "Nueva instalación"
+    frases_actuacion = {
+        "Nueva instalación": "corresponde a una instalación de nueva planta, sin instalación eléctrica "
+                              "previa en el punto descrito",
+        "Ampliación": "corresponde a la ampliación de una instalación eléctrica ya existente, "
+                      "manteniéndose en servicio las partes no afectadas por esta actuación",
+        "Reforma": "corresponde a la reforma de una instalación eléctrica ya existente, sustituyendo o "
+                   "adaptando los elementos descritos a las condiciones actuales del REBT",
+    }
+    frase_actuacion = frases_actuacion.get(tipo_actuacion, frases_actuacion["Nueva instalación"])
     story.append(Paragraph(
-        "La presente Memoria Técnica de Diseño (MTD) tiene por objeto describir y justificar las "
-        "características técnicas de la instalación eléctrica de baja tensión reseñada, así como servir de "
-        "base para su tramitación administrativa y puesta en servicio, de acuerdo con el Reglamento "
-        "Electrotécnico para Baja Tensión (REBT, aprobado por Real Decreto 842/2002) y sus Instrucciones "
-        "Técnicas Complementarias (ITC-BT), en particular la ITC-BT-04 relativa a la documentación y puesta "
-        "en servicio de las instalaciones. Esta MTD es válida para instalaciones de las características "
-        "recogidas en el apartado 3 de la ITC-BT-04 que no requieren de Proyecto firmado por técnico "
-        "titulado competente.", normal))
+        f"La presente Memoria Técnica de Diseño (MTD) tiene por objeto describir y justificar las "
+        f"características técnicas de la instalación eléctrica de baja tensión reseñada, así como servir de "
+        f"base para su tramitación administrativa y puesta en servicio, de acuerdo con el Reglamento "
+        f"Electrotécnico para Baja Tensión (REBT, aprobado por Real Decreto 842/2002) y sus Instrucciones "
+        f"Técnicas Complementarias (ITC-BT), en particular la ITC-BT-04 relativa a la documentación y puesta "
+        f"en servicio de las instalaciones. La actuación descrita en este documento {frase_actuacion}. Esta "
+        f"MTD es válida para instalaciones de las características recogidas en el apartado 3 de la ITC-BT-04 "
+        f"que no requieren de Proyecto firmado por técnico titulado competente.", normal))
+    if tipo_actuacion in ("Ampliación", "Reforma"):
+        story.append(Paragraph(
+            "Al tratarse de una actuación sobre una instalación preexistente, deberá verificarse además que "
+            "las partes de la instalación no incluidas en esta Memoria mantienen las condiciones de "
+            "seguridad exigidas por el REBT, y que la ampliación o reforma descrita no compromete la "
+            "protección del conjunto (selectividad de las protecciones, capacidad de la puesta a tierra "
+            "existente, etc.).", normal))
 
     story.append(Paragraph("D.2 Acometida", h3))
     story.append(Paragraph(
@@ -2796,9 +2898,11 @@ def _sanear_nombre_hoja_excel(nombre: str, existentes: set = None) -> str:
 
 def generar_excel_presupuesto_capitulos(capitulos: list, pct_beneficio: float, pct_amortizacion: float,
                                           pct_iva: float, nombre_proyecto: str = "") -> bytes:
-    """Genera un excel con la misma estructura que el de referencia: una hoja
-    'Presupuesto' con todos los capítulos seguidos, una hoja por capítulo con
-    el desglose de precio (Precio base/Beneficio/Amortización), y una hoja
+    """Genera un Excel con fórmulas REALES (no valores estáticos): Precio,
+    Importe, totales de capítulo, subtotal, IVA y TOTAL son celdas con
+    fórmula que recalculan solas si cambias una cantidad o un precio base.
+    Estructura: hoja 'Presupuesto' (todos los capítulos), una hoja por
+    capítulo con el desglose Precio base/Beneficio/Amortización, y
     'Resumen del presupuesto' con el IVA y el importe final en letra."""
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Border, Side
@@ -2806,17 +2910,34 @@ def generar_excel_presupuesto_capitulos(capitulos: list, pct_beneficio: float, p
 
     azul = "122340"
     cobre = "E8A33D"
+    gris_claro = "F4F6FB"
     thin = Side(style="thin", color="C9CCD1")
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
-    cols_principales = ["Partida", "Designación", "Unidades", "Cantidad", "Precio", "Importe"]
+    cols_principales = ["Partida", "Designación", "Unidades", "Cantidad", "Precio (€)", "Importe (€)"]
+
+    def _estilo_input(cell):
+        cell.fill = PatternFill("solid", fgColor=gris_claro)
+        cell.font = Font(color="8A5A1F", italic=True)
 
     wb = Workbook()
 
+    # ============================================================ Hoja Presupuesto (combinada)
     ws_presu = wb.active
     ws_presu.title = "Presupuesto"
     ws_presu.append(["PRESUPUESTO" + (f" — {nombre_proyecto}" if nombre_proyecto else "")])
-    ws_presu["A1"].font = Font(bold=True, size=14)
-    fila = 3
+    ws_presu["A1"].font = Font(bold=True, size=14, color=azul)
+    ws_presu.append([])
+    ws_presu.cell(row=3, column=1, value="Beneficio industrial (%)").font = Font(bold=True)
+    celda_benef = ws_presu.cell(row=3, column=2, value=pct_beneficio)
+    _estilo_input(celda_benef)
+    ws_presu.cell(row=3, column=4, value="Amortización medios aux. (%)").font = Font(bold=True)
+    celda_amort = ws_presu.cell(row=3, column=5, value=pct_amortizacion)
+    _estilo_input(celda_amort)
+    ws_presu.cell(row=4, column=1, value="(Puedes editar estos dos porcentajes: el precio y el total de "
+                  "todo el presupuesto se recalculan solos.)").font = Font(italic=True, size=8, color="5A6472")
+    ref_benef, ref_amort = "$B$3", "$E$3"
+
+    fila = 6
     for cap in capitulos:
         ws_presu.cell(row=fila, column=1, value=cap["nombre"]).font = Font(bold=True, color=azul)
         fila += 1
@@ -2824,33 +2945,54 @@ def generar_excel_presupuesto_capitulos(capitulos: list, pct_beneficio: float, p
             c = ws_presu.cell(row=fila, column=j, value=col)
             c.font = Font(bold=True, color="FFFFFF")
             c.fill = PatternFill("solid", fgColor=azul)
+        ws_presu.cell(row=fila, column=8, value="Precio base (€)").font = Font(bold=True, color="FFFFFF")
+        ws_presu.cell(row=fila, column=8).fill = PatternFill("solid", fgColor=azul)
         fila += 1
+        fila_inicio_items = fila
         for it in cap["items"]:
-            precio_venta = calcular_precio_venta(it["precio_base"], pct_beneficio, pct_amortizacion)
-            importe = round(it["cantidad"] * precio_venta, 2)
-            valores = [it.get("partida", "-"), it["designacion"], it["unidades"], it["cantidad"], precio_venta, importe]
-            for j, val in enumerate(valores, start=1):
-                c = ws_presu.cell(row=fila, column=j, value=val)
-                c.border = border
-                if j in (5, 6):
-                    c.number_format = '#,##0.00 €'
+            precio_base = it["precio_base"]
+            ws_presu.cell(row=fila, column=1, value=it.get("partida", "-")).border = border
+            ws_presu.cell(row=fila, column=2, value=it["designacion"]).border = border
+            ws_presu.cell(row=fila, column=3, value=it["unidades"]).border = border
+            ws_presu.cell(row=fila, column=4, value=it["cantidad"]).border = border
+            c_precio = ws_presu.cell(row=fila, column=5, value=f"=H{fila}*(1+({ref_benef}+{ref_amort})/100)")
+            c_precio.number_format = '#,##0.00 €'
+            c_precio.border = border
+            c_importe = ws_presu.cell(row=fila, column=6, value=f"=D{fila}*E{fila}")
+            c_importe.number_format = '#,##0.00 €'
+            c_importe.border = border
+            c_base = ws_presu.cell(row=fila, column=8, value=precio_base)
+            c_base.number_format = '#,##0.0000 €'
+            _estilo_input(c_base)
             fila += 1
+        fila_fin_items = fila - 1
         ws_presu.cell(row=fila, column=4, value="TOTAL").font = Font(bold=True)
-        tc = ws_presu.cell(row=fila, column=6, value=calcular_totales_capitulo(cap["items"], pct_beneficio, pct_amortizacion))
+        tc = ws_presu.cell(row=fila, column=6,
+                            value=f"=SUM(F{fila_inicio_items}:F{fila_fin_items})" if cap["items"] else 0)
         tc.font = Font(bold=True, color=azul)
         tc.number_format = '#,##0.00 €'
         fila += 2
-    widths = [10, 55, 10, 11, 13, 13]
+    widths = [10, 50, 9, 10, 12, 12, 3, 13]
     for j, w in enumerate(widths, start=1):
         ws_presu.column_dimensions[get_column_letter(j)].width = w
 
+    # ============================================================ Una hoja por capítulo
     nombres_hojas_usados = {"Presupuesto", "Resumen del presupuesto"}
+    hojas_capitulo = {}  # nombre_original -> nombre_hoja_saneado
+    filas_total_capitulo = []  # (nombre_capitulo, fila_del_total_EN_SU_PROPIA_HOJA) para el Resumen
     for cap in capitulos:
         nombre_hoja = _sanear_nombre_hoja_excel(cap["nombre"], nombres_hojas_usados)
+        hojas_capitulo[cap["nombre"]] = nombre_hoja
         ws = wb.create_sheet(nombre_hoja)
         ws.append([cap["nombre"]])
-        ws["A1"].font = Font(bold=True, size=12)
-        cabecera = cols_principales + ["", "Precio base", "Beneficio", "Amortización", "Precio"]
+        ws["A1"].font = Font(bold=True, size=12, color=azul)
+        ws.cell(row=2, column=8, value="% Beneficio").font = Font(bold=True, size=8)
+        c_b = ws.cell(row=2, column=9, value=pct_beneficio)
+        _estilo_input(c_b)
+        ws.cell(row=2, column=10, value="% Amortización").font = Font(bold=True, size=8)
+        c_a = ws.cell(row=2, column=11, value=pct_amortizacion)
+        _estilo_input(c_a)
+        cabecera = cols_principales + ["", "Precio base (€)", "Beneficio (€)", "Amortización (€)"]
         for j, col in enumerate(cabecera, start=1):
             if not col:
                 continue
@@ -2858,65 +3000,91 @@ def generar_excel_presupuesto_capitulos(capitulos: list, pct_beneficio: float, p
             c.font = Font(bold=True, color="FFFFFF")
             c.fill = PatternFill("solid", fgColor=azul)
         r = 4
+        r_inicio = r
         for it in cap["items"]:
-            precio_venta = calcular_precio_venta(it["precio_base"], pct_beneficio, pct_amortizacion)
-            importe = round(it["cantidad"] * precio_venta, 2)
-            beneficio_importe = round(it["precio_base"] * pct_beneficio / 100.0, 4)
-            amortizacion_importe = round(it["precio_base"] * pct_amortizacion / 100.0, 4)
-            fila_vals = [it.get("partida", "-"), it["designacion"], it["unidades"], it["cantidad"], precio_venta, importe]
-            for j, val in enumerate(fila_vals, start=1):
-                c = ws.cell(row=r, column=j, value=val)
-                c.border = border
-                if j in (5, 6):
-                    c.number_format = '#,##0.00 €'
-            ws.cell(row=r, column=8, value=it["precio_base"]).number_format = '#,##0.0000 €'
-            ws.cell(row=r, column=9, value=beneficio_importe).number_format = '#,##0.0000 €'
-            ws.cell(row=r, column=10, value=amortizacion_importe).number_format = '#,##0.0000 €'
-            ws.cell(row=r, column=11, value=precio_venta).number_format = '#,##0.0000 €'
+            ws.cell(row=r, column=1, value=it.get("partida", "-")).border = border
+            ws.cell(row=r, column=2, value=it["designacion"]).border = border
+            ws.cell(row=r, column=3, value=it["unidades"]).border = border
+            ws.cell(row=r, column=4, value=it["cantidad"]).border = border
+            c_precio = ws.cell(row=r, column=5, value=f"=H{r}+I{r}+J{r}")
+            c_precio.number_format = '#,##0.0000 €'
+            c_precio.border = border
+            c_importe = ws.cell(row=r, column=6, value=f"=D{r}*E{r}")
+            c_importe.number_format = '#,##0.00 €'
+            c_importe.border = border
+            c_base = ws.cell(row=r, column=8, value=it["precio_base"])
+            c_base.number_format = '#,##0.0000 €'
+            _estilo_input(c_base)
+            ws.cell(row=r, column=9, value=f"=H{r}*$I$2/100").number_format = '#,##0.0000 €'
+            ws.cell(row=r, column=10, value=f"=H{r}*$K$2/100").number_format = '#,##0.0000 €'
             r += 1
+        r_fin = r - 1
         ws.cell(row=r, column=4, value="TOTAL").font = Font(bold=True)
-        ws.cell(row=r, column=6, value=calcular_totales_capitulo(cap["items"], pct_beneficio, pct_amortizacion)).number_format = '#,##0.00 €'
-        r += 2
-        ws.cell(row=r, column=8, value="% Beneficio").font = Font(italic=True)
-        ws.cell(row=r, column=9, value="% Amortización").font = Font(italic=True)
-        ws.cell(row=r + 1, column=8, value=pct_beneficio / 100.0).number_format = '0%'
-        ws.cell(row=r + 1, column=9, value=pct_amortizacion / 100.0).number_format = '0%'
-        widths_cap = [10, 55, 10, 11, 13, 13, 3, 13, 12, 13, 13]
+        ws.cell(row=r, column=6, value=f"=SUM(F{r_inicio}:F{r_fin})" if cap["items"] else 0).number_format = '#,##0.00 €'
+        filas_total_capitulo.append((cap["nombre"], r))
+        widths_cap = [10, 50, 9, 10, 12, 12, 3, 13, 12, 14]
         for j, w in enumerate(widths_cap, start=1):
             ws.column_dimensions[get_column_letter(j)].width = w
 
+    # ============================================================ Resumen del presupuesto
     ws_r = wb.create_sheet("Resumen del presupuesto")
     ws_r.merge_cells("A1:F1")
     ws_r["A1"] = "RESUMEN DEL PRESUPUESTO"
     ws_r["A1"].font = Font(bold=True, size=14, color="FFFFFF")
     ws_r["A1"].fill = PatternFill("solid", fgColor=azul)
     ws_r.append([])
-    ws_r.append(["Capítulo", "", "", "", "", "Coste parcial"])
+    ws_r.append(["Capítulo", "", "", "", "", "Coste parcial (€)"])
     for c in ws_r[3]:
         c.font = Font(bold=True)
-    subtotal = 0.0
-    for cap in capitulos:
-        parcial = calcular_totales_capitulo(cap["items"], pct_beneficio, pct_amortizacion)
-        subtotal += parcial
-        ws_r.append([cap["nombre"], "", "", "", "", parcial])
-        ws_r.cell(row=ws_r.max_row, column=6).number_format = '#,##0.00 €'
-    ws_r.append([])
-    ws_r.append(["", "", "", "", "Subtotal", round(subtotal, 2)])
-    importe_iva = round(subtotal * pct_iva / 100.0, 2)
-    ws_r.append(["", "", "", "", f"IVA ({pct_iva:g}%)", importe_iva])
-    total = round(subtotal + importe_iva, 2)
-    ws_r.append(["", "", "", "", "TOTAL", total])
-    fila_total = ws_r.max_row
+    fila_r = 4
+    fila_inicio_capitulos = fila_r
+    for nombre_cap, fila_total_cap in filas_total_capitulo:
+        nombre_hoja = hojas_capitulo[nombre_cap]
+        ws_r.cell(row=fila_r, column=1, value=nombre_cap)
+        c = ws_r.cell(row=fila_r, column=6, value=f"='{nombre_hoja}'!F{fila_total_cap}")
+        c.number_format = '#,##0.00 €'
+        fila_r += 1
+    fila_fin_capitulos = fila_r - 1
+    fila_r += 1
+    ws_r.cell(row=fila_r, column=5, value="Subtotal").font = Font(bold=True)
+    c_subtotal = ws_r.cell(row=fila_r, column=6,
+                            value=f"=SUM(F{fila_inicio_capitulos}:F{fila_fin_capitulos})" if filas_total_capitulo else 0)
+    c_subtotal.number_format = '#,##0.00 €'
+    fila_subtotal = fila_r
+    fila_r += 1
+    ws_r.cell(row=fila_r, column=5, value="IVA (%)").font = Font(italic=True)
+    c_iva_pct = ws_r.cell(row=fila_r, column=6, value=pct_iva)
+    _estilo_input(c_iva_pct)
+    c_iva_pct.number_format = '0.0"%"'
+    fila_iva_pct = fila_r
+    fila_r += 1
+    ws_r.cell(row=fila_r, column=5, value="Importe IVA").font = Font(bold=True)
+    c_iva = ws_r.cell(row=fila_r, column=6, value=f"=F{fila_subtotal}*F{fila_iva_pct}/100")
+    c_iva.number_format = '#,##0.00 €'
+    fila_r += 1
+    ws_r.cell(row=fila_r, column=5, value="TOTAL").font = Font(bold=True)
+    c_total = ws_r.cell(row=fila_r, column=6, value=f"=F{fila_subtotal}+F{fila_r - 1}")
+    fila_total_final = fila_r
     for col in (5, 6):
-        ws_r.cell(row=fila_total, column=col).font = Font(bold=True, color=azul)
-        ws_r.cell(row=fila_total, column=col).fill = PatternFill("solid", fgColor=cobre)
-    ws_r.cell(row=fila_total, column=6).number_format = '#,##0.00 €'
-    ws_r.append([numero_a_letras_euros(total)])
-    ws_r.cell(row=ws_r.max_row, column=1).font = Font(italic=True)
-    ws_r.column_dimensions["A"].width = 55
+        ws_r.cell(row=fila_r, column=col).font = Font(bold=True, color=azul)
+        ws_r.cell(row=fila_r, column=col).fill = PatternFill("solid", fgColor=cobre)
+    c_total.number_format = '#,##0.00 €'
+
+    # El importe en letra no puede ser fórmula fiable en Excel sin macros; se
+    # calcula aquí con el total YA resuelto en Python (mismo valor que dará
+    # la fórmula anterior) y se anota que es informativo.
+    subtotal_calc = sum(calcular_totales_capitulo(cap["items"], pct_beneficio, pct_amortizacion)
+                         for cap in capitulos)
+    total_calc = round(subtotal_calc * (1 + pct_iva / 100.0), 2)
+    fila_r += 1
+    ws_r.cell(row=fila_r, column=1,
+              value=f"{numero_a_letras_euros(total_calc).capitalize()} "
+                    "(referencia con los porcentajes actuales; si los editas, recalcula la celda F"
+                    f"{fila_total_final} de arriba).").font = Font(italic=True, size=9)
+    ws_r.column_dimensions["A"].width = 50
     for col in "BCDE":
         ws_r.column_dimensions[col].width = 13
-    ws_r.column_dimensions["F"].width = 15
+    ws_r.column_dimensions["F"].width = 16
 
     buffer = io.BytesIO()
     wb.save(buffer)
@@ -3535,9 +3703,43 @@ def _render_resultados(inp: dict, res: dict):
 
     with st.spinner("Generando memoria en PDF..."):
         pdf_bytes = generar_pdf_memoria(inp, res, st.session_state.get("config_profesional"))
-    if st.download_button("⬇️ Descargar memoria de cálculo (PDF)", data=pdf_bytes,
-                        file_name="memoria_calculo_cable.pdf", mime="application/pdf"):
-        _registrar_actividad("📄", "Memoria de cálculo descargada")
+    dl1, dl2 = st.columns([1.4, 1])
+    with dl1:
+        if st.download_button("⬇️ Descargar memoria de cálculo (PDF)", data=pdf_bytes,
+                            file_name="memoria_calculo_cable.pdf", mime="application/pdf"):
+            _registrar_actividad("📄", "Memoria de cálculo descargada")
+
+    st.markdown('<p class="section-label">Guardar este cálculo</p>', unsafe_allow_html=True)
+    st.caption("Le pones un nombre y queda disponible para importarlo en cualquier capítulo del Presupuesto "
+               "— útil cuando el proyecto tiene varios circuitos distintos (alumbrado, tomas, motor...) y "
+               "quieres tenerlos todos calculados antes de presupuestar.")
+    st.session_state.setdefault("calculos_guardados", [])
+    sg1, sg2 = st.columns([3, 1])
+    with sg1:
+        nombre_calculo = st.text_input(
+            "Nombre para este cálculo", key="nombre_calculo_guardar",
+            placeholder=f"{inp['tipo_circuito'][:35]} — {seccion_final:g} mm²")
+    with sg2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("💾 Guardar cálculo", width='stretch'):
+            nombre_final = nombre_calculo.strip() or f"{inp['tipo_circuito'][:35]} — {seccion_final:g} mm²"
+            st.session_state["calculos_guardados"].append({
+                "nombre": nombre_final, "inputs_cable": dict(inp), "resultado_cable": dict(res),
+            })
+            _registrar_actividad("💾", f"Cálculo de cable guardado: {nombre_final}")
+            st.success(f"Guardado como '{nombre_final}'. Ya está disponible en Presupuesto → Importar cable.")
+
+    guardados = st.session_state["calculos_guardados"]
+    if guardados:
+        with st.expander(f"📋 Cálculos guardados en esta sesión ({len(guardados)})"):
+            for i_g, g in enumerate(guardados):
+                gc1, gc2 = st.columns([5, 1])
+                sc = g["resultado_cable"]
+                gc1.markdown(f"**{g['nombre']}** — {sc.get('seccion_final','—')} mm², "
+                            f"{g['inputs_cable'].get('tipo_circuito','')}")
+                if gc2.button("🗑️", key=f"del_calc_guardado_{i_g}"):
+                    guardados.pop(i_g)
+                    st.rerun()
 
 
 def _render_inputs_fv() -> dict:
@@ -3913,9 +4115,13 @@ def _render_presupuesto(inputs_cable: dict, resultado_cable: dict, inputs_fv: di
         cat: {item: precio for item, (unidad, precio) in items.items()}
         for cat, items in CATALOGO_MATERIALES.items()
     })
+    st.session_state.setdefault("partidas_compuestas", {})
+    st.session_state.setdefault("partida_compuesta_en_construccion", [])
+    st.session_state.setdefault("calculos_guardados", [])
     capitulos = st.session_state["presupuesto_capitulos"]
     cfg = st.session_state["presupuesto_config"]
     catalogo = st.session_state["catalogo_precios"]
+    partidas_compuestas = st.session_state["partidas_compuestas"]
 
     with st.expander("⚙️ Configuración general", expanded=not capitulos):
         cf1, cf2, cf3, cf4 = st.columns(4)
@@ -3932,8 +4138,9 @@ def _render_presupuesto(inputs_cable: dict, resultado_cable: dict, inputs_fv: di
 
     with st.expander("📚 Base de precios — catálogo editable de materiales típicos", expanded=False):
         st.caption(f"{sum(len(v) for v in catalogo.values())} materiales en {len(catalogo)} categorías, "
-                   "con todas sus variantes habituales (secciones, calibres, tipos...). Edita el precio base "
-                   "de cualquier fila; se guarda para toda la sesión y se usa al añadir partidas a un capítulo.")
+                   "con todas sus variantes habituales (secciones, calibres, tipos, mano de obra...). Edita "
+                   "el precio base de cualquier fila; se guarda para toda la sesión y se usa al añadir "
+                   "partidas a un capítulo.")
         cat_editar = st.selectbox("Categoría a revisar/editar", list(catalogo.keys()), key="cat_editar_catalogo")
         df_cat = pd.DataFrame([{"Concepto": item, "Precio base (€)": precio}
                                 for item, precio in catalogo[cat_editar].items()])
@@ -3941,6 +4148,126 @@ def _render_presupuesto(inputs_cable: dict, resultado_cable: dict, inputs_fv: di
                                          hide_index=True, num_rows="fixed")
         for _, fila in df_cat_editada.iterrows():
             catalogo[cat_editar][fila["Concepto"]] = float(fila["Precio base (€)"])
+
+    with st.expander("🧩 Partidas compuestas — presupuesto por unidades de obra completas", expanded=False):
+        st.caption(
+            "Un presupuesto **detallado** lista cada material por separado (una fila = un material). Un "
+            "presupuesto **compuesto** agrupa materiales + mano de obra en una sola unidad de obra ya "
+            "'montada y puesta en servicio' (p. ej. 'Circuito de alumbrado completo, instalado y probado' "
+            "en una sola línea). Aquí construyes esas partidas compuestas; luego están disponibles como una "
+            "categoría más al añadir líneas a cualquier capítulo — puedes usar ambos estilos, o mezclarlos, "
+            "en el mismo presupuesto.")
+
+        if partidas_compuestas:
+            st.markdown("**Partidas compuestas guardadas**")
+            for nombre_pc, datos_pc in list(partidas_compuestas.items()):
+                precio_pc = sum(c["cantidad"] * c["precio_unitario"] for c in datos_pc["componentes"])
+                with st.container(border=True):
+                    pc1, pc2 = st.columns([5, 1])
+                    pc1.markdown(f"**{nombre_pc}** — {_fmt_eur(precio_pc)} / {datos_pc['unidad']} "
+                                 f"({len(datos_pc['componentes'])} componentes)")
+                    if pc2.button("🗑️", key=f"del_pc_{nombre_pc}"):
+                        del partidas_compuestas[nombre_pc]
+                        st.rerun()
+                    st.dataframe(pd.DataFrame(datos_pc["componentes"]), hide_index=True, width='stretch')
+
+        st.markdown("**Construir una partida compuesta nueva**")
+        en_construccion = st.session_state["partida_compuesta_en_construccion"]
+        cc1, cc2, cc3, cc4 = st.columns([2, 2.3, 1, 1])
+        with cc1:
+            cat_pc = st.selectbox("Categoría", list(catalogo.keys()), key="pc_cat")
+        with cc2:
+            item_pc = st.selectbox("Material / mano de obra", list(catalogo[cat_pc].keys()), key="pc_item")
+        with cc3:
+            cant_pc = st.number_input("Cantidad", min_value=0.01, value=1.0, step=0.5, key="pc_cant")
+        with cc4:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("➕ Añadir", key="pc_add_comp"):
+                en_construccion.append({"designacion": item_pc, "cantidad": cant_pc,
+                                        "precio_unitario": catalogo[cat_pc][item_pc]})
+                st.rerun()
+
+        if en_construccion:
+            st.dataframe(pd.DataFrame(en_construccion), hide_index=True, width='stretch')
+            precio_total_construccion = sum(c["cantidad"] * c["precio_unitario"] for c in en_construccion)
+            st.markdown(f"Precio unitario resultante: **{_fmt_eur(precio_total_construccion)}**")
+            fc1, fc2, fc3, fc4 = st.columns([3, 1, 1, 1])
+            nombre_pc_final = fc1.text_input("Nombre de la partida", key="pc_nombre_final",
+                                              placeholder="Circuito de alumbrado completo, instalado y probado")
+            unidad_pc_final = fc2.selectbox("Unidad", ["ud", "m", "kWp", "punto", "circuito"],
+                                             key="pc_unidad_final")
+            with fc3:
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button("💾 Guardar", key="pc_guardar"):
+                    if nombre_pc_final:
+                        partidas_compuestas[nombre_pc_final] = {"unidad": unidad_pc_final,
+                                                                 "componentes": list(en_construccion)}
+                        st.session_state["partida_compuesta_en_construccion"] = []
+                        st.session_state.pop("pc_nombre_final", None)
+                        _registrar_actividad("🧩", f"Partida compuesta creada: {nombre_pc_final}")
+                        st.rerun()
+            with fc4:
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button("🗑️ Vaciar", key="pc_vaciar"):
+                    st.session_state["partida_compuesta_en_construccion"] = []
+                    st.session_state.pop("pc_nombre_final", None)
+                    st.rerun()
+
+    with st.expander("📏 Estimador de cantidades — tubo, cable y cajas necesarios", expanded=False):
+        st.caption(
+            "⚠️ Estimación **paramétrica** a partir de nº de circuitos, puntos y una longitud media — no es "
+            "una medición real sobre plano. Útil para tener un punto de partida rápido antes de medir sobre "
+            "el terreno; ajusta luego las cantidades a mano si hace falta.")
+        em1, em2, em3 = st.columns(3)
+        with em1:
+            est_sistema = st.selectbox("Sistema", [SISTEMA_MONO, SISTEMA_TRI], key="est_sistema")
+            est_n_circuitos = st.number_input("Nº de circuitos", min_value=1, value=5, step=1, key="est_ncirc")
+        with em2:
+            est_long_media = st.number_input("Longitud media por circuito (m, cuadro→punto más alejado)",
+                                              min_value=1.0, value=12.0, step=1.0, key="est_longmedia")
+            est_holgura = st.number_input("Holgura por curvas/subidas (%)", min_value=0.0, max_value=50.0,
+                                           value=15.0, step=5.0, key="est_holgura")
+        with em3:
+            est_n_puntos_luz = st.number_input("Nº de puntos de luz", min_value=0, value=8, step=1, key="est_luz")
+            est_n_tomas = st.number_input("Nº de tomas de corriente", min_value=0, value=10, step=1, key="est_tomas")
+        est_n_mecanismos = st.number_input("Nº de interruptores/conmutadores", min_value=0, value=6, step=1,
+                                            key="est_mecanismos")
+
+        n_conductores = 3 if est_sistema == SISTEMA_MONO else 5  # F+N+T ó 3F+N+T (aprox.)
+        metros_tubo = est_n_circuitos * est_long_media * (1 + est_holgura / 100)
+        metros_cable = metros_tubo * n_conductores
+        n_cajas_derivacion = est_n_puntos_luz + est_n_tomas + est_n_mecanismos
+        n_cajas_mecanismo = est_n_tomas + est_n_mecanismos
+
+        st.markdown("**Resultado estimado**")
+        re1, re2, re3, re4 = st.columns(4)
+        re1.metric("Metros de tubo", f"{metros_tubo:.0f} m")
+        re2.metric("Metros de cable (todos los conductores)", f"{metros_cable:.0f} m")
+        re3.metric("Cajas de derivación", f"{n_cajas_derivacion:.0f}")
+        re4.metric("Cajas de mecanismo", f"{n_cajas_mecanismo:.0f}")
+
+        cap_destino_est = st.selectbox(
+            "Capítulo destino", [c["nombre"] for c in capitulos] if capitulos else ["— crea un capítulo primero —"],
+            key="est_cap_destino")
+        if st.button("📤 Exportar estas cantidades al capítulo", disabled=not capitulos):
+            idx_destino = next(i for i, c in enumerate(capitulos) if c["nombre"] == cap_destino_est)
+            nuevos_est = [
+                {"designacion": "Tubo corrugado empotrar Ø20mm (estimado)", "unidades": "m",
+                 "cantidad": round(metros_tubo, 1), "precio_base": catalogo["Canalizaciones"]["Tubo corrugado empotrar Ø20mm"]},
+                {"designacion": f"Cable H07V-K 2,5mm² (estimado, {n_conductores} conductores/circuito)", "unidades": "m",
+                 "cantidad": round(metros_cable, 1), "precio_base": catalogo["Cables (por tipo, además del cálculo automático)"]["Cable H07V-K 2,5mm²"]},
+                {"designacion": "Caja de derivación empotrar 100x100 (estimado)", "unidades": "ud",
+                 "cantidad": n_cajas_derivacion, "precio_base": catalogo["Cajas y mecanismos"]["Caja de derivación empotrar 100x100"]},
+                {"designacion": "Caja de mecanismo universal (estimado)", "unidades": "ud",
+                 "cantidad": n_cajas_mecanismo, "precio_base": catalogo["Cajas y mecanismos"]["Caja de mecanismo universal"]},
+            ]
+            cap_dest = capitulos[idx_destino]
+            for j, it in enumerate(nuevos_est):
+                it["partida"] = f"{idx_destino + 1}.{len(cap_dest['items']) + j + 1}"
+            cap_dest["items"].extend(nuevos_est)
+            _registrar_actividad("📏", f"Cantidades estimadas exportadas a {cap_destino_est}")
+            st.success(f"4 partidas añadidas a '{cap_destino_est}'.")
+            st.rerun()
 
     nc1, nc2 = st.columns([3, 1])
     with nc1:
@@ -3963,36 +4290,63 @@ def _render_presupuesto(inputs_cable: dict, resultado_cable: dict, inputs_fv: di
                 capitulos.pop(idx)
                 st.rerun()
 
-            ib1, ib2 = st.columns(2)
+            calculos_disp = {"— Cálculo actual de la Calculadora —": ("actual_cable", None)}
+            for i_calc, calc in enumerate(st.session_state["calculos_guardados"]):
+                calculos_disp[f"💾 {calc['nombre']}"] = ("guardado", i_calc)
+
+            ib1, ib2, ib3 = st.columns([2.2, 1.3, 1])
             with ib1:
-                if hay_cable and st.button("📥 Importar de Calculadora de cables", key=f"imp_cable_{idx}"):
-                    nuevos = item_desde_calculo_cable(inputs_cable, resultado_cable)
+                origen_cable = st.selectbox("Cálculo de cable a importar", list(calculos_disp.keys()),
+                                            key=f"origen_cable_{idx}")
+            with ib2:
+                st.markdown("<br>", unsafe_allow_html=True)
+                tipo_origen, i_origen = calculos_disp[origen_cable]
+                puede_importar = (tipo_origen == "actual_cable" and hay_cable) or tipo_origen == "guardado"
+                if st.button("📥 Importar cable", key=f"imp_cable_{idx}", disabled=not puede_importar):
+                    if tipo_origen == "actual_cable":
+                        ic_origen, rc_origen = inputs_cable, resultado_cable
+                    else:
+                        guardado = st.session_state["calculos_guardados"][i_origen]
+                        ic_origen, rc_origen = guardado["inputs_cable"], guardado["resultado_cable"]
+                    nuevos = item_desde_calculo_cable(ic_origen, rc_origen)
                     for j, it in enumerate(nuevos):
                         it["partida"] = f"{idx + 1}.{len(cap['items']) + j + 1}"
                     cap["items"].extend(nuevos)
                     st.rerun()
-            with ib2:
-                if hay_fv and st.button("📥 Importar de Fotovoltaica", key=f"imp_fv_{idx}"):
+            with ib3:
+                st.markdown("<br>", unsafe_allow_html=True)
+                if hay_fv and st.button("📥 Importar FV", key=f"imp_fv_{idx}"):
                     nuevos = items_desde_calculo_fv(inputs_fv, resultado_fv)
                     for j, it in enumerate(nuevos):
                         it["partida"] = f"{idx + 1}.{len(cap['items']) + j + 1}"
                     cap["items"].extend(nuevos)
                     st.rerun()
 
+            fuentes_disponibles = list(catalogo.keys())
+            if partidas_compuestas:
+                fuentes_disponibles = ["🧩 Partidas compuestas"] + fuentes_disponibles
             ac1, ac2, ac3, ac4 = st.columns([2, 2.5, 1, 1])
             with ac1:
-                cat_sel = st.selectbox("Categoría catálogo", list(catalogo.keys()), key=f"cat_sel_{idx}")
+                cat_sel = st.selectbox("Categoría / origen", fuentes_disponibles, key=f"cat_sel_{idx}")
+            es_compuesta = cat_sel == "🧩 Partidas compuestas"
+            opciones_item = list(partidas_compuestas.keys()) if es_compuesta else list(catalogo[cat_sel].keys())
             with ac2:
-                item_sel = st.selectbox("Material", list(catalogo[cat_sel].keys()), key=f"item_sel_{idx}")
+                item_sel = st.selectbox("Material / partida", opciones_item, key=f"item_sel_{idx}")
             with ac3:
                 cant_sel = st.number_input("Cantidad", min_value=0.1, value=1.0, step=1.0, key=f"cant_sel_{idx}")
             with ac4:
                 st.markdown("<br>", unsafe_allow_html=True)
-                if st.button("➕ Añadir", key=f"add_cat_{idx}"):
-                    unidad = CATALOGO_MATERIALES[cat_sel][item_sel][0]
+                if st.button("➕ Añadir", key=f"add_cat_{idx}", disabled=not opciones_item):
+                    if es_compuesta:
+                        datos_pc = partidas_compuestas[item_sel]
+                        precio_pc = sum(c["cantidad"] * c["precio_unitario"] for c in datos_pc["componentes"])
+                        unidad, precio = datos_pc["unidad"], precio_pc
+                    else:
+                        unidad = CATALOGO_MATERIALES[cat_sel][item_sel][0]
+                        precio = catalogo[cat_sel][item_sel]
                     cap["items"].append({
                         "partida": f"{idx + 1}.{len(cap['items']) + 1}", "designacion": item_sel,
-                        "unidades": unidad, "cantidad": cant_sel, "precio_base": catalogo[cat_sel][item_sel],
+                        "unidades": unidad, "cantidad": cant_sel, "precio_base": precio,
                     })
                     st.rerun()
 
@@ -4490,10 +4844,13 @@ def _render_sidebar():
         nav_button("📊", "Estadísticas", AYUDA_NAV["Estadísticas"])
 
         st.markdown('<p class="nav-group-label">Herramientas</p>', unsafe_allow_html=True)
-        iconos_herr = {"Calculadora": "🔌", "Fórmulas": "🧮", "Fotovoltaica": "☀️", "Cálculos BT": "📐",
+        iconos_herr = {"Calculadora": "🔌", "Fórmulas": "🧮", "Fotovoltaica": "☀️",
                        "Presupuesto": "💰", "Documentación": "📄"}
         for nombre in PAGINAS_HERRAMIENTAS:
             nav_button(iconos_herr[nombre], nombre, AYUDA_NAV.get(nombre))
+
+        st.markdown('<p class="nav-group-label">Consulta rápida</p>', unsafe_allow_html=True)
+        nav_button("📐", "Cálculos BT", AYUDA_NAV["Cálculos BT"])
 
         st.markdown('<p class="nav-group-label">Normativa</p>', unsafe_allow_html=True)
         nav_button("📚", "Tablas normativas", AYUDA_NAV["Tablas normativas"])
@@ -4842,63 +5199,133 @@ def _render_estadisticas():
                                                           "pct_amortizacion": PORCENTAJE_AMORTIZACION_DEFECTO,
                                                           "pct_iva": IVA_DEFECTO_PCT})
     resultado_fv = st.session_state.get("resultado_fv", {})
+    resultado_cable = st.session_state.get("resultado_cable", {})
     hay_fv = bool(resultado_fv) and resultado_fv.get("p_pico_kwp") is not None
+    hay_cable = resultado_cable.get("seccion_final") is not None
+    actividad = st.session_state.get("actividad", [])
 
-    if not capitulos and not hay_fv:
+    if not capitulos and not hay_fv and not hay_cable:
         st.info("Todavía no hay datos suficientes: calcula un circuito, dimensiona una instalación "
                 "fotovoltaica o añade capítulos al presupuesto para ver estadísticas.")
         return
 
     import plotly.graph_objects as go
     import plotly.express as px
-    colores_plot = ["#3b82f6", "#e8a33d", "#22c55e", "#ef4444", "#a78bfa", "#06b6d4", "#f59e0b"]
+    colores_plot = ["#3b82f6", "#e8a33d", "#22c55e", "#ef4444", "#a78bfa", "#06b6d4", "#f59e0b", "#ec4899"]
+    layout_base = dict(margin=dict(t=10, b=10, l=10, r=10), paper_bgcolor="rgba(0,0,0,0)",
+                        plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#8b96a8"))
 
-    if capitulos:
-        st.markdown("**Distribución del presupuesto por capítulo**")
-        c1, c2 = st.columns(2)
-        with c1:
-            nombres = [c["nombre"][:35] for c in capitulos]
-            valores = [calcular_totales_capitulo(c["items"], cfg_p["pct_beneficio"], cfg_p["pct_amortizacion"])
-                       for c in capitulos]
-            fig = go.Figure(data=[go.Pie(labels=nombres, values=valores, hole=0.55,
-                                          marker=dict(colors=colores_plot))])
-            fig.update_layout(margin=dict(t=10, b=10, l=10, r=10), height=320,
-                               paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#8b96a8"),
-                               legend=dict(orientation="h", y=-0.15))
-            st.plotly_chart(fig, width='stretch')
-        with c2:
-            subtotal = sum(valores)
-            desglose = {"PEM": subtotal,
-                        "Amortización": subtotal * cfg_p["pct_amortizacion"] / 100,
-                        "Beneficio": subtotal * cfg_p["pct_beneficio"] / 100}
-            desglose["IVA"] = (desglose["PEM"] + desglose["Amortización"] + desglose["Beneficio"]) * \
-                cfg_p.get("pct_iva", IVA_DEFECTO_PCT) / 100
-            fig2 = px.bar(x=list(desglose.keys()), y=list(desglose.values()), color=list(desglose.keys()),
-                          color_discrete_sequence=colores_plot)
-            fig2.update_layout(margin=dict(t=10, b=10, l=10, r=10), height=320, showlegend=False,
-                               paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                               font=dict(color="#8b96a8"), xaxis_title="", yaxis_title="€")
-            st.plotly_chart(fig2, width='stretch')
+    n_partidas = sum(len(c["items"]) for c in capitulos)
+    subtotal = sum(calcular_totales_capitulo(c["items"], cfg_p["pct_beneficio"], cfg_p["pct_amortizacion"])
+                   for c in capitulos)
+    total_con_iva = subtotal * (1 + cfg_p.get("pct_iva", IVA_DEFECTO_PCT) / 100)
 
-    if hay_fv:
-        st.markdown("**Producción fotovoltaica mensual estimada**")
-        pesos_mes = [0.055, 0.065, 0.085, 0.095, 0.105, 0.11, 0.115, 0.105, 0.09, 0.075, 0.055, 0.045]
-        meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
-        produccion_total = resultado_fv["produccion_anual_kwh"]
-        valores_mes = [produccion_total * p for p in pesos_mes]
-        fig3 = px.bar(x=meses, y=valores_mes, color=valores_mes, color_continuous_scale="Blues")
-        fig3.update_layout(margin=dict(t=10, b=10, l=10, r=10), height=300, showlegend=False,
-                           coloraxis_showscale=False, paper_bgcolor="rgba(0,0,0,0)",
-                           plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#8b96a8"),
-                           xaxis_title="", yaxis_title="kWh")
-        st.plotly_chart(fig3, width='stretch')
-        st.caption("Distribución mensual orientativa según el patrón estacional típico de irradiación en "
-                   "España (no son datos de PVGIS de tu ubicación exacta).")
+    st.markdown('<p class="section-label">Resumen</p>', unsafe_allow_html=True)
+    k1, k2, k3, k4 = st.columns(4)
+    _tarjeta_kpi(k1, "💰", "green", _fmt_eur(total_con_iva) if capitulos else "—", "Presupuesto (IVA incl.)")
+    _tarjeta_kpi(k2, "📦", "blue", str(n_partidas), "Partidas presupuestadas")
+    _tarjeta_kpi(k3, "☀️", "orange", f"{resultado_fv.get('p_pico_kwp', 0):.1f} kWp" if hay_fv else "—",
+                 "Potencia fotovoltaica")
+    _tarjeta_kpi(k4, "📋", "blue", str(len(actividad)), "Acciones en la sesión")
 
-    actividad = st.session_state.get("actividad", [])
-    if actividad:
-        st.markdown("**Actividad de la sesión**")
-        st.metric("Acciones registradas", len(actividad))
+    tab_presu, tab_fv, tab_actividad = st.tabs(["💰 Presupuesto", "☀️ Fotovoltaica", "📋 Actividad"])
+
+    with tab_presu:
+        if capitulos:
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown("**Distribución por capítulo**")
+                nombres = [c["nombre"][:35] for c in capitulos]
+                valores = [calcular_totales_capitulo(c["items"], cfg_p["pct_beneficio"], cfg_p["pct_amortizacion"])
+                           for c in capitulos]
+                fig = go.Figure(data=[go.Pie(labels=nombres, values=valores, hole=0.55,
+                                              marker=dict(colors=colores_plot))])
+                fig.update_layout(**layout_base, height=320, legend=dict(orientation="h", y=-0.15))
+                st.plotly_chart(fig, width='stretch')
+            with c2:
+                st.markdown("**Desglose PEM / Amortización / Beneficio / IVA**")
+                desglose = {"PEM": subtotal,
+                            "Amortización": subtotal * cfg_p["pct_amortizacion"] / 100,
+                            "Beneficio": subtotal * cfg_p["pct_beneficio"] / 100}
+                desglose["IVA"] = (desglose["PEM"] + desglose["Amortización"] + desglose["Beneficio"]) * \
+                    cfg_p.get("pct_iva", IVA_DEFECTO_PCT) / 100
+                fig2 = px.bar(x=list(desglose.keys()), y=list(desglose.values()), color=list(desglose.keys()),
+                              color_discrete_sequence=colores_plot)
+                fig2.update_layout(**layout_base, height=320, showlegend=False, xaxis_title="", yaxis_title="€")
+                st.plotly_chart(fig2, width='stretch')
+
+            st.markdown("**Distribución por categoría de material**")
+            coste_por_categoria = {}
+            for cap in capitulos:
+                for it in cap["items"]:
+                    cat_encontrada = "Otros / manual"
+                    for cat, items_cat in CATALOGO_MATERIALES.items():
+                        if it["designacion"] in items_cat:
+                            cat_encontrada = cat
+                            break
+                    pu = calcular_precio_venta(it["precio_base"], cfg_p["pct_beneficio"], cfg_p["pct_amortizacion"])
+                    coste_por_categoria[cat_encontrada] = coste_por_categoria.get(cat_encontrada, 0) + it["cantidad"] * pu
+            if coste_por_categoria:
+                fig_cat = px.bar(x=list(coste_por_categoria.values()), y=list(coste_por_categoria.keys()),
+                                 orientation="h", color=list(coste_por_categoria.keys()),
+                                 color_discrete_sequence=colores_plot)
+                fig_cat.update_layout(**layout_base, height=max(220, 45 * len(coste_por_categoria)),
+                                       showlegend=False, xaxis_title="€", yaxis_title="")
+                st.plotly_chart(fig_cat, width='stretch')
+        else:
+            st.info("Añade capítulos en Presupuesto para ver esta sección.")
+
+    with tab_fv:
+        if hay_fv:
+            f1, f2, f3 = st.columns(3)
+            f1.metric("Producción año 1", f"{resultado_fv['produccion_anual_kwh']:,.0f} kWh".replace(",", "."))
+            f2.metric("Producción año 10", f"{resultado_fv.get('produccion_ano10', 0):,.0f} kWh".replace(",", "."))
+            f3.metric("Producción año 25", f"{resultado_fv.get('produccion_ano25', 0):,.0f} kWh".replace(",", "."))
+
+            st.markdown("**Producción mensual estimada (año 1)**")
+            pesos_mes = [0.055, 0.065, 0.085, 0.095, 0.105, 0.11, 0.115, 0.105, 0.09, 0.075, 0.055, 0.045]
+            meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+            produccion_total = resultado_fv["produccion_anual_kwh"]
+            valores_mes = [produccion_total * p for p in pesos_mes]
+            fig3 = px.bar(x=meses, y=valores_mes, color=valores_mes, color_continuous_scale="Blues")
+            fig3.update_layout(**layout_base, height=280, showlegend=False, coloraxis_showscale=False,
+                               xaxis_title="", yaxis_title="kWh")
+            st.plotly_chart(fig3, width='stretch')
+            st.caption("Distribución mensual orientativa según el patrón estacional típico de irradiación en "
+                       "España (no son datos de PVGIS de tu ubicación exacta).")
+
+            st.markdown("**Evolución de la producción anual (degradación del panel)**")
+            anos = list(range(1, 26))
+            degradacion = st.session_state.get("inputs_fv", {}).get("degradacion_anual", DEGRADACION_ANUAL_DEFECTO)
+            produccion_anos = [produccion_total * (1 - degradacion / 100) ** (a - 1) for a in anos]
+            fig4 = go.Figure(go.Scatter(x=anos, y=produccion_anos, mode="lines", fill="tozeroy",
+                                        line=dict(color="#f59e0b")))
+            fig4.update_layout(**layout_base, height=260, xaxis_title="Año", yaxis_title="kWh/año")
+            st.plotly_chart(fig4, width='stretch')
+
+            if resultado_fv.get("ahorro_anual"):
+                e1, e2 = st.columns(2)
+                e1.metric("Ahorro anual estimado", _fmt_eur(resultado_fv["ahorro_anual"]))
+                if resultado_fv.get("payback_anos"):
+                    e2.metric("Retorno de la inversión", f"{resultado_fv['payback_anos']:.1f} años")
+        else:
+            st.info("Dimensiona una instalación en Fotovoltaica para ver esta sección.")
+
+    with tab_actividad:
+        if actividad:
+            conteo_tipo = {}
+            for a in actividad:
+                clave = a["texto"].split(":")[0].split(" descargad")[0].split(" guardad")[0][:28]
+                conteo_tipo[clave] = conteo_tipo.get(clave, 0) + 1
+            fig5 = px.bar(x=list(conteo_tipo.values()), y=list(conteo_tipo.keys()), orientation="h",
+                         color=list(conteo_tipo.keys()), color_discrete_sequence=colores_plot)
+            fig5.update_layout(**layout_base, height=max(200, 40 * len(conteo_tipo)), showlegend=False,
+                               xaxis_title="Nº de veces", yaxis_title="")
+            st.plotly_chart(fig5, width='stretch')
+            st.dataframe(pd.DataFrame([{"Hora": a["hora"], "Acción": f"{a['icono']} {a['texto']}"}
+                                        for a in actividad]), hide_index=True, width='stretch')
+        else:
+            st.info("Todavía no hay actividad registrada en esta sesión.")
 
 
 def _render_configuracion():
