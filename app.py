@@ -44,6 +44,7 @@ Autor: Younes — IDEA TSG
 from __future__ import annotations
 
 import base64
+import random
 import io
 import json
 import math
@@ -218,6 +219,42 @@ PORCENTAJE_ACCESORIOS = 8.0  # % sobre el subtotal de materiales (cajas, termina
 
 # Calibres normalizados de interruptor automático (A) y precio orientativo (€)
 CALIBRES_MAGNETOTERMICO = [10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250]
+
+# ITC-BT-47 tabla 1: relación máxima admisible entre intensidad de arranque
+# e intensidad nominal, según la potencia del motor (si el motor supera este
+# límite en arranque directo, se exige un sistema de arranque que la reduzca,
+# como el estrella-triángulo).
+RATIO_IA_IN_MAX_MOTOR = [
+    (0.0, 1.5, 4.5), (1.5, 5.0, 3.0), (5.0, 15.0, 2.0), (15.0, float("inf"), 1.5),
+]
+
+# Rango típico (múltiplos de In) de disparo instantáneo (magnético) según la
+# curva del interruptor automático, UNE-EN 60898.
+CURVA_MAGNETOTERMICO_RANGOS = {"B": (3, 5), "C": (5, 10), "D": (10, 20)}
+
+# Iluminancias medias recomendadas de referencia, UNE-EN 12464-1 (valores
+# orientativos habituales; la norma completa distingue muchas más tareas).
+ILUMINANCIA_POR_LOCAL = {
+    "Vivienda — estancia/salón": 200, "Vivienda — cocina": 300, "Oficina / despacho": 500,
+    "Aula / centro de enseñanza": 300, "Comercio / escaparate": 300, "Almacén (tránsito)": 100,
+    "Almacén (manipulación)": 200, "Taller — trabajo basto": 200, "Taller — trabajo fino": 500,
+    "Pasillo / circulación": 100, "Garaje / aparcamiento": 75, "Escalera": 100,
+}
+
+# Ensayos previos a la puesta en servicio (ITC-BT-05 / UNE-HD 60364-6), usados
+# tanto en el Pliego de Condiciones como en la checklist interactiva y el CIE.
+ENSAYOS_PUESTA_SERVICIO = [
+    ("Continuidad de conductores de protección y equipotenciales", "Continuidad eléctrica verificada"),
+    ("Resistencia de aislamiento (circuitos ≤500V, ensayo a 500V c.c.)", "≥ 0,50 MΩ"),
+    ("Resistencia de aislamiento (circuitos MBTS/MBTP, ensayo a 250V c.c.)", "≥ 0,25 MΩ"),
+    ("Resistencia de aislamiento (circuitos >500V, ensayo a 1000V c.c.)", "≥ 1,00 MΩ"),
+    ("Rigidez dieléctrica (1 min a 2U+1000V, mínimo 1.500V)", "Sin perforación del aislamiento"),
+    ("Resistencia de puesta a tierra", "Compatible con la sensibilidad del diferencial instalado"),
+    ("Disparo de los interruptores diferenciales (botón de test e Idn)", "Disparo correcto"),
+    ("Caída de tensión en los circuitos más desfavorables", "Conforme al Anexo de Cálculos"),
+    ("Secuencia de fases y tensiones (instalación trifásica)", "Correcta y equilibrada"),
+]
+
 PRECIOS_MAGNETOTERMICO_DEFECTO = {
     10: 18, 16: 18, 20: 19, 25: 20, 32: 22, 40: 28, 50: 35, 63: 45,
     80: 120, 100: 145, 125: 180, 160: 260, 200: 320, 250: 410,
@@ -1092,7 +1129,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible,
 PAGINAS_HERRAMIENTAS = ["Calculadora", "Fórmulas", "Fotovoltaica", "Presupuesto", "Documentación"]
 CLAVES_PROYECTO = ["inputs_cable", "resultado_cable", "inputs_fv", "resultado_fv",
                    "presupuesto_capitulos", "presupuesto_config", "datos_proyecto", "catalogo_precios",
-                   "partidas_compuestas", "calculos_guardados"]
+                   "partidas_compuestas", "calculos_guardados", "escenarios_fv_guardados",
+                   "checklist_puesta_servicio", "checklist_firma", "fotos_instalacion"]
 MAX_HISTORIAL_PROYECTOS = 25  # evita que la sesión acumule memoria sin límite
 
 
@@ -1284,7 +1322,7 @@ def calcular(inp: dict) -> dict:
 _PDF_REPLACEMENTS = {
     "Δ": "Delta ", "≤": "<=", "≥": ">=", "√": "raiz", "÷": "/",
     "²": "2", "³": "3", "°": "gr.", "·": "-", "×": "x",
-    "—": "-", "–": "-", "✅": "[OK]", "❌": "[NO]", "⚠️": "[AVISO]",
+    "—": "-", "–": "-", "✅": "[OK]", "❌": "[NO]", "⚠️": "[AVISO]", "☐": "[ ]",
     "⬇️": "", "🔌": "", "📊": "", "📖": "", "⚙️": "", "🌡️": "", "⚡": "",
 }
 
@@ -1740,6 +1778,150 @@ def _crear_numbered_canvas(margin, GRIS_HEX="#5a6472"):
             canvas_module.Canvas.save(self)
 
     return NumberedCanvas
+
+
+def _docx_preparar(titulo: str, subtitulo: str, datos_proyecto: dict, config_prof: dict = None):
+    """Crea un documento Word con cabecera tipo cajetín y estilos coherentes
+    con los documentos PDF equivalentes. Devuelve (doc, AZUL, COBRE, GRIS)."""
+    from docx import Document
+    from docx.shared import Pt, Cm, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
+
+    config_prof = config_prof or {}
+    AZUL = RGBColor(0x12, 0x23, 0x40)
+    COBRE = RGBColor(0xb3, 0x71, 0x1f)
+    GRIS = RGBColor(0x5a, 0x64, 0x72)
+
+    doc = Document()
+    for section in doc.sections:
+        section.left_margin = Cm(2.0)
+        section.right_margin = Cm(2.0)
+        section.top_margin = Cm(1.8)
+        section.bottom_margin = Cm(1.8)
+    doc.styles["Normal"].font.name = "Calibri"
+    doc.styles["Normal"].font.size = Pt(10.5)
+
+    def _sombreado_celda(celda, color_hex):
+        tcPr = celda._tc.get_or_add_tcPr()
+        shd = OxmlElement("w:shd")
+        shd.set(qn("w:val"), "clear")
+        shd.set(qn("w:fill"), color_hex)
+        tcPr.append(shd)
+
+    tabla_cajetin = doc.add_table(rows=1, cols=2)
+    tabla_cajetin.alignment = WD_TABLE_ALIGNMENT.CENTER
+    tabla_cajetin.columns[0].width = Cm(12.0)
+    tabla_cajetin.columns[1].width = Cm(5.0)
+    celda_izq, celda_der = tabla_cajetin.rows[0].cells
+    _sombreado_celda(celda_izq, "F4F6FB")
+    _sombreado_celda(celda_der, "122340")
+    celda_izq.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+    celda_der.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+
+    p = celda_izq.paragraphs[0]
+    r = p.add_run(titulo)
+    r.bold = True
+    r.font.size = Pt(15)
+    r.font.color.rgb = AZUL
+    p2 = celda_izq.add_paragraph()
+    r2 = p2.add_run(subtitulo)
+    r2.font.size = Pt(9)
+    r2.font.color.rgb = GRIS
+    p3 = celda_izq.add_paragraph()
+    r3 = p3.add_run(f"Titular: {datos_proyecto.get('titular') or '-'}  ·  "
+                     f"Emplazamiento: {datos_proyecto.get('emplazamiento') or '-'}")
+    r3.font.size = Pt(8.5)
+    r3.font.color.rgb = GRIS
+
+    for etiqueta, valor in [("NORMA", "REBT · ITC-BT"), ("FECHA", date.today().strftime("%d/%m/%Y")),
+                             ("REVISIÓN", "1.0")]:
+        pd_ = celda_der.add_paragraph() if celda_der.paragraphs[0].runs else celda_der.paragraphs[0]
+        rd1 = pd_.add_run(f"{etiqueta}: ")
+        rd1.font.size = Pt(8)
+        rd1.font.color.rgb = RGBColor(0xB8, 0xC2, 0xD4)
+        rd2 = pd_.add_run(valor)
+        rd2.bold = True
+        rd2.font.size = Pt(10)
+        rd2.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+    if config_prof.get("empresa") or config_prof.get("nombre"):
+        pe = celda_izq.add_paragraph()
+        re_ = pe.add_run(f"Elaborado por: {' / '.join(filter(None, [config_prof.get('nombre'), config_prof.get('empresa')]))}")
+        re_.italic = True
+        re_.font.size = Pt(8)
+        re_.font.color.rgb = GRIS
+
+    doc.add_paragraph()
+    pie = doc.add_paragraph()
+    pie.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    rp = pie.add_run("Documento generado con REBT Suite. Revisar por un técnico competente antes de su "
+                      "presentación oficial.")
+    rp.italic = True
+    rp.font.size = Pt(8)
+    rp.font.color.rgb = GRIS
+    doc.add_paragraph()
+    return doc, AZUL, COBRE, GRIS
+
+
+def _docx_heading(doc, texto: str, nivel: int, color):
+    from docx.shared import Pt
+    h = doc.add_heading(level=nivel)
+    r = h.add_run(texto)
+    r.font.color.rgb = color
+    r.font.size = Pt(15 if nivel == 1 else (12.5 if nivel == 2 else 11))
+    return h
+
+
+def _docx_parrafo(doc, texto: str, justificar: bool = True, cursiva: bool = False, tamano: float = 10.5):
+    from docx.shared import Pt
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    p = doc.add_paragraph()
+    if justificar:
+        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    r = p.add_run(texto)
+    r.italic = cursiva
+    r.font.size = Pt(tamano)
+    return p
+
+
+def _docx_lista(doc, items: list):
+    for it in items:
+        doc.add_paragraph(it, style="List Bullet")
+
+
+def _docx_tabla(doc, datos: list, azul):
+    """Tabla simple con cabecera azul/blanca, ancho de columna automático."""
+    from docx.shared import Pt, RGBColor
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
+
+    n_cols = len(datos[0])
+    t = doc.add_table(rows=0, cols=n_cols)
+    t.style = "Table Grid"
+    for i_fila, fila in enumerate(datos):
+        celdas = t.add_row().cells
+        for i_col, valor in enumerate(fila):
+            p = celdas[i_col].paragraphs[0]
+            r = p.add_run(str(valor))
+            r.font.size = Pt(9.5)
+            if i_fila == 0:
+                r.bold = True
+                r.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+                tcPr = celdas[i_col]._tc.get_or_add_tcPr()
+                shd = OxmlElement("w:shd")
+                shd.set(qn("w:val"), "clear")
+                shd.set(qn("w:fill"), "122340")
+                tcPr.append(shd)
+    doc.add_paragraph()
+    return t
+
+
+def _docx_bytes(doc) -> bytes:
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    return buffer.getvalue()
 
 
 def _bloque_portada(titulo_doc: str, subtitulo_doc: str, datos_proyecto: dict, config_prof: dict,
@@ -2363,6 +2545,226 @@ def _parrafos_calculo_fv_pdf(inp: dict, res: dict, normal, formula) -> list:
     return P
 
 
+def generar_docx_mtd(datos_proyecto: dict, inputs_cable: dict, resultado_cable: dict,
+                      inputs_fv: dict, resultado_fv: dict, total_presupuesto: float,
+                      config_prof: dict = None) -> bytes:
+    """Versión en Word (.docx) de la Memoria Técnica de Diseño, con el mismo
+    contenido y estructura que la versión en PDF, para quien necesite
+    entregarla editable."""
+    doc, AZUL, COBRE, GRIS = _docx_preparar("MEMORIA TÉCNICA DE DISEÑO (MTD)", "REBT · ITC-BT-04",
+                                             datos_proyecto, config_prof)
+    d = datos_proyecto
+    hay_cable = resultado_cable.get("seccion_final") is not None
+    hay_fv = bool(resultado_fv) and resultado_fv.get("p_pico_kwp") is not None
+
+    _docx_heading(doc, "A. Datos del titular", 2, AZUL)
+    _docx_tabla(doc, [
+        ["Campo", "Valor"],
+        ["Titular de la instalación", d.get("titular") or "-"],
+        ["NIF / CIF", d.get("nif_titular") or "-"],
+    ], AZUL)
+
+    _docx_heading(doc, "B. Instalador autorizado / técnico competente", 2, AZUL)
+    _docx_tabla(doc, [
+        ["Campo", "Valor"],
+        ["Nombre", d.get("instalador") or "-"],
+        ["NIF", d.get("nif_instalador") or "-"],
+        ["Nº de autorización / colegiado", d.get("n_autorizacion") or "-"],
+        ["Categoría", d.get("categoria_instalador") or "-"],
+    ], AZUL)
+    _docx_parrafo(doc, "El instalador autorizado para la categoría de la instalación correspondiente, o el "
+                  "técnico titulado competente que suscriba esta Memoria, es directamente responsable de "
+                  "que la misma se adapte a las exigencias reglamentarias vigentes (ITC-BT-04).")
+
+    _docx_heading(doc, "C. Datos generales de la instalación", 2, AZUL)
+    _docx_tabla(doc, [
+        ["Campo", "Valor"],
+        ["Emplazamiento", d.get("emplazamiento") or "-"],
+        ["Referencia catastral", d.get("referencia_catastral") or "-"],
+        ["Uso al que se destina", d.get("uso") or "-"],
+        ["Superficie", (d.get("superficie") or "-") + (" m²" if d.get("superficie") else "")],
+        ["Tipo de actuación", d.get("tipo_instalacion") or "-"],
+    ], AZUL)
+
+    _docx_heading(doc, "D. Memoria descriptiva", 2, AZUL)
+
+    _docx_heading(doc, "D.1 Objeto y normativa de aplicación", 3, COBRE)
+    tipo_actuacion = d.get("tipo_instalacion") or "Nueva instalación"
+    frases_actuacion = {
+        "Nueva instalación": "corresponde a una instalación de nueva planta, sin instalación eléctrica "
+                              "previa en el punto descrito",
+        "Ampliación": "corresponde a la ampliación de una instalación eléctrica ya existente, "
+                      "manteniéndose en servicio las partes no afectadas por esta actuación",
+        "Reforma": "corresponde a la reforma de una instalación eléctrica ya existente, sustituyendo o "
+                   "adaptando los elementos descritos a las condiciones actuales del REBT",
+    }
+    frase_actuacion = frases_actuacion.get(tipo_actuacion, frases_actuacion["Nueva instalación"])
+    _docx_parrafo(doc, "La presente Memoria Técnica de Diseño (MTD) tiene por objeto describir y justificar "
+                  "las características técnicas de la instalación eléctrica de baja tensión reseñada, así "
+                  "como servir de base para su tramitación administrativa y puesta en servicio, de acuerdo "
+                  "con el Reglamento Electrotécnico para Baja Tensión (REBT, Real Decreto 842/2002) y sus "
+                  "Instrucciones Técnicas Complementarias (ITC-BT), en particular la ITC-BT-04. La "
+                  f"actuación descrita en este documento {frase_actuacion}. Esta MTD es válida para "
+                  "instalaciones de las características recogidas en el apartado 3 de la ITC-BT-04 que no "
+                  "requieren de Proyecto firmado por técnico titulado competente.")
+    if tipo_actuacion in ("Ampliación", "Reforma"):
+        _docx_parrafo(doc, "Al tratarse de una actuación sobre una instalación preexistente, deberá "
+                      "verificarse además que las partes no incluidas en esta Memoria mantienen las "
+                      "condiciones de seguridad exigidas por el REBT, y que la actuación descrita no "
+                      "compromete la protección del conjunto.")
+
+    _docx_heading(doc, "D.2 Acometida", 3, COBRE)
+    _docx_parrafo(doc, "Parte de la instalación de la red de distribución que alimenta la caja general de "
+                  "protección o unidad funcional equivalente (ITC-BT-11). Según su trazado podrá ser aérea "
+                  "posada sobre fachada, aérea tensada sobre postes, subterránea o aero-subterránea; los "
+                  "cables serán aislados, de tensión asignada no inferior a 0,6/1 kV. La acometida forma "
+                  "parte de la instalación de la empresa distribuidora, ajustándose a sus normas "
+                  "particulares.")
+
+    _docx_heading(doc, "D.3 Instalaciones de enlace", 3, COBRE)
+    _docx_parrafo(doc, "Caja de Protección y Medida (CPM): para suministros a un único usuario se instala "
+                  "un único elemento que agrupa la caja general de protección y el equipo de medida "
+                  "(ITC-BT-13), en fachada, en nicho con puerta IK10, con los fusibles de seguridad "
+                  "correspondientes.")
+    _docx_parrafo(doc, "Derivación individual: desde la CPM suministra energía al usuario, comprendiendo "
+                  "fusibles de seguridad, conjunto de medida y dispositivos generales de mando y protección "
+                  "(ITC-BT-15). Conductores de cobre o aluminio, sección mínima 6 mm² para fases/neutro/"
+                  "protección, caída de tensión máxima 1,5% sin línea general de alimentación.")
+
+    _docx_heading(doc, "D.4 Instalación de baja tensión calculada", 3, COBRE)
+    if hay_cable:
+        _docx_parrafo(doc, f"Circuito de referencia: {inputs_cable['tipo_circuito']}.")
+        _docx_tabla(doc, [
+            ["Concepto", "Valor"],
+            ["Sistema", f"{inputs_cable['sistema']} — {inputs_cable['tension']:g} V"],
+            ["Conductor / Aislamiento", f"{inputs_cable['conductor']} / {inputs_cable['aislamiento']}"],
+            ["Método de instalación", inputs_cable["metodo"]],
+            ["Longitud del circuito", f"{inputs_cable['longitud']:g} m"],
+            ["Sección de fase adoptada", f"{resultado_cable['seccion_final']:g} mm²"],
+            ["Protección (interruptor automático)", f"{resultado_cable['calibre_magnetotermico']} A"],
+            ["Caída de tensión", f"{resultado_cable['e_final_pct']:.2f} % (máx. {inputs_cable['delta_u_max']:g} %)"],
+        ], AZUL)
+    else:
+        _docx_parrafo(doc, "No se ha completado ningún cálculo de circuito en la pestaña Calculadora; esta "
+                      "sección se completará cuando se disponga de esos datos.")
+
+    _docx_heading(doc, "D.5 Cuadro general de mando y protección", 3, COBRE)
+    _docx_parrafo(doc, "Aloja, como mínimo: interruptor general automático (IGA) de corte omnipolar con "
+                  "poder de corte suficiente (4,5 kA mínimo en vivienda); interruptor diferencial general "
+                  "(o varios, según la previsión de cargas); e interruptores automáticos individuales de "
+                  "cada circuito derivado, coordinados para garantizar la selectividad. Altura de los "
+                  "dispositivos entre 1 y 2 m. Se recomienda DPS en cabecera si la acometida es aérea o "
+                  "existe riesgo de sobretensión atmosférica (ITC-BT-23).")
+
+    _docx_heading(doc, "D.6 Conductores: materiales, dimensionado e identificación", 3, COBRE)
+    _docx_parrafo(doc, "Conductores de cobre o aluminio, siempre aislados, tensión asignada no inferior a "
+                  "450/750 V. Sección determinada por el criterio más desfavorable entre intensidad máxima "
+                  "admisible (ITC-BT-19) y caída de tensión (3% alumbrado / 5% otros usos en instalación "
+                  "interior; 1,5% en derivación individual sin LGA). Identificación por color: azul claro "
+                  "el neutro, verde-amarillo la protección, marrón/negro/gris las fases.")
+
+    _docx_heading(doc, "D.7 Subdivisión, equilibrado de cargas y conexiones", 3, COBRE)
+    _docx_parrafo(doc, "La instalación se subdivide en circuitos independientes y adecuadamente protegidos. "
+                  "Se procura el mayor equilibrio posible de cargas entre fases. Las conexiones se realizan "
+                  "siempre en cajas de empalme mediante bornes de conexión, sin permitirse la unión por "
+                  "simple retorcimiento.")
+
+    _docx_heading(doc, "D.8 Sistemas de instalación (canalizaciones)", 3, COBRE)
+    metodo_txt = inputs_cable.get("metodo", "") if hay_cable else "[a determinar]"
+    _docx_parrafo(doc, f"El sistema de canalización empleado se corresponde con el tipo {metodo_txt} según "
+                  "la clasificación de la ITC-BT-19 y la norma UNE-HD 60364-5-52, según las influencias "
+                  "externas del emplazamiento. Las características mínimas de los tubos protectores se "
+                  "detallan en el Pliego de Condiciones Técnicas.")
+
+    _docx_heading(doc, "D.9 Protección contra sobreintensidades y sobretensiones", 3, COBRE)
+    _docx_parrafo(doc, "Todo circuito está protegido contra sobrecargas (interruptor automático, curva "
+                  "térmica) y contra cortocircuitos (capacidad de corte acorde a la Icc prevista, "
+                  "ITC-BT-22). Si la instalación se alimenta por línea aérea, o se opta por protección "
+                  "adicional, se instala protección contra sobretensiones transitorias (ITC-BT-23).")
+    _docx_tabla(doc, [
+        ["Categoría", "Tensión soportada (230/400V)", "Equipos típicos"],
+        ["IV", "6 kV", "Contadores, equipos principales de protección"],
+        ["III", "4 kV", "Cuadros de distribución, aparamenta fija"],
+        ["II", "2,5 kV", "Electrodomésticos, herramientas portátiles"],
+        ["I", "1,5 kV", "Equipos electrónicos muy sensibles"],
+    ], AZUL)
+
+    _docx_heading(doc, "D.10 Protección contra contactos directos e indirectos", 3, COBRE)
+    _docx_parrafo(doc, "Contactos directos: aislamiento de las partes activas, complementado con "
+                  "diferenciales de sensibilidad ≤30 mA. Contactos indirectos: corte automático de la "
+                  "alimentación, cumpliendo Ra·Ia ≤ U (50 V en locales secos, 24 V en húmedos).")
+
+    _docx_heading(doc, "D.11 Puesta a tierra", 3, COBRE)
+    _docx_parrafo(doc, "Ejecutada conforme a la ITC-BT-18, mediante electrodo(s) conectado al borne "
+                  "principal de tierra, del que parte el conductor de protección hacia todas las masas "
+                  "metálicas. La resistencia de tierra será compatible con la sensibilidad de las "
+                  "protecciones diferenciales instaladas.")
+
+    contador_d = 11
+    if hay_fv:
+        contador_d += 1
+        _docx_heading(doc, f"D.{contador_d} Instalación generadora fotovoltaica", 3, COBRE)
+        _docx_tabla(doc, [
+            ["Concepto", "Valor"],
+            ["Modalidad de autoconsumo (RD 244/2019)", inputs_fv["tipo_autoconsumo"]],
+            ["Potencia pico instalada", f"{resultado_fv['p_pico_kwp']:.2f} kWp"],
+            ["Nº de paneles / configuración",
+             f"{resultado_fv['n_paneles_configurados']} ({resultado_fv['n_serie']}S{resultado_fv['n_paralelo']}P)"],
+            ["Potencia del inversor", f"{inputs_fv['potencia_inversor_kw']:g} kW"],
+            ["Producción anual estimada", f"{_miles(resultado_fv['produccion_anual_kwh'])} kWh/año"],
+        ], AZUL)
+        umbral = ("≤10 kW → Certificado eléctrico firmado por instalador autorizado" if resultado_fv["p_pico_kwp"] <= 10
+                  else ">10 kW → Proyecto firmado por técnico competente")
+        _docx_parrafo(doc, f"Régimen documental aplicable según RD 244/2019: {umbral}.")
+
+    contador_d += 1
+    _docx_heading(doc, f"D.{contador_d} Receptores de alumbrado", 3, COBRE)
+    _docx_parrafo(doc, "Luminarias conformes a la serie UNE-EN 60598. Partes metálicas accesibles (Clase I) "
+                  "conectadas al conductor de protección. Con lámparas de descarga, carga mínima prevista "
+                  "1,8 veces la potencia en vatios (ITC-BT-44), factor de potencia compensado a ≥0,9.")
+
+    if hay_cable and inputs_cable.get("es_motor"):
+        contador_d += 1
+        _docx_heading(doc, f"D.{contador_d} Receptores a motor", 3, COBRE)
+        _docx_parrafo(doc, "Conforme a la ITC-BT-47, el conductor se dimensiona para el 125% de la "
+                      "intensidad a plena carga (motor único) o el 125% del mayor más el 100% del resto "
+                      "(varios motores). Protección contra cortocircuitos y sobrecargas en todas las fases.")
+
+    contador_d += 1
+    _docx_heading(doc, f"D.{contador_d} Influencias externas", 3, COBRE)
+    _docx_parrafo(doc, "Salvo indicación contraria, se considera que el emplazamiento presenta condiciones "
+                  "ambientales normales (AD1, AA4, BA1 según UNE 20460-3), sin riesgo de incendio ni "
+                  "explosión.")
+
+    _docx_heading(doc, "E. Memoria justificativa (resumen de cálculos)", 2, AZUL)
+    _docx_parrafo(doc, "El detalle completo de fórmulas y valores se recoge en el Anexo de Cálculos y "
+                  "Mediciones, documento que forma parte integrante de esta Memoria.")
+    if not hay_cable and not hay_fv:
+        _docx_parrafo(doc, "No hay cálculos disponibles todavía.", cursiva=True)
+
+    _docx_heading(doc, "F. Presupuesto", 2, AZUL)
+    _docx_parrafo(doc, f"El presupuesto de la instalación asciende a la cantidad de "
+                  f"{_fmt_eur(total_presupuesto)} ({numero_a_letras_euros(total_presupuesto).capitalize()}), "
+                  "IVA incluido, según el desglose por capítulos que se adjunta en el documento de "
+                  "Presupuesto.")
+
+    _docx_heading(doc, "G. Documentos que integran el proyecto", 2, AZUL)
+    _docx_lista(doc, ["Memoria Técnica de Diseño (este documento)", "Anexo de Cálculos y Mediciones",
+                       "Pliego de Condiciones Generales", "Presupuesto",
+                       "Esquema unifilar y croquis de emplazamiento (a incorporar por el técnico)",
+                       "Certificado de Instalación Eléctrica (CIE), tras la puesta en servicio"])
+
+    _docx_heading(doc, "H. Declaración y firma", 2, AZUL)
+    _docx_parrafo(doc, f"D./Dña. _______________________, en calidad de {d.get('categoria_instalador', 'básica').lower()}, "
+                  "declara que la instalación descrita en la presente Memoria Técnica de Diseño se ajusta "
+                  "a las prescripciones del Reglamento Electrotécnico para Baja Tensión y sus Instrucciones "
+                  "Técnicas Complementarias.")
+    _docx_parrafo(doc, "En ______________________, a ____ de ______________ de 20____")
+    _docx_parrafo(doc, "Firma: _______________________________________")
+
+    return _docx_bytes(doc)
+
+
 def generar_pdf_anexo_calculos(datos_proyecto: dict, inputs_cable: dict, resultado_cable: dict,
                                  inputs_fv: dict, resultado_fv: dict, capitulos_presupuesto: list,
                                  pct_beneficio: float, pct_amortizacion: float,
@@ -2438,6 +2840,226 @@ def generar_pdf_anexo_calculos(datos_proyecto: dict, inputs_cable: dict, resulta
 
     doc.build(story, onFirstPage=cajetin, onLaterPages=cajetin, canvasmaker=doc._numbered_canvas)
     return buffer.getvalue()
+
+
+def generar_docx_anexo_calculos(datos_proyecto: dict, inputs_cable: dict, resultado_cable: dict,
+                                 inputs_fv: dict, resultado_fv: dict, capitulos_presupuesto: list,
+                                 pct_beneficio: float, pct_amortizacion: float,
+                                 config_prof: dict = None) -> bytes:
+    """Versión en Word del Anexo de Cálculos y Mediciones."""
+    doc, AZUL, COBRE, GRIS = _docx_preparar("ANEXO DE CÁLCULOS Y MEDICIONES", "Justificación técnica y mediciones",
+                                             datos_proyecto, config_prof)
+    hay_cable = resultado_cable.get("seccion_final") is not None
+    hay_fv = bool(resultado_fv) and resultado_fv.get("p_pico_kwp") is not None
+
+    _docx_heading(doc, "0. Introducción y criterios generales", 2, AZUL)
+    _docx_parrafo(doc, "Este Anexo justifica, mediante las fórmulas y valores empleados, las secciones de "
+                  "conductor, protecciones y caídas de tensión adoptadas en la instalación descrita en la "
+                  "Memoria Técnica de Diseño, así como las mediciones que dan origen al Presupuesto. "
+                  "Criterios generales: artículo 19.2 de la ITC-BT-19 (criterio térmico, criterio de caída "
+                  "de tensión y, cuando se aporta, criterio térmico de cortocircuito) y, para la instalación "
+                  "fotovoltaica, la ITC-BT-40 y el Real Decreto 244/2019.")
+
+    _docx_heading(doc, "1. Cálculos justificativos", 2, AZUL)
+    if hay_cable:
+        _docx_heading(doc, f"1.1. Instalación de baja tensión — {inputs_cable['tipo_circuito']}", 3, COBRE)
+        _docx_tabla(doc, [
+            ["Magnitud", "Valor"],
+            ["Intensidad de empleo Ib", f"{resultado_cable['ib']:.2f} A"],
+            ["Intensidad de cálculo (tras factores)", f"{resultado_cable['ib_calculo']:.2f} A"],
+            ["Iz obtenida (tabla × factores)", f"{resultado_cable['iz_termica']:.1f} A" if resultado_cable.get("iz_termica") else "-"],
+            ["Sección adoptada", f"{resultado_cable['seccion_final']:g} mm²"],
+            ["Caída de tensión", f"{resultado_cable['e_final_pct']:.2f} % (máx. {inputs_cable['delta_u_max']:g} %)"],
+            ["Protección", f"{resultado_cable['calibre_magnetotermico']} A"],
+        ], AZUL)
+        _docx_parrafo(doc, "La sección se ha determinado por el criterio más desfavorable entre intensidad "
+                      "máxima admisible (Ib ≤ In ≤ Iz, ITC-BT-19) y caída de tensión máxima admisible, "
+                      "conforme se detalla en la tabla anterior.")
+    else:
+        _docx_parrafo(doc, "No se ha completado ningún cálculo de circuito en la pestaña Calculadora.",
+                      cursiva=True)
+
+    if hay_fv:
+        _docx_heading(doc, "1.2. Instalación fotovoltaica", 3, COBRE)
+        _docx_tabla(doc, [
+            ["Magnitud", "Valor"],
+            ["Potencia pico", f"{resultado_fv['p_pico_kwp']:.2f} kWp"],
+            ["Nº de paneles / configuración",
+             f"{resultado_fv['n_paneles_configurados']} ({resultado_fv['n_serie']}S{resultado_fv['n_paralelo']}P)"],
+            ["Producción anual estimada", f"{_miles(resultado_fv['produccion_anual_kwh'])} kWh/año"],
+            ["Producción año 10", f"{_miles(resultado_fv.get('produccion_ano10', 0))} kWh/año"],
+            ["Producción año 25", f"{_miles(resultado_fv.get('produccion_ano25', 0))} kWh/año"],
+            ["Sección CC / CA", f"{resultado_fv.get('s_cc_final', 0):g} mm² / {resultado_fv.get('s_ca_final', 0):g} mm²"],
+            ["CO₂ evitado", f"{resultado_fv.get('co2_evitado_kg_ano', 0)/1000:.2f} t/año"],
+        ], AZUL)
+        _docx_parrafo(doc, "Dimensionado conforme a la ITC-BT-40: cables de conexión dimensionados al 125% "
+                      "de la intensidad máxima del generador, con caída de tensión conjunta (CC+CA) no "
+                      "superior al 1,5% entre el generador y el punto de interconexión.")
+
+    _docx_heading(doc, "2. Mediciones", 2, AZUL)
+    _docx_parrafo(doc, "Relación de unidades de obra y materiales, agrupadas por capítulo, que dan origen "
+                  "al Presupuesto. El precio unitario (Pu) incluye ya el beneficio industrial y la "
+                  "amortización de medios auxiliares.")
+    if capitulos_presupuesto:
+        for cap in capitulos_presupuesto:
+            if not cap["items"]:
+                continue
+            _docx_heading(doc, cap["nombre"], 3, COBRE)
+            filas = [["Partida", "Designación", "Ud.", "Cantidad", "Pu (€)", "Importe (€)"]]
+            total_cap = 0.0
+            for it in cap["items"]:
+                pu = calcular_precio_venta(it["precio_base"], pct_beneficio, pct_amortizacion)
+                importe = round(it["cantidad"] * pu, 2)
+                total_cap += importe
+                filas.append([it.get("partida", "-"), it["designacion"], it["unidades"],
+                              f"{it['cantidad']:g}", _miles(pu, 2), _miles(importe, 2)])
+            filas.append(["", "", "", "", "TOTAL", f"{_miles(total_cap, 2)} €"])
+            _docx_tabla(doc, filas, AZUL)
+        _docx_parrafo(doc, f"Porcentajes aplicados: Beneficio industrial {pct_beneficio:g}%, Amortización de "
+                      f"medios auxiliares {pct_amortizacion:g}%. El desglose económico completo, con IVA, "
+                      "se encuentra en el documento de Presupuesto.")
+    else:
+        _docx_parrafo(doc, "No se han definido capítulos en la pestaña Presupuesto.", cursiva=True)
+
+    _docx_heading(doc, "3. Conclusión", 2, AZUL)
+    _docx_parrafo(doc, "Con los cálculos y mediciones anteriores queda justificada, a juicio del técnico "
+                  "que suscribe, la idoneidad de las secciones, protecciones y demás elementos descritos en "
+                  "la Memoria Técnica de Diseño para el uso previsto de la instalación.")
+
+    return _docx_bytes(doc)
+
+
+def generar_docx_condiciones_generales(datos_proyecto: dict, hay_fv: bool, config_prof: dict = None) -> bytes:
+    """Versión en Word del Pliego de Condiciones (facultativas, económicas y
+    técnicas particulares), con el mismo contenido que la versión en PDF."""
+    doc, AZUL, COBRE, GRIS = _docx_preparar("PLIEGO DE CONDICIONES", "Facultativas, económicas y técnicas particulares",
+                                             datos_proyecto, config_prof)
+
+    _docx_heading(doc, "0. Objeto y alcance", 2, AZUL)
+    _docx_parrafo(doc, "El presente Pliego establece las prescripciones facultativas, económicas y técnicas "
+                  "particulares que rigen la ejecución de la instalación eléctrica descrita en la Memoria "
+                  "Técnica de Diseño y su Anexo de Cálculos, sin perjuicio de condiciones particulares más "
+                  "restrictivas que pueda fijar la Dirección Facultativa, la empresa distribuidora o las "
+                  "ordenanzas municipales y autonómicas de aplicación.")
+
+    _docx_heading(doc, "1. Normativa de aplicación", 2, AZUL)
+    _docx_lista(doc, [
+        "Reglamento Electrotécnico para Baja Tensión (REBT), RD 842/2002, e Instrucciones Técnicas "
+        "Complementarias (ITC-BT-01 a ITC-BT-53).",
+        "Normas UNE armonizadas de materiales, cables y aparamenta (UNE-EN 50525, UNE-HD 60364-5-52, "
+        "UNE-EN 60898, UNE-EN 61008/61009, UNE-EN 61439).",
+        "Real Decreto 244/2019, autoconsumo de energía eléctrica (si la instalación incluye FV).",
+        "Ley 31/1995 de Prevención de Riesgos Laborales y RD 1627/1997.",
+        "Código Técnico de la Edificación y ordenanzas municipales o autonómicas aplicables.",
+    ])
+
+    _docx_heading(doc, "PARTE I — Condiciones facultativas", 1, AZUL)
+    secciones_facultativas = [
+        ("2. Técnico director / instalador autorizado", "Redacta complementos y rectificaciones, asiste a "
+         "la obra, supervisa el replanteo, comprueba instalaciones provisionales y condiciones de "
+         "seguridad, dirige la ejecución material, realiza las pruebas de calidad y suscribe el CIE."),
+        ("3. Constructor o instalador", "Organiza los trabajos, elabora el Plan de Seguridad y Salud, "
+         "asegura la idoneidad de los materiales, y suscribe las actas de recepción."),
+        ("4. Verificación de la documentación y replanteo", "El instalador consignará por escrito que la "
+         "documentación aportada resulta suficiente antes de iniciar los trabajos, e iniciará éstos con el "
+         "replanteo de la instalación."),
+        ("5. Orden y ritmo de ejecución", "Facultad del instalador, salvo variación técnica que disponga la "
+         "Dirección Facultativa, dentro del plazo acordado con el titular."),
+        ("6. Trabajos no estipulados y modificaciones", "El instalador ejecutará cuanto sea necesario para "
+         "la buena ejecución, reflejando por escrito cualquier modificación sobre lo proyectado."),
+        ("7. Obras y conexiones ocultas", "Se levantará croquis acotado de los tramos que queden ocultos, "
+         "si el titular lo requiere, antes de su cierre."),
+        ("8. Trabajos defectuosos y vicios ocultos", "El instalador es responsable de los defectos por mala "
+         "gestión o deficiente calidad de los materiales, pudiendo la Dirección Facultativa exigir la "
+         "demolición y reconstrucción a su costa."),
+        ("9. Recepción y plazo de garantía", "Doce meses de garantía frente a defectos de ejecución, sin "
+         "perjuicio de las garantías comerciales de los fabricantes de los equipos."),
+    ]
+    for titulo_s, texto_s in secciones_facultativas:
+        _docx_heading(doc, titulo_s, 3, COBRE)
+        _docx_parrafo(doc, texto_s)
+
+    _docx_heading(doc, "PARTE II — Condiciones económicas", 1, AZUL)
+    secciones_economicas = [
+        ("10. Composición de precios y presupuesto", "El precio de cada partida resulta de sumar el precio "
+         "base (coste directo) más los porcentajes de beneficio industrial y amortización de medios "
+         "auxiliares. El IVA se aplica sobre dicha suma y no está incluido en los precios unitarios."),
+        ("11. Certificaciones y forma de pago", "El instalador podrá presentar relaciones valoradas de la "
+         "instalación ejecutada, tomando como base las mediciones practicadas y los precios del "
+         "Presupuesto."),
+        ("12. Precios contradictorios y revisión de precios", "Las unidades no previstas se fijarán por "
+         "precio contradictorio antes de su ejecución. Salvo pacto en contrario, no se admite revisión de "
+         "precios sobre unidades ya contratadas."),
+        ("13. Seguro y conservación de la instalación", "Durante el plazo de garantía, la conservación "
+         "corresponde al instalador salvo asunción expresa del titular. Se recomienda seguro de "
+         "responsabilidad civil y daños a terceros durante la ejecución."),
+    ]
+    for titulo_s, texto_s in secciones_economicas:
+        _docx_heading(doc, titulo_s, 3, COBRE)
+        _docx_parrafo(doc, texto_s)
+
+    _docx_heading(doc, "PARTE III — Condiciones técnicas particulares", 1, AZUL)
+    _docx_parrafo(doc, "Ejecución y montaje de instalaciones eléctricas en baja tensión.", cursiva=True)
+    secciones_tecnicas = [
+        ("14. Condiciones generales de los materiales", "Todos los materiales serán de primera calidad, "
+         "con marcado CE cuando sea de aplicación, y podrán someterse a análisis o pruebas por cuenta del "
+         "instalador."),
+        ("15. Canalizaciones eléctricas", "Cables bajo tubo, fijados sobre paredes, enterrados, empotrados, "
+         "en huecos, bajo canales o en bandeja, según la Memoria y el Anexo de Cálculos. Diámetro de tubos "
+         "según ITC-BT-21."),
+        ("16. Conductores", "Cobre o aluminio, siempre aislados, tensión asignada ≥450/750 V (≥0,6/1 kV en "
+         "acometidas, derivaciones individuales, enterrados o FV). Identificación por color según norma."),
+        ("17. Cajas de empalme y derivación", "Material aislante no propagador de la llama o metálicas "
+         "protegidas contra la corrosión; nunca unión de conductores por simple retorcimiento."),
+        ("18. Mecanismos y tomas de corriente", "Corte de la corriente máxima sin arco permanente, mínimo "
+         "10.000 maniobras; tomas de corriente con puesta a tierra."),
+        ("19. Aparamenta de mando y protección", "Cuadros nuevos, ensamblados en fábrica, IP 30 mínimo. "
+         "Interruptores automáticos UNE-EN 60898, diferenciales UNE-EN 61008/61009 (tipo A mínimo, tipo B "
+         "en FV si procede), fusibles de alta capacidad de ruptura."),
+        ("20. Receptores de alumbrado", "Conformes a UNE-EN 60598, con conexión a tierra en Clase I; carga "
+         "mínima 1,8× la potencia en descarga; factor de potencia compensado ≥0,9."),
+        ("21. Receptores a motor", "Conductores dimensionados al 125% de la intensidad a plena carga "
+         "(ITC-BT-47); protección contra cortocircuitos y sobrecargas en todas las fases."),
+        ("22. Puesta a tierra", "Conforme a la ITC-BT-18; conductores de tierra enterrados sin protección "
+         "mínimo 25 mm² de cobre; tensión de contacto ≤24V en locales húmedos, ≤50V en los demás."),
+    ]
+    for titulo_s, texto_s in secciones_tecnicas:
+        _docx_heading(doc, titulo_s, 3, COBRE)
+        _docx_parrafo(doc, texto_s)
+
+    if hay_fv:
+        _docx_heading(doc, "23. Condiciones específicas de la instalación fotovoltaica", 3, COBRE)
+        _docx_lista(doc, [
+            "Cumplimiento de la ITC-BT-40 y el RD 244/2019.",
+            "Cables CC/CA dimensionados al 125% de la intensidad máxima del generador, ΔU conjunta ≤1,5%.",
+            "Mecanismo antivertido en autoconsumo sin excedentes (Anexo I, ITC-BT-40).",
+            "Conectores CC normalizados, estancos e inconfundibles con otros sistemas.",
+            "Estructura de soporte conectada equipotencialmente a tierra.",
+        ])
+
+    _docx_heading(doc, "24. Inspecciones y pruebas antes de la puesta en servicio", 3, COBRE)
+    _docx_parrafo(doc, "Antes de la puesta en servicio se realizarán, como mínimo, las siguientes "
+                  "comprobaciones (ITC-BT-05 y UNE-HD 60364-6):")
+    _docx_tabla(doc, [["Ensayo", "Criterio de aceptación"]] + [list(e) for e in ENSAYOS_PUESTA_SERVICIO], AZUL)
+
+    for titulo_s, texto_s in [
+        ("25. Seguridad en los trabajos eléctricos", "Los trabajos se realizarán sin tensión, verificando "
+         "su ausencia (las 'cinco reglas de oro'). Guantes y herramientas aislantes; aparatos portátiles de "
+         "clase II o a tensión de seguridad."),
+        ("26. Limpieza y mantenimiento", "Antes de la recepción, los cuadros se limpiarán de polvo y "
+         "residuos de la ejecución. El titular revisará periódicamente conductores, protecciones y puesta "
+         "a tierra (test del diferencial mensual)."),
+        ("27. Criterios de medición", "Cables, bandejas y tubos por metro lineal; cuadros y receptores por "
+         "unidad montada y conexionada, con los accesorios de montaje incluidos en el precio."),
+    ]:
+        _docx_heading(doc, titulo_s, 3, COBRE)
+        _docx_parrafo(doc, texto_s)
+
+    _docx_parrafo(doc, "Este pliego es un documento de apoyo estándar; adáptalo a las particularidades de "
+                  "cada proyecto y a las ordenanzas municipales o autonómicas que puedan resultar de "
+                  "aplicación.", cursiva=True)
+
+    return _docx_bytes(doc)
 
 
 def generar_pdf_condiciones_generales(datos_proyecto: dict, hay_fv: bool, config_prof: dict = None) -> bytes:
@@ -2830,6 +3452,227 @@ def generar_pdf_condiciones_generales(datos_proyecto: dict, hay_fv: bool, config
 # base/Beneficio/Amortización, y Resumen con IVA e importe en letra) — SIN la
 # columna de "Código" que traía el excel original.
 # ==============================================================================
+
+def generar_pdf_cie(datos_proyecto: dict, inputs_cable: dict, resultado_cable: dict,
+                     inputs_fv: dict, resultado_fv: dict, checklist: list, firma: dict,
+                     config_prof: dict = None) -> bytes:
+    """Certificado de Instalación Eléctrica (CIE): documento de apoyo
+    rellenado a partir de los datos ya introducidos en el proyecto y de la
+    checklist de puesta en servicio. NO sustituye al CIE oficial, que emite
+    el instalador autorizado a través de la aplicación de su Comunidad
+    Autónoma — pero deja todo listo para trasladarlo."""
+    from reportlab.platypus import Paragraph, Spacer, PageBreak
+
+    buffer, doc, cajetin, AZUL, colors, h2, h3, normal, h1, COBRE, lista_item = _preparar_doc_pdf(
+        "CERTIFICADO DE INSTALACIÓN ELÉCTRICA (CIE)", "Documento de apoyo — ITC-BT-04/05", datos_proyecto,
+        config_prof)
+    d = datos_proyecto
+    hay_cable = resultado_cable.get("seccion_final") is not None
+    hay_fv = bool(resultado_fv) and resultado_fv.get("p_pico_kwp") is not None
+
+    story = _bloque_portada("Certificado de Instalación Eléctrica", "Documento de apoyo para su tramitación",
+                             datos_proyecto, config_prof, AZUL, COBRE, colors, h1, normal)
+
+    story.append(Paragraph("1. Datos del titular de la instalación", h2))
+    story.append(_tabla_pdf([
+        ["Campo", "Valor"],
+        ["Titular", d.get("titular") or "-"],
+        ["NIF / CIF", d.get("nif_titular") or "-"],
+        ["Emplazamiento", d.get("emplazamiento") or "-"],
+    ], (6.5, 9.5), AZUL, colors))
+
+    story.append(Paragraph("2. Datos de la instalación", h2))
+    story.append(_tabla_pdf([
+        ["Campo", "Valor"],
+        ["Uso", d.get("uso") or "-"],
+        ["Superficie", (d.get("superficie") or "-") + (" m²" if d.get("superficie") else "")],
+        ["Tipo de actuación", d.get("tipo_instalacion") or "-"],
+        ["Potencia instalada (circuito calculado)",
+         f"{inputs_cable.get('potencia_kw', 0):g} kW" if hay_cable else "-"],
+        ["Potencia fotovoltaica generadora",
+         f"{resultado_fv.get('p_pico_kwp', 0):.2f} kWp" if hay_fv else "No aplica"],
+    ], (6.5, 9.5), AZUL, colors))
+
+    story.append(Paragraph("3. Instalador autorizado / técnico competente", h2))
+    story.append(_tabla_pdf([
+        ["Campo", "Valor"],
+        ["Nombre", d.get("instalador") or "-"],
+        ["NIF", d.get("nif_instalador") or "-"],
+        ["Nº de autorización / colegiado", d.get("n_autorizacion") or "-"],
+        ["Categoría", d.get("categoria_instalador") or "-"],
+    ], (6.5, 9.5), AZUL, colors))
+
+    story.append(Paragraph("4. Resumen de las características técnicas", h2))
+    if hay_cable:
+        story.append(Paragraph(
+            f"Circuito de referencia: <b>{inputs_cable['tipo_circuito']}</b>. Sección de fase adoptada: "
+            f"<b>{resultado_cable['seccion_final']:g} mm²</b>. Protección: <b>{resultado_cable['calibre_magnetotermico']} A</b>. "
+            f"Caída de tensión: <b>{resultado_cable['e_final_pct']:.2f} %</b> (máx. {inputs_cable['delta_u_max']:g} %).",
+            normal))
+    if hay_fv:
+        story.append(Paragraph(
+            f"Instalación generadora fotovoltaica: <b>{resultado_fv['p_pico_kwp']:.2f} kWp</b>, modalidad "
+            f"{inputs_fv.get('tipo_autoconsumo', '-')} (RD 244/2019).", normal))
+    if not hay_cable and not hay_fv:
+        story.append(Paragraph("No hay cálculos disponibles todavía en este proyecto.", normal))
+
+    story.append(PageBreak())
+    story.append(Paragraph("5. Verificaciones previas a la puesta en servicio (ITC-BT-05)", h2))
+    story.append(Paragraph(
+        "Resultado de las comprobaciones reglamentarias, según la checklist de puesta en servicio "
+        "cumplimentada en la aplicación:", normal))
+    filas_check = [["Ensayo", "Criterio", "¿Realizado?", "Valor medido"]]
+    for (nombre_ens, criterio_ens), resultado_ens in zip(ENSAYOS_PUESTA_SERVICIO, checklist):
+        filas_check.append([nombre_ens, criterio_ens, "✅ Sí" if resultado_ens["realizado"] else "☐ No",
+                             resultado_ens["valor_medido"] or "-"])
+    story.append(_tabla_pdf(filas_check, (6.0, 4.5, 2.2, 3.3), AZUL, colors, fuente=7.8))
+    n_hechos = sum(1 for e in checklist if e["realizado"])
+    if n_hechos < len(checklist):
+        story.append(Paragraph(_pdf_safe_markup(
+            f"⚠️ {len(checklist) - n_hechos} de {len(checklist)} verificaciones quedan pendientes de "
+            "completar antes de poder emitir el certificado definitivo."), normal))
+    else:
+        story.append(Paragraph(_pdf_safe_markup("✅ Todas las verificaciones están completadas."), normal))
+
+    story.append(Paragraph("6. Declaración", h2))
+    fecha_pruebas = firma.get("fecha")
+    fecha_pruebas_txt = fecha_pruebas.strftime("%d/%m/%Y") if hasattr(fecha_pruebas, "strftime") else str(fecha_pruebas or "-")
+    story.append(Paragraph(
+        f"D./Dña. <b>{firma.get('instalador') or '_______________________'}</b>, en calidad de "
+        f"{(d.get('categoria_instalador') or 'básica').lower()}, certifica que la instalación descrita "
+        f"reúne las condiciones y garantías reglamentarias exigidas por el REBT, habiéndose realizado las "
+        f"comprobaciones anteriores el día <b>{fecha_pruebas_txt}</b>.", normal))
+    story.append(Spacer(1, 40))
+    story.append(Paragraph("Firma: _______________________________________", normal))
+    story.append(Spacer(1, 10))
+    story.append(Paragraph(
+        "Este documento es un <b>apoyo</b> para preparar la información necesaria; el Certificado de "
+        "Instalación Eléctrica oficial se emite y registra por el instalador autorizado a través de la "
+        "aplicación telemática de la Comunidad Autónoma correspondiente.", normal))
+
+    doc.build(story, onFirstPage=cajetin, onLaterPages=cajetin, canvasmaker=doc._numbered_canvas)
+    return buffer.getvalue()
+
+
+def generar_pdf_presentacion_cliente(datos_proyecto: dict, inputs_cable: dict, resultado_cable: dict,
+                                      inputs_fv: dict, resultado_fv: dict, total_presupuesto: float,
+                                      config_prof: dict = None) -> bytes:
+    """Ficha para el cliente final: mismo contenido que la vista de
+    Presentación cliente, en lenguaje llano y sin siglas técnicas."""
+    from reportlab.platypus import Paragraph, Spacer
+
+    buffer, doc, cajetin, AZUL, colors, h2, h3, normal, h1, COBRE, lista_item = _preparar_doc_pdf(
+        "RESUMEN DE TU PROYECTO", "Preparado para ti", datos_proyecto, config_prof)
+    hay_cable = resultado_cable.get("seccion_final") is not None
+    hay_fv = bool(resultado_fv) and resultado_fv.get("p_pico_kwp") is not None
+    nombre_cliente = datos_proyecto.get("titular") or "tu proyecto"
+
+    story = [Paragraph(f"Esto es lo que hemos preparado para {nombre_cliente}", h1), Spacer(1, 10)]
+
+    if hay_cable:
+        story.append(Paragraph("La instalación eléctrica", h2))
+        grosor_mm = resultado_cable["seccion_final"]
+        comparacion = ("un cable fino, como el de un cargador de móvil" if grosor_mm <= 2.5 else
+                      "un cable de grosor medio, como el de un electrodoméstico grande" if grosor_mm <= 10 else
+                      "un cable considerablemente grueso, pensado para mover mucha potencia con seguridad")
+        story.append(Paragraph(
+            f"Para esta parte de la instalación hace falta un cable de <b>{grosor_mm:g} mm²</b> de grosor "
+            f"— a modo de referencia, es {comparacion}.", normal))
+        story.append(Paragraph(
+            f"Se instala además una protección automática de <b>{resultado_cable['calibre_magnetotermico']} A</b> "
+            "que corta la luz sola si algo va mal, antes de que pueda ser peligroso.", normal))
+
+    if hay_fv:
+        story.append(Paragraph("Los paneles solares", h2))
+        p_pico = resultado_fv["p_pico_kwp"]
+        produccion = resultado_fv["produccion_anual_kwh"]
+        n_paneles = resultado_fv["n_paneles_configurados"]
+        story.append(Paragraph(
+            f"Se instalan <b>{n_paneles} paneles solares</b>, con una potencia conjunta de "
+            f"<b>{p_pico:.1f} kW</b> — producen aproximadamente <b>{_miles(produccion)} kWh al año</b>.",
+            normal))
+        if resultado_fv.get("ahorro_anual"):
+            story.append(Paragraph(
+                f"Esto supone un ahorro estimado de <b>{_fmt_eur(resultado_fv['ahorro_anual'])} al año</b> "
+                "en la factura de la luz.", normal))
+        if resultado_fv.get("payback_anos"):
+            story.append(Paragraph(
+                f"Con la inversión indicada, los paneles se pagan solos en unos "
+                f"<b>{resultado_fv['payback_anos']:.0f} años</b>.", normal))
+        co2 = resultado_fv.get("co2_evitado_kg_ano", 0) / 1000
+        if co2:
+            story.append(Paragraph(f"De paso, se evitan unas <b>{co2:.1f} toneladas de CO₂ al año</b>.",
+                                    normal))
+
+    if total_presupuesto:
+        story.append(Paragraph("El coste total", h2))
+        story.append(Paragraph(f"<font size=22 color='#b3711f'>"
+                                f"<b>{_fmt_eur(total_presupuesto)}</b></font>", normal))
+        story.append(Paragraph("Impuestos incluidos.", normal))
+
+    story.append(Spacer(1, 20))
+    story.append(Paragraph(
+        "Los números técnicos completos (secciones exactas, normativa aplicada, desglose de precios) "
+        "están disponibles en la documentación técnica del proyecto.", normal))
+
+    doc.build(story, onFirstPage=cajetin, onLaterPages=cajetin, canvasmaker=doc._numbered_canvas)
+    return buffer.getvalue()
+
+
+def generar_pdf_resumen_una_pagina(datos_proyecto: dict, inputs_cable: dict, resultado_cable: dict,
+                                    inputs_fv: dict, resultado_fv: dict, total_presupuesto: float,
+                                    config_prof: dict = None) -> bytes:
+    """Ficha resumen del proyecto en una sola página, para imprimir o
+    compartir rápido sin abrir los documentos completos."""
+    from reportlab.platypus import Paragraph, Spacer
+
+    buffer, doc, cajetin, AZUL, colors, h2, h3, normal, h1, COBRE, lista_item = _preparar_doc_pdf(
+        "FICHA RESUMEN DEL PROYECTO", "Resumen de una página", datos_proyecto, config_prof)
+    d = datos_proyecto
+    hay_cable = resultado_cable.get("seccion_final") is not None
+    hay_fv = bool(resultado_fv) and resultado_fv.get("p_pico_kwp") is not None
+
+    story = []
+    story.append(Paragraph("Datos generales", h2))
+    story.append(_tabla_pdf([
+        ["Titular", d.get("titular") or "-"],
+        ["Emplazamiento", d.get("emplazamiento") or "-"],
+        ["Instalador", d.get("instalador") or "-"],
+        ["Tipo de actuación", d.get("tipo_instalacion") or "-"],
+    ], (6.5, 9.5), AZUL, colors, header=False, negrita_col0=True))
+
+    if hay_cable:
+        story.append(Paragraph("Instalación eléctrica", h2))
+        story.append(_tabla_pdf([
+            ["Circuito", inputs_cable["tipo_circuito"]],
+            ["Sistema", f"{inputs_cable['sistema']} — {inputs_cable['tension']:g} V"],
+            ["Sección adoptada", f"{resultado_cable['seccion_final']:g} mm²"],
+            ["Protección", f"{resultado_cable['calibre_magnetotermico']} A"],
+            ["Caída de tensión", f"{resultado_cable['e_final_pct']:.2f} %"],
+        ], (6.5, 9.5), AZUL, colors, header=False, negrita_col0=True))
+
+    if hay_fv:
+        story.append(Paragraph("Instalación fotovoltaica", h2))
+        story.append(_tabla_pdf([
+            ["Potencia pico", f"{resultado_fv['p_pico_kwp']:.2f} kWp"],
+            ["Nº de paneles", f"{resultado_fv['n_paneles_configurados']}"],
+            ["Producción anual estimada", f"{_miles(resultado_fv['produccion_anual_kwh'])} kWh/año"],
+            ["Modalidad", inputs_fv.get("tipo_autoconsumo", "-")],
+        ], (6.5, 9.5), AZUL, colors, header=False, negrita_col0=True))
+
+    story.append(Paragraph("Presupuesto", h2))
+    story.append(Paragraph(
+        f"<b>{_fmt_eur(total_presupuesto)}</b> IVA incluido." if total_presupuesto else
+        "Presupuesto pendiente de completar.", normal))
+
+    story.append(Spacer(1, 20))
+    story.append(Paragraph(
+        "Ficha resumen orientativa; el detalle completo (cálculos, mediciones, condiciones) se encuentra "
+        "en la Memoria Técnica de Diseño, el Anexo de Cálculos y el Pliego de Condiciones.", normal))
+
+    doc.build(story, onFirstPage=cajetin, onLaterPages=cajetin, canvasmaker=doc._numbered_canvas)
+    return buffer.getvalue()
+
 
 def calcular_precio_venta(precio_base: float, pct_beneficio: float, pct_amortizacion: float) -> float:
     """Precio_venta = Precio_base x (1 + %beneficio + %amortizacion), tal y como
@@ -3391,6 +4234,53 @@ def perdidas_orientacion_inclinacion_cte(inclinacion: float, azimut: float, lati
     return max(0.0, min(perdidas, 40.0))
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def _consultar_pvgis(lat: float, lon: float, inclinacion: float, azimut: float, loss_pct: float = 14.0) -> dict:
+    """Consulta la API pública y gratuita PVGIS (Comisión Europea, JRC) para
+    obtener la irradiación real sobre el plano inclinado en la ubicación
+    exacta del proyecto, en vez de una aproximación por zona climática.
+    Devuelve un diccionario con los datos relevantes. Lanza una excepción
+    con un mensaje claro y en español si la consulta falla (sin conexión,
+    fuera de cobertura, parámetros inválidos...); quien llame debe capturarla
+    y ofrecer el método por zona climática como alternativa.
+    Resultado cacheado 1 hora por combinación de parámetros, para no repetir
+    la misma consulta en cada rerun de Streamlit."""
+    import requests
+    url = "https://re.jrc.ec.europa.eu/api/v5_2/PVcalc"
+    params = {"lat": lat, "lon": lon, "peakpower": 1, "loss": loss_pct,
+              "angle": inclinacion, "aspect": azimut, "outputformat": "json"}
+    try:
+        resp = requests.get(url, params=params, timeout=15)
+    except requests.exceptions.ConnectionError as e:
+        raise RuntimeError("No se ha podido conectar con PVGIS (sin conexión a internet o el servicio no "
+                           "responde). Puedes seguir usando el HSP por zona climática mientras tanto.") from e
+    except requests.exceptions.Timeout as e:
+        raise RuntimeError("PVGIS ha tardado demasiado en responder (más de 15 s). Inténtalo de nuevo en "
+                           "un momento.") from e
+    if resp.status_code != 200:
+        try:
+            detalle = resp.json().get("message", resp.text[:200])
+        except Exception:
+            detalle = resp.text[:200]
+        raise RuntimeError(f"PVGIS ha devuelto un error (HTTP {resp.status_code}): {detalle}. Revisa que "
+                           "la latitud/longitud caigan sobre tierra firme (PVGIS no cubre océanos ni los "
+                           "polos).")
+    try:
+        datos = resp.json()
+        totales = datos["outputs"]["totals"]["fixed"]
+        mensuales = datos["outputs"]["monthly"]["fixed"]
+    except (ValueError, KeyError) as e:
+        raise RuntimeError("PVGIS ha devuelto una respuesta con un formato inesperado. Puede que las "
+                           "coordenadas no tengan cobertura de datos solares.") from e
+    return {
+        "hi_y": totales["H(i)_y"],
+        "e_y_especifica": totales["E_y"],
+        "perdidas_totales_pct": totales.get("l_total"),
+        "mensual": [{"mes": m["month"], "e_m": m["E_m"], "hi_m": m["H(i)_m"]} for m in mensuales],
+        "elevacion": (datos.get("inputs", {}).get("location", {}) or {}).get("elevation"),
+    }
+
+
 def calcular_fv(inp: dict) -> dict:
     """Motor de cálculo puro de la instalación fotovoltaica. No depende de la
     Calculadora de cables ni comparte estado con ella."""
@@ -3410,9 +4300,15 @@ def calcular_fv(inp: dict) -> dict:
         p_pico_kwp = n_paneles * inp["potencia_panel_wp"] / 1000
 
     # --- Pérdidas por orientación/inclinación (CTE DB-HE5) + sombras/suciedad
-    # + eficiencia del inversor, todas aplicadas sobre la producción bruta. ---
-    perdidas_orient_pct = perdidas_orientacion_inclinacion_cte(
-        inp["inclinacion"], inp["azimut"], inp["latitud"])
+    # + eficiencia del inversor, todas aplicadas sobre la producción bruta.
+    # Si el HSP viene de PVGIS (irradiación real ya calculada para esa
+    # inclinación/azimut exactos), esa pérdida ya está incluida en el propio
+    # HSP y NO debe volver a aplicarse aquí — se pasa perdidas_orientacion_pvgis=0. ---
+    if inp.get("perdidas_orientacion_pvgis") is not None:
+        perdidas_orient_pct = inp["perdidas_orientacion_pvgis"]
+    else:
+        perdidas_orient_pct = perdidas_orientacion_inclinacion_cte(
+            inp["inclinacion"], inp["azimut"], inp["latitud"])
     perdidas_sombra_pct = inp.get("perdidas_sombras", 0.0)
     eficiencia_inversor_pct = inp.get("eficiencia_inversor", EFICIENCIA_INVERSOR_DEFECTO)
 
@@ -3899,21 +4795,23 @@ def _render_inputs_fv() -> dict:
     u1, u2, u3, u4 = st.columns(4)
     with u1:
         zona = st.selectbox("Zona climática", list(ZONAS_CLIMATICAS_HSP.keys()), index=2,
-                             help="HSP y latitud orientativos por zona (IDAE/PVGIS). Para el cálculo "
-                                  "definitivo, usa el HSP y la latitud exactos de PVGIS.")
+                             help="HSP y latitud orientativos por zona (IDAE). Para el cálculo con datos "
+                                  "reales de tu ubicación exacta, usa el botón «Consultar PVGIS» de abajo.")
         hsp_defecto, lat_defecto = ZONAS_CLIMATICAS_HSP[zona]
         hsp = st.number_input("HSP (horas de sol pico, h/día)", min_value=1.0, max_value=8.0,
-                               value=float(hsp_defecto or 4.5), step=0.1)
+                               value=float(hsp_defecto or 4.5), step=0.1, key="fv_hsp")
         latitud = st.number_input("Latitud (°)", min_value=0.0, max_value=90.0,
-                                   value=float(lat_defecto or 40.0), step=0.5)
+                                   value=float(lat_defecto or 40.0), step=0.5, key="fv_latitud")
     with u2:
         inclinacion = st.number_input("Inclinación de los paneles (°)", min_value=0.0, max_value=90.0,
                                        value=max(latitud - 10, 0.0), step=1.0,
                                        help="Óptima orientativa en España: entre la latitud y la latitud-10°.")
         azimut = st.number_input("Azimut / orientación (°, 0=sur, ±90=este/oeste, ±180=norte)",
-                                  min_value=-180.0, max_value=180.0, value=0.0, step=5.0)
+                                  min_value=-180.0, max_value=180.0, value=0.0, step=5.0, key="fv_azimut")
         perdidas_orient_preview = perdidas_orientacion_inclinacion_cte(inclinacion, azimut, latitud)
-        st.caption(f"Pérdida por orientación/inclinación (CTE DB-HE5): **{perdidas_orient_preview:.1f}%**")
+        st.caption(f"Pérdida por orientación/inclinación (CTE DB-HE5): **{perdidas_orient_preview:.1f}%**"
+                   if not st.session_state.get("pvgis_activo") else
+                   "Pérdida por orientación ya incluida en el dato de PVGIS (ver abajo).")
     with u3:
         pr = st.number_input("Performance Ratio base (PR)", min_value=0.5, max_value=0.95, value=PR_DEFECTO_FV,
                               step=0.01, help="Típico 0,75-0,85. Aquí NO incluyas orientación/inclinación ni "
@@ -3930,6 +4828,60 @@ def _render_inputs_fv() -> dict:
             "Modalidad (RD 244/2019)", TIPO_AUTOCONSUMO_FV,
             index=TIPO_AUTOCONSUMO_FV.index(plantilla["tipo_autoconsumo"]) if plantilla.get("tipo_autoconsumo") in TIPO_AUTOCONSUMO_FV else 0)
         precio_kwh = st.number_input("Precio kWh evitado (€/kWh)", min_value=0.01, value=0.18, step=0.01)
+
+    with st.container(border=True):
+        st.markdown("**🌍 PVGIS — irradiación real para esta ubicación exacta**")
+        st.caption("Consulta gratuita a la API pública de la Comisión Europea (JRC): sustituye el HSP "
+                   "orientativo por zona climática por la irradiación real, calculada a partir de datos "
+                   "satelitales para tus coordenadas, inclinación y azimut exactos. Necesita conexión a "
+                   "internet.")
+        pv1, pv2, pv3 = st.columns([1, 1, 1.2])
+        with pv1:
+            longitud_geo = st.number_input("Longitud (°, negativo = oeste)", min_value=-180.0, max_value=180.0,
+                                            value=st.session_state.get("fv_longitud_geo", -3.7), step=0.1,
+                                            key="fv_longitud_geo")
+        with pv2:
+            st.markdown("<br>", unsafe_allow_html=True)
+            consultar_pvgis_click = st.button("🌍 Consultar PVGIS", width='stretch')
+        with pv3:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.session_state.get("pvgis_activo"):
+                if st.button("↩️ Volver al HSP por zona", width='stretch'):
+                    st.session_state["pvgis_activo"] = False
+                    st.session_state.pop("pvgis_resultado", None)
+                    st.rerun()
+
+        if consultar_pvgis_click:
+            loss_equivalente = 100 * (1 - (1 - perdidas_sombras / 100) * (eficiencia_inversor / 100))
+            with st.spinner("Consultando PVGIS..."):
+                try:
+                    resultado_pvgis = _consultar_pvgis(latitud, longitud_geo, inclinacion, azimut,
+                                                        loss_equivalente)
+                    st.session_state["pvgis_resultado"] = resultado_pvgis
+                    st.session_state["pvgis_activo"] = True
+                    st.session_state["fv_hsp"] = round(resultado_pvgis["hi_y"] / 365, 3)
+                    _registrar_actividad("🌍", f"PVGIS consultado: HSP real = {resultado_pvgis['hi_y']/365:.2f} h/día")
+                    st.rerun()
+                except RuntimeError as e:
+                    st.error(f"❌ {e}")
+
+        if st.session_state.get("pvgis_activo") and st.session_state.get("pvgis_resultado"):
+            r_pv = st.session_state["pvgis_resultado"]
+            st.success(f"✅ Usando datos reales de PVGIS: irradiación anual en el plano inclinado "
+                       f"**{r_pv['hi_y']:.0f} kWh/m²/año** → HSP equivalente **{r_pv['hi_y']/365:.2f} h/día** "
+                       f"(elevación del terreno: {r_pv['elevacion']:.0f} m)." if r_pv.get('elevacion') is not None
+                       else f"✅ Usando datos reales de PVGIS: irradiación anual en el plano inclinado "
+                       f"**{r_pv['hi_y']:.0f} kWh/m²/año** → HSP equivalente **{r_pv['hi_y']/365:.2f} h/día**.")
+            import plotly.graph_objects as go
+            meses_nom = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+            fig_pvgis = go.Figure(go.Bar(x=meses_nom, y=[m["e_m"] for m in r_pv["mensual"]],
+                                         marker=dict(color="#3b82f6")))
+            fig_pvgis.update_layout(margin=dict(t=10, b=10, l=10, r=10), height=220,
+                                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                                    font=dict(color="#8b96a8"), yaxis_title="kWh/kWp",
+                                    title=dict(text="Producción específica mensual (PVGIS, por kWp instalado)",
+                                              font=dict(size=11)))
+            st.plotly_chart(fig_pvgis, width='stretch')
 
     st.markdown('<p class="section-label">3 · Módulo fotovoltaico (valores de ficha técnica STC)</p>',
                 unsafe_allow_html=True)
@@ -4019,7 +4971,9 @@ def _render_inputs_fv() -> dict:
         modo_dimensionado=modo_dimensionado, consumo_anual_kwh=consumo_anual_kwh,
         potencia_pico_deseada=potencia_pico_deseada, n_paneles_manual=n_paneles_manual,
         potencia_panel_wp=potencia_panel_wp, area_panel=area_panel, zona=zona, hsp=hsp, latitud=latitud,
-        inclinacion=inclinacion, azimut=azimut, pr=pr, perdidas_sombras=perdidas_sombras,
+        longitud_geo=longitud_geo, inclinacion=inclinacion, azimut=azimut, pr=pr,
+        perdidas_sombras=perdidas_sombras,
+        perdidas_orientacion_pvgis=(0.0 if st.session_state.get("pvgis_activo") else None),
         eficiencia_inversor=eficiencia_inversor, degradacion_anual=degradacion_anual,
         tipo_autoconsumo=tipo_autoconsumo, precio_kwh=precio_kwh, voc=voc, isc=isc, vmp=vmp,
         coef_temp_voc=coef_temp_voc, n_paneles_serie=n_paneles_serie, n_strings_paralelo=n_strings_paralelo,
@@ -4032,6 +4986,105 @@ def _render_inputs_fv() -> dict:
         profundidad_descarga=profundidad_descarga, precio_compensacion=precio_compensacion,
         factor_co2=factor_co2,
     )
+
+
+def _render_comparador_fv(inp_actual: dict, res_actual: dict):
+    """Guarda escenarios FV con nombre (p.ej. 'con batería' vs 'sin batería',
+    o dos potencias distintas) y los compara lado a lado."""
+    st.session_state.setdefault("escenarios_fv_guardados", [])
+    guardados = st.session_state["escenarios_fv_guardados"]
+
+    st.markdown('<p class="section-label">Comparador de escenarios</p>', unsafe_allow_html=True)
+    with st.expander("🔄 Guardar y comparar escenarios (con batería / sin batería, distintas potencias...)"):
+        st.caption("Guarda el cálculo actual con un nombre, cambia parámetros arriba (p. ej. activa la "
+                   "batería o cambia la potencia) y guarda otra vez con otro nombre — luego compáralos "
+                   "uno junto al otro.")
+        sg1, sg2 = st.columns([3, 1])
+        with sg1:
+            nombre_escenario = st.text_input(
+                "Nombre para el escenario actual", key="nombre_escenario_fv",
+                placeholder=f"{'Con batería' if inp_actual.get('con_bateria') else 'Sin batería'} — "
+                           f"{res_actual.get('p_pico_kwp', 0):.1f} kWp")
+        with sg2:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("💾 Guardar escenario", width='stretch', key="btn_guardar_escenario_fv"):
+                nombre_final = nombre_escenario.strip() or (
+                    f"{'Con batería' if inp_actual.get('con_bateria') else 'Sin batería'} — "
+                    f"{res_actual.get('p_pico_kwp', 0):.1f} kWp")
+                guardados.append({"nombre": nombre_final, "inputs_fv": dict(inp_actual), "resultado_fv": dict(res_actual)})
+                _registrar_actividad("🔄", f"Escenario FV guardado: {nombre_final}")
+                st.success(f"Guardado como «{nombre_final}».")
+
+        if guardados:
+            with st.container(border=True):
+                st.markdown(f"**Escenarios guardados ({len(guardados)})**")
+                for i_esc, esc in enumerate(guardados):
+                    ec1, ec2 = st.columns([5, 1])
+                    ec1.markdown(f"{esc['nombre']} — {esc['resultado_fv'].get('p_pico_kwp', 0):.1f} kWp, "
+                                f"{_miles(esc['resultado_fv'].get('produccion_anual_kwh', 0))} kWh/año")
+                    if ec2.button("🗑️", key=f"del_escenario_fv_{i_esc}"):
+                        guardados.pop(i_esc)
+                        st.rerun()
+
+        if len(guardados) >= 1:
+            st.divider()
+            st.markdown("**Comparar dos escenarios**")
+            opciones_comp = {"— Cálculo actual —": ("actual", None)}
+            for i_e, esc in enumerate(guardados):
+                opciones_comp[esc["nombre"]] = ("guardado", i_e)
+            cc1, cc2 = st.columns(2)
+            with cc1:
+                sel_a = st.selectbox("Escenario A", list(opciones_comp.keys()), index=0, key="comp_fv_a")
+            with cc2:
+                idx_b_defecto = 1 if len(opciones_comp) > 1 else 0
+                sel_b = st.selectbox("Escenario B", list(opciones_comp.keys()), index=idx_b_defecto, key="comp_fv_b")
+
+            def _resolver_escenario(sel):
+                tipo, idx = opciones_comp[sel]
+                if tipo == "actual":
+                    return inp_actual, res_actual
+                return guardados[idx]["inputs_fv"], guardados[idx]["resultado_fv"]
+
+            inp_a, res_a = _resolver_escenario(sel_a)
+            inp_b, res_b = _resolver_escenario(sel_b)
+
+            filas_comp = [
+                ("Potencia pico", f"{res_a.get('p_pico_kwp', 0):.2f} kWp", f"{res_b.get('p_pico_kwp', 0):.2f} kWp"),
+                ("Nº de paneles", f"{res_a.get('n_paneles_configurados', '—')}", f"{res_b.get('n_paneles_configurados', '—')}"),
+                ("Con batería", "Sí" if inp_a.get("con_bateria") else "No", "Sí" if inp_b.get("con_bateria") else "No"),
+                ("Producción año 1", f"{_miles(res_a.get('produccion_anual_kwh', 0))} kWh",
+                 f"{_miles(res_b.get('produccion_anual_kwh', 0))} kWh"),
+                ("Producción año 25", f"{_miles(res_a.get('produccion_ano25', 0))} kWh",
+                 f"{_miles(res_b.get('produccion_ano25', 0))} kWh"),
+                ("Ahorro anual estimado", _fmt_eur(res_a.get("ahorro_anual", 0)), _fmt_eur(res_b.get("ahorro_anual", 0))),
+                ("Inversión estimada", _fmt_eur(inp_a.get("inversion_total", 0)), _fmt_eur(inp_b.get("inversion_total", 0))),
+                ("Retorno de la inversión",
+                 f"{res_a['payback_anos']:.1f} años" if res_a.get("payback_anos") else "—",
+                 f"{res_b['payback_anos']:.1f} años" if res_b.get("payback_anos") else "—"),
+                ("CO₂ evitado/año", f"{res_a.get('co2_evitado_kg_ano', 0)/1000:.2f} t", f"{res_b.get('co2_evitado_kg_ano', 0)/1000:.2f} t"),
+            ]
+            etiqueta_a = f"A: {sel_a}"
+            etiqueta_b = f"B: {sel_b}" if sel_b != sel_a else f"B: {sel_b} (2)"
+            df_comp = pd.DataFrame(filas_comp, columns=["Magnitud", etiqueta_a, etiqueta_b])
+            if sel_a == sel_b:
+                st.caption("💡 Has elegido el mismo escenario en A y B — cambia uno de los dos para "
+                           "comparar de verdad.")
+            st.dataframe(df_comp, hide_index=True, width='stretch')
+
+            import plotly.graph_objects as go
+            metricas_grafico = ["Potencia pico (kWp)", "Producción año 1 (MWh)", "Ahorro anual (k€)"]
+            valores_a = [res_a.get("p_pico_kwp", 0), res_a.get("produccion_anual_kwh", 0) / 1000,
+                        res_a.get("ahorro_anual", 0) / 1000]
+            valores_b = [res_b.get("p_pico_kwp", 0), res_b.get("produccion_anual_kwh", 0) / 1000,
+                        res_b.get("ahorro_anual", 0) / 1000]
+            fig_comp = go.Figure(data=[
+                go.Bar(name=etiqueta_a, x=metricas_grafico, y=valores_a, marker_color="#3b82f6"),
+                go.Bar(name=etiqueta_b, x=metricas_grafico, y=valores_b, marker_color="#e8a33d"),
+            ])
+            fig_comp.update_layout(barmode="group", margin=dict(t=10, b=10, l=10, r=10), height=300,
+                                   paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                                   font=dict(color="#8b96a8"), legend=dict(orientation="h", y=-0.15))
+            st.plotly_chart(fig_comp, width='stretch')
 
 
 def _render_resultados_fv(inp: dict, res: dict):
@@ -4276,6 +5329,88 @@ def _render_presupuesto(inputs_cable: dict, resultado_cable: dict, inputs_fv: di
                                          hide_index=True, num_rows="fixed")
         for _, fila in df_cat_editada.iterrows():
             catalogo[cat_editar][fila["Concepto"]] = float(fila["Precio base (€)"])
+
+        st.divider()
+        st.markdown("**📥 Importar precios desde un Excel/CSV de proveedor**")
+        st.caption("Sube una lista de precios (una columna con el nombre del artículo, otra con el precio). "
+                   "Los que coincidan exactamente con un material ya existente actualizan su precio; el "
+                   "resto se añade como materiales nuevos en la categoría que elijas.")
+        archivo_precios = st.file_uploader("Archivo del proveedor", type=["xlsx", "xls", "csv"],
+                                            key="upload_precios_proveedor")
+        if archivo_precios is not None:
+            try:
+                if archivo_precios.name.lower().endswith(".csv"):
+                    df_import = pd.read_csv(archivo_precios)
+                else:
+                    df_import = pd.read_excel(archivo_precios)
+            except Exception as e:
+                st.error(f"No se ha podido leer el archivo: {e}")
+                df_import = None
+
+            if df_import is not None and not df_import.empty:
+                st.dataframe(df_import.head(8), width='stretch', hide_index=True)
+                st.caption(f"{len(df_import)} filas leídas. Muestra de las 8 primeras.")
+                cols_disponibles = list(df_import.columns)
+                imp1, imp2, imp3 = st.columns(3)
+                with imp1:
+                    col_nombre = st.selectbox("Columna con el nombre del artículo", cols_disponibles,
+                                               key="imp_col_nombre")
+                with imp2:
+                    cols_numericas = [c for c in cols_disponibles
+                                       if pd.api.types.is_numeric_dtype(df_import[c])] or cols_disponibles
+                    idx_precio_defecto = cols_numericas.index(cols_numericas[-1]) if cols_numericas else 0
+                    col_precio = st.selectbox("Columna con el precio", cols_disponibles,
+                                               index=cols_disponibles.index(cols_numericas[idx_precio_defecto])
+                                               if cols_numericas else 0, key="imp_col_precio")
+                with imp3:
+                    categoria_nuevos = st.selectbox(
+                        "Categoría para los artículos que NO coincidan con ninguno existente",
+                        list(catalogo.keys()) + ["📦 Importado de proveedor (nueva categoría)"],
+                        key="imp_categoria_nuevos")
+
+                todas_designaciones = {desig: cat for cat, items in catalogo.items() for desig in items}
+                filas_preview, n_actualizar, n_nuevos = [], 0, 0
+                for _, fila in df_import.iterrows():
+                    nombre_raw = str(fila[col_nombre]).strip()
+                    try:
+                        precio_raw = float(str(fila[col_precio]).replace(",", ".").replace("€", "").strip())
+                    except (ValueError, TypeError):
+                        continue
+                    if not nombre_raw or nombre_raw.lower() == "nan":
+                        continue
+                    if nombre_raw in todas_designaciones:
+                        filas_preview.append({"Artículo": nombre_raw, "Precio nuevo (€)": precio_raw,
+                                              "Acción": f"Actualiza precio en «{todas_designaciones[nombre_raw]}»"})
+                        n_actualizar += 1
+                    else:
+                        filas_preview.append({"Artículo": nombre_raw, "Precio nuevo (€)": precio_raw,
+                                              "Acción": "Nuevo artículo"})
+                        n_nuevos += 1
+
+                if filas_preview:
+                    st.dataframe(pd.DataFrame(filas_preview), width='stretch', hide_index=True, height=200)
+                    st.caption(f"**{n_actualizar}** artículos actualizarán su precio · **{n_nuevos}** se "
+                               "añadirán como nuevos.")
+                    if st.button("📥 Importar al catálogo", type="primary", key="btn_importar_precios"):
+                        cat_destino_nuevos = categoria_nuevos
+                        if cat_destino_nuevos == "📦 Importado de proveedor (nueva categoría)":
+                            catalogo.setdefault("📦 Importado de proveedor", {})
+                            cat_destino_nuevos = "📦 Importado de proveedor"
+                        for fp in filas_preview:
+                            nombre_a = fp["Artículo"]
+                            precio_a = fp["Precio nuevo (€)"]
+                            if nombre_a in todas_designaciones:
+                                catalogo[todas_designaciones[nombre_a]][nombre_a] = precio_a
+                            else:
+                                catalogo[cat_destino_nuevos][nombre_a] = precio_a
+                        _registrar_actividad("📥", f"Catálogo actualizado desde {archivo_precios.name}: "
+                                             f"{n_actualizar} precios actualizados, {n_nuevos} artículos nuevos")
+                        st.success(f"Catálogo actualizado: {n_actualizar} precios actualizados, {n_nuevos} "
+                                   "artículos nuevos añadidos.")
+                        st.rerun()
+                else:
+                    st.warning("No se ha podido interpretar ninguna fila válida con las columnas "
+                               "seleccionadas — revisa que la columna de precio contenga números.")
 
     with st.expander("🧩 Partidas compuestas — presupuesto por unidades de obra completas", expanded=False):
         st.caption(
@@ -4707,6 +5842,12 @@ def _render_documentacion(inputs_cable: dict, resultado_cable: dict, inputs_fv: 
         if st.download_button("⬇️ Descargar MTD (PDF)", data=pdf_mtd, file_name="MTD.pdf",
                                mime="application/pdf"):
             _registrar_actividad("📄", "MTD descargada")
+        with st.spinner("Generando MTD en Word..."):
+            docx_mtd = generar_docx_mtd(datos, inputs_cable, resultado_cable, inputs_fv, resultado_fv,
+                                         total_presupuesto, cfg_prof)
+        if st.download_button("⬇️ Descargar MTD (Word)", data=docx_mtd, file_name="MTD.docx",
+                               mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"):
+            _registrar_actividad("📝", "MTD descargada en Word")
     with c2:
         st.markdown("**Anexo de Cálculos y Mediciones**")
         st.caption("Justificación técnica completa + mediciones por capítulo.")
@@ -4717,6 +5858,13 @@ def _render_documentacion(inputs_cable: dict, resultado_cable: dict, inputs_fv: 
         if st.download_button("⬇️ Descargar Anexo (PDF)", data=pdf_anexo, file_name="anexo_calculos.pdf",
                                mime="application/pdf"):
             _registrar_actividad("📄", "Anexo de cálculos descargado")
+        with st.spinner("Generando Anexo en Word..."):
+            docx_anexo = generar_docx_anexo_calculos(datos, inputs_cable, resultado_cable, inputs_fv, resultado_fv,
+                                                       capitulos, cfg_presu["pct_beneficio"], cfg_presu["pct_amortizacion"],
+                                                       cfg_prof)
+        if st.download_button("⬇️ Descargar Anexo (Word)", data=docx_anexo, file_name="anexo_calculos.docx",
+                               mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"):
+            _registrar_actividad("📝", "Anexo descargado en Word")
     with c3:
         st.markdown("**Pliego de Condiciones**")
         st.caption("Condiciones generales de materiales, ejecución y pruebas.")
@@ -4725,11 +5873,115 @@ def _render_documentacion(inputs_cable: dict, resultado_cable: dict, inputs_fv: 
         if st.download_button("⬇️ Descargar Condiciones (PDF)", data=pdf_cond, file_name="condiciones_generales.pdf",
                                mime="application/pdf"):
             _registrar_actividad("📄", "Pliego de condiciones descargado")
+        with st.spinner("Generando Pliego en Word..."):
+            docx_cond = generar_docx_condiciones_generales(datos, hay_fv, cfg_prof)
+        if st.download_button("⬇️ Descargar Condiciones (Word)", data=docx_cond, file_name="condiciones_generales.docx",
+                               mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"):
+            _registrar_actividad("📝", "Pliego descargado en Word")
 
     if not hay_cable and not hay_fv:
         st.info("Todavía no hay ningún cálculo hecho: los documentos se generarán igualmente, pero con las "
                 "secciones de cálculo vacías. Completa la Calculadora y/o la Fotovoltaica para un contenido "
                 "completo.")
+
+    # ---------------------------------------------------------------- CHECKLIST DE PUESTA EN SERVICIO
+    st.markdown('<p class="section-label">Puesta en servicio</p>', unsafe_allow_html=True)
+    st.session_state.setdefault("checklist_puesta_servicio", [
+        {"realizado": False, "valor_medido": ""} for _ in ENSAYOS_PUESTA_SERVICIO
+    ])
+    st.session_state.setdefault("checklist_firma", {"instalador": "", "fecha": date.today()})
+    checklist = st.session_state["checklist_puesta_servicio"]
+    if len(checklist) != len(ENSAYOS_PUESTA_SERVICIO):  # por si la lista de ensayos cambia de tamaño
+        checklist = [{"realizado": False, "valor_medido": ""} for _ in ENSAYOS_PUESTA_SERVICIO]
+        st.session_state["checklist_puesta_servicio"] = checklist
+
+    with st.expander("✅ Checklist de puesta en servicio (anexo del CIE)", expanded=False):
+        st.caption("Los mismos 9 ensayos del Pliego de Condiciones (ITC-BT-05), pero aquí los marcas "
+                   "conforme los vas haciendo en la instalación real, con el valor medido. Se incluye como "
+                   "anexo al generar el CIE.")
+        for i_ens, (nombre_ens, criterio_ens) in enumerate(ENSAYOS_PUESTA_SERVICIO):
+            ch1, ch2, ch3 = st.columns([0.5, 3, 2])
+            with ch1:
+                checklist[i_ens]["realizado"] = st.checkbox("Hecho", value=checklist[i_ens]["realizado"],
+                                                             key=f"chk_ens_{i_ens}", label_visibility="collapsed")
+            with ch2:
+                st.markdown(f"**{nombre_ens}**  \n<span style='font-size:0.75rem; color:var(--text-secondary);'>"
+                            f"Criterio: {criterio_ens}</span>", unsafe_allow_html=True)
+            with ch3:
+                checklist[i_ens]["valor_medido"] = st.text_input("Valor medido", checklist[i_ens]["valor_medido"],
+                                                                  key=f"txt_ens_{i_ens}", label_visibility="collapsed",
+                                                                  placeholder="Valor medido")
+        n_hechos = sum(1 for e in checklist if e["realizado"])
+        st.progress(n_hechos / len(checklist), text=f"{n_hechos}/{len(checklist)} ensayos completados")
+        st.divider()
+        fi1, fi2 = st.columns(2)
+        with fi1:
+            st.session_state["checklist_firma"]["instalador"] = st.text_input(
+                "Nombre de quien realiza las pruebas", st.session_state["checklist_firma"]["instalador"])
+        with fi2:
+            st.session_state["checklist_firma"]["fecha"] = st.date_input(
+                "Fecha de las pruebas", st.session_state["checklist_firma"]["fecha"])
+
+    # ---------------------------------------------------------------- REGISTRO FOTOGRAFICO
+    st.session_state.setdefault("fotos_instalacion", [])
+    fotos = st.session_state["fotos_instalacion"]
+    with st.expander(f"📷 Registro fotográfico de la instalación ({len(fotos)})", expanded=False):
+        st.caption("Sube fotos del antes/durante/después de la instalación — se incluyen como anexo en la "
+                   "MTD y en el CIE. Máximo recomendado: 12 fotos, para no disparar el tamaño del PDF.")
+        fo1, fo2 = st.columns([1, 2])
+        with fo1:
+            etapa_foto = st.selectbox("Etapa", ["Antes", "Durante", "Después"], key="etapa_foto_nueva")
+        with fo2:
+            archivos_foto = st.file_uploader("Sube una o varias fotos", type=["jpg", "jpeg", "png"],
+                                              accept_multiple_files=True, key="uploader_fotos")
+        if archivos_foto:
+            if st.button("➕ Añadir al registro", key="btn_add_fotos"):
+                for archivo in archivos_foto:
+                    fotos.append({"etapa": etapa_foto, "nombre": archivo.name,
+                                  "b64": base64.b64encode(archivo.read()).decode(), "descripcion": ""})
+                _registrar_actividad("📷", f"{len(archivos_foto)} foto(s) añadida(s) al registro ({etapa_foto})")
+                st.rerun()
+
+        if fotos:
+            for i_f, foto in enumerate(fotos):
+                fc1, fc2, fc3 = st.columns([1, 3, 0.5])
+                with fc1:
+                    st.image(base64.b64decode(foto["b64"]), width=100)
+                with fc2:
+                    st.caption(f"{foto['etapa']} — {foto['nombre']}")
+                    foto["descripcion"] = st.text_input("Descripción (opcional)", foto["descripcion"],
+                                                         key=f"desc_foto_{i_f}", label_visibility="collapsed",
+                                                         placeholder="Descripción (opcional)")
+                with fc3:
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    if st.button("🗑️", key=f"del_foto_{i_f}"):
+                        fotos.pop(i_f)
+                        st.rerun()
+
+    # ---------------------------------------------------------------- CIE Y FICHA RESUMEN
+    st.markdown('<p class="section-label">Otros documentos</p>', unsafe_allow_html=True)
+    oc1, oc2 = st.columns(2)
+    with oc1:
+        st.markdown("**Certificado de Instalación Eléctrica (CIE)**")
+        st.caption("Rellenado a partir de los datos del proyecto y la checklist de puesta en servicio "
+                   "de arriba. Documento de apoyo — el CIE oficial lo emite el instalador autorizado a "
+                   "través de la aplicación de su Comunidad Autónoma.")
+        with st.spinner("Generando CIE..."):
+            pdf_cie = generar_pdf_cie(datos, inputs_cable, resultado_cable, inputs_fv, resultado_fv,
+                                       checklist, st.session_state["checklist_firma"], cfg_prof)
+        if st.download_button("⬇️ Descargar CIE (PDF)", data=pdf_cie, file_name="CIE.pdf",
+                               mime="application/pdf"):
+            _registrar_actividad("📄", "CIE descargado")
+    with oc2:
+        st.markdown("**Ficha resumen (una página)**")
+        st.caption("Lo esencial del proyecto en una sola hoja: para imprimir o enviar rápido sin abrir los "
+                   "documentos completos.")
+        with st.spinner("Generando ficha resumen..."):
+            pdf_resumen = generar_pdf_resumen_una_pagina(datos, inputs_cable, resultado_cable, inputs_fv,
+                                                          resultado_fv, total_presupuesto, cfg_prof)
+        if st.download_button("⬇️ Descargar ficha resumen (PDF)", data=pdf_resumen, file_name="ficha_resumen.pdf",
+                               mime="application/pdf"):
+            _registrar_actividad("📄", "Ficha resumen descargada")
 
 
 def _render_calculos_bt():
@@ -4813,6 +6065,39 @@ def _render_calculos_bt():
             mm2_in = c2.number_input("Sección (mm²)", min_value=0.01, value=2.5, key="bt_mm2_in")
             awg_cercano, mm2_exacto = mm2_a_awg_mas_cercano(mm2_in)
             c3.metric("AWG más cercano", f"{awg_cercano} AWG ({mm2_exacto:.3f} mm²)")
+
+        st.divider()
+        st.markdown("**Comparador de métodos de instalación** (misma sección, ¿cuánto cambia la Iz?)")
+        cm1, cm2, cm3, cm4 = st.columns(4)
+        s_cmp = cm1.selectbox("Sección (mm²)", SECCIONES_NORMALIZADAS, index=4, key="bt_cmp_s")
+        cond_cmp = cm2.selectbox("Conductor", ["Cobre", "Aluminio"], key="bt_cmp_cond")
+        aisl_cmp = cm3.selectbox("Aislamiento", ["PVC", "XLPE/EPR"], key="bt_cmp_aisl")
+        n_carg_cmp = cm4.selectbox("Conductores cargados", [2, 3], index=1, key="bt_cmp_ncarg")
+        filas_metodos = []
+        for metodo_cmp in METODOS_DISPONIBLES:
+            iz_m = iz_tabla(s_cmp, metodo_cmp, aisl_cmp, cond_cmp, n_carg_cmp)
+            filas_metodos.append({"Método": metodo_cmp.split(" — ")[0], "Descripción": metodo_cmp.split(" — ")[1],
+                                  "Iz (A)": iz_m if iz_m is not None else None})
+        df_metodos = pd.DataFrame(filas_metodos)
+        import plotly.express as px
+        df_validos = df_metodos.dropna(subset=["Iz (A)"])
+        if not df_validos.empty:
+            fig_metodos = px.bar(df_validos, x="Método", y="Iz (A)", color="Método", text="Iz (A)",
+                                 color_discrete_sequence=["#3b82f6", "#e8a33d", "#22c55e", "#ef4444", "#a78bfa", "#06b6d4"])
+            fig_metodos.update_traces(textposition="outside")
+            fig_metodos.update_layout(margin=dict(t=10, b=10, l=10, r=10), height=280, showlegend=False,
+                                      paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                                      font=dict(color="#8b96a8"))
+            st.plotly_chart(fig_metodos, width='stretch')
+            iz_min_row = df_validos.loc[df_validos["Iz (A)"].idxmin()]
+            iz_max_row = df_validos.loc[df_validos["Iz (A)"].idxmax()]
+            diferencia_pct = (iz_max_row["Iz (A)"] / iz_min_row["Iz (A)"] - 1) * 100
+            st.caption(f"Entre el método más restrictivo ({iz_min_row['Método']}, {iz_min_row['Iz (A)']:g} A) y "
+                       f"el más favorable ({iz_max_row['Método']}, {iz_max_row['Iz (A)']:g} A) hay un "
+                       f"**{diferencia_pct:.0f}%** de diferencia en la intensidad admisible para la misma "
+                       f"sección de {s_cmp:g} mm² — el método de instalación importa tanto como la sección "
+                       "a la hora de dimensionar.")
+        st.dataframe(df_metodos, width='stretch', hide_index=True)
 
         st.divider()
         st.markdown("**Protección contra sobrecarga** (Ib ≤ In ≤ Iz)")
@@ -4987,8 +6272,16 @@ def _render_calculos_bt():
         cosphi_obj = c3.number_input("cos φ objetivo", min_value=0.1, max_value=1.0, value=0.95, key="bt_fp_obj")
         tan_actual = math.tan(math.acos(cosphi_actual))
         tan_obj = math.tan(math.acos(cosphi_obj))
-        q_condensador = p_fp * (tan_actual - tan_obj)
-        st.markdown(f"→ Potencia reactiva de la batería de condensadores: **{max(q_condensador,0):.2f} kVAr**")
+        q_condensador = max(p_fp * (tan_actual - tan_obj), 0)
+        escalones_kvar = [2.5, 5, 7.5, 10, 12.5, 15, 20, 25, 30, 40, 50, 60, 75, 100, 125, 150]
+        equipo_sugerido = next((e for e in escalones_kvar if e >= q_condensador), escalones_kvar[-1])
+        st.markdown(f"→ Potencia reactiva necesaria: **{q_condensador:.2f} kVAr** → equipo comercial "
+                    f"recomendado: batería de **{equipo_sugerido:g} kVAr** (siguiente escalón normalizado "
+                    "por encima del cálculo).")
+        if cosphi_actual < 0.95:
+            st.caption("⚠️ Con cos φ < 0,95 la compañía eléctrica puede aplicar penalización por energía "
+                       "reactiva en la factura (según la normativa de peajes vigente); compensar hasta "
+                       "0,95-0,98 suele amortizarse en poco tiempo.")
 
         st.divider()
         st.markdown("**Divisor de tensión**")
@@ -4998,6 +6291,366 @@ def _render_calculos_bt():
         r2_dt = c3.number_input("R2 (Ω)", min_value=0.01, value=1000.0, key="bt_dt_r2")
         vout_dt = vin_dt * r2_dt / (r1_dt + r2_dt)
         st.markdown(f"→ Vout = Vin·R2/(R1+R2) = **{vout_dt:.3f} V**")
+
+    # ---------------------------------------------------------------- SELECTIVIDAD
+    with st.expander("🔀 Selectividad de protecciones"):
+        st.markdown("**Selectividad entre magnetotérmicos en serie**")
+        st.caption("Comprobación orientativa (amperimétrica + rango del disparo magnético según curva). "
+                   "La selectividad garantizada al 100% en toda la gama de sobrecorriente solo la certifican "
+                   "las tablas de selectividad del fabricante para cada pareja concreta de aparatos.")
+        c1, c2, c3, c4 = st.columns(4)
+        in_arriba = c1.selectbox("In aguas arriba (A)", CALIBRES_MAGNETOTERMICO, index=6, key="bt_sel_in_arriba")
+        curva_arriba = c2.selectbox("Curva aguas arriba", ["B", "C", "D"], index=1, key="bt_sel_curva_arriba")
+        in_abajo = c3.selectbox("In aguas abajo (A)", CALIBRES_MAGNETOTERMICO, index=2, key="bt_sel_in_abajo")
+        curva_abajo = c4.selectbox("Curva aguas abajo", ["B", "C", "D"], index=1, key="bt_sel_curva_abajo")
+        icc_sel = st.number_input("Icc prevista en el punto de instalación del de aguas abajo (kA) — opcional",
+                                   min_value=0.0, value=0.0, step=0.1, key="bt_sel_icc")
+
+        ratio_sel = in_arriba / in_abajo
+        mult_min_arriba, _ = CURVA_MAGNETOTERMICO_RANGOS[curva_arriba]
+        _, mult_max_abajo = CURVA_MAGNETOTERMICO_RANGOS[curva_abajo]
+        im_min_arriba_a = in_arriba * mult_min_arriba
+        im_max_abajo_a = in_abajo * mult_max_abajo
+        st.markdown(f"→ Relación de calibres In arriba/In abajo = **{ratio_sel:.2f}**")
+        if ratio_sel >= 2:
+            st.success("✅ Ratio ≥ 2: selectividad amperimétrica probable en la zona de sobrecarga.")
+        elif ratio_sel >= 1.6:
+            st.warning("⚠️ Ratio entre 1,6 y 2: selectividad parcial únicamente (regla práctica orientativa).")
+        else:
+            st.error("❌ Ratio < 1,6: selectividad no garantizada ni en sobrecarga — revisa los calibres.")
+        st.markdown(f"→ Umbral de disparo magnético mínimo de aguas arriba: **{im_min_arriba_a:.0f} A** "
+                    f"({mult_min_arriba}×{in_arriba} A, curva {curva_arriba}) · disparo magnético máximo de "
+                    f"aguas abajo: **{im_max_abajo_a:.0f} A** ({mult_max_abajo}×{in_abajo} A, curva "
+                    f"{curva_abajo}). Si el máximo de abajo no alcanza el mínimo de arriba, el de abajo "
+                    "siempre dispara primero también en la zona magnética.")
+        if icc_sel > 0:
+            icc_sel_a = icc_sel * 1000
+            if icc_sel_a <= im_min_arriba_a:
+                st.success(f"✅ Con Icc={icc_sel:g} kA en ese punto, no se alcanza el umbral magnético del de "
+                           "aguas arriba: selectividad total también frente a cortocircuito.")
+            else:
+                st.error(f"❌ Con Icc={icc_sel:g} kA se supera el umbral magnético del de aguas arriba "
+                         f"({im_min_arriba_a/1000:.2f} kA): éste podría dispararse también — selectividad "
+                         f"limitada hasta {im_min_arriba_a/1000:.2f} kA.")
+
+        st.divider()
+        st.markdown("**Selectividad entre interruptores diferenciales en cascada**")
+        c1, c2, c3 = st.columns(3)
+        idn_arriba = c1.selectbox("I∆n aguas arriba (mA)", [30, 100, 300, 500, 1000], index=2,
+                                   key="bt_seldif_arriba")
+        tipo_arriba_dif = c2.selectbox("Tipo aguas arriba", ["Instantáneo", "Selectivo (S)"],
+                                        key="bt_seldif_tipo")
+        idn_abajo = c3.selectbox("I∆n aguas abajo (mA)", [10, 30, 100, 300], index=1, key="bt_seldif_abajo")
+        ratio_dif = idn_arriba / idn_abajo
+        st.markdown(f"→ Relación I∆n arriba/abajo = **{ratio_dif:.1f}**")
+        if tipo_arriba_dif == "Selectivo (S)":
+            st.success("✅ El de aguas arriba es de tipo Selectivo (S): retardo intencionado de disparo → "
+                       "selectividad cronométrica garantizada frente al de aguas abajo, "
+                       f"{'y además cumple' if ratio_dif >= 3 else 'aunque conviene además'} la relación "
+                       "amperimétrica ≥ 3.")
+        elif ratio_dif >= 3:
+            st.warning("⚠️ Ratio ≥ 3 pero el de aguas arriba NO es de tipo Selectivo (S): selectividad "
+                       "amperimétrica probable, pero no garantizada por norma sin el retardo intencionado.")
+        else:
+            st.error("❌ Sin tipo Selectivo (S) arriba y con ratio < 3: selectividad no garantizada — un "
+                     "defecto aguas abajo podría disparar también el diferencial de cabecera.")
+
+    # ---------------------------------------------------------------- MOTORES
+    with st.expander("⚙️ Motores: arranque y arrancador estrella-triángulo"):
+        st.caption("Dimensionado orientativo del arranque de un motor asíncrono trifásico o monofásico. "
+                   "Para el circuito completo (sección por Ib de servicio) usa la Calculadora principal con "
+                   "'Es motor' activado.")
+        c1, c2, c3, c4 = st.columns(4)
+        p_mot = c1.number_input("Potencia motor (kW)", min_value=0.1, value=7.5, key="bt_mot_p")
+        sistema_mot = c2.selectbox("Sistema", [SISTEMA_MONO, SISTEMA_TRI], index=1, key="bt_mot_sistema")
+        v_mot = c3.number_input("Tensión (V)", min_value=1.0, value=400.0, key="bt_mot_v")
+        cosphi_mot = c4.number_input("cos φ nominal", min_value=0.1, max_value=1.0, value=0.85, key="bt_mot_cosphi")
+        c1, c2, c3 = st.columns(3)
+        rend_mot = c1.number_input("Rendimiento η (%)", min_value=1.0, max_value=100.0, value=88.0,
+                                    key="bt_mot_rend") / 100
+        ratio_ia_in = c2.number_input("Relación Ia/In en arranque directo", min_value=1.0, value=7.0, step=0.5,
+                                      key="bt_mot_ratio", help="Típica en motores asíncronos de jaula de "
+                                      "ardilla: 5-8 veces In. Consulta la placa de características si la "
+                                      "tienes.")
+        tipo_arranque = c3.selectbox("Sistema de arranque", ["Directo", "Estrella-Triángulo"],
+                                      key="bt_mot_tipo_arranque")
+        c1, c2 = st.columns(2)
+        l_mot = c1.number_input("Longitud del circuito (m)", min_value=0.1, value=25.0, key="bt_mot_l")
+        s_mot = c2.selectbox("Sección adoptada (mm²)", SECCIONES_NORMALIZADAS, index=5, key="bt_mot_s")
+
+        if sistema_mot == SISTEMA_TRI:
+            in_mot = p_mot * 1000 / (math.sqrt(3) * v_mot * cosphi_mot * rend_mot)
+        else:
+            in_mot = p_mot * 1000 / (v_mot * cosphi_mot * rend_mot)
+        ia_directo = in_mot * ratio_ia_in
+        ia_efectiva = ia_directo / 3 if tipo_arranque == "Estrella-Triángulo" else ia_directo
+
+        limite_ratio = next(r for pmin, pmax, r in RATIO_IA_IN_MAX_MOTOR if pmin <= p_mot < pmax)
+        st.markdown(f"→ In nominal = **{in_mot:.2f} A** · Ia en arranque directo = **{ia_directo:.1f} A** "
+                    f"({ratio_ia_in:g}×In)")
+        if tipo_arranque == "Estrella-Triángulo":
+            st.markdown(f"→ Con arrancador estrella-triángulo: Ia efectiva ≈ Ia/3 = **{ia_efectiva:.1f} A**, "
+                        "par de arranque también se reduce a ~1/3 del par en arranque directo.")
+        if ratio_ia_in > limite_ratio:
+            st.warning(f"⚠️ La relación de arranque directo ({ratio_ia_in:g}) supera el máximo admitido por "
+                       f"la ITC-BT-47 para {p_mot:g} kW ({limite_ratio:g}): "
+                       f"{'correcto usar un arrancador que la reduzca, como el estrella-triángulo elegido' if tipo_arranque != 'Directo' else 'se requiere un sistema de arranque que la reduzca (estrella-triángulo u otro)'}.")
+        else:
+            st.success(f"✅ Relación de arranque ({ratio_ia_in:g}) dentro del límite ITC-BT-47 para {p_mot:g} "
+                       f"kW ({limite_ratio:g}): el arranque directo estaría permitido.")
+
+        kappa_mot = kappa_servicio("Cobre", "PVC")
+        du_arranque_v = caida_tension_voltios(sistema_mot, ia_efectiva, l_mot, s_mot, 0.5, kappa_mot)
+        tension_ref_mot = 230.0 if sistema_mot == SISTEMA_MONO else 400.0
+        st.markdown(f"→ Caída de tensión durante el arranque (cos φ≈0,5 típico en arranque): "
+                    f"**{du_arranque_v:.2f} V = {du_arranque_v/tension_ref_mot*100:.2f} %** con la sección "
+                    f"adoptada de {s_mot:g} mm². Una caída elevada en el arranque puede impedir que el motor "
+                    "llegue a girar o afectar a otros receptores del mismo cuadro (parpadeo de alumbrado).")
+
+    # ---------------------------------------------------------------- ILUMINACION
+    with st.expander("💡 Iluminación: luminotecnia y emergencia"):
+        st.markdown("**Nº de luminarias por el método de los lúmenes**")
+        c1, c2 = st.columns(2)
+        local_lum = c1.selectbox("Tipo de local", list(ILUMINANCIA_POR_LOCAL.keys()), key="bt_lum_local")
+        e_lum = c2.number_input("Iluminancia media exigida E (lux)",
+                                 value=float(ILUMINANCIA_POR_LOCAL[local_lum]), min_value=1.0, key="bt_lum_e")
+        c1, c2, c3, c4 = st.columns(4)
+        s_lum = c1.number_input("Superficie (m²)", min_value=1.0, value=30.0, key="bt_lum_s")
+        flujo_lum = c2.number_input("Flujo por luminaria (lm)", min_value=1.0, value=4000.0, key="bt_lum_flujo")
+        cu_lum = c3.number_input("Coef. de utilización Cu", min_value=0.1, max_value=1.0, value=0.5,
+                                  key="bt_lum_cu", help="Depende del índice del local (dimensiones/altura) y "
+                                  "de las reflectancias de techo/paredes/suelo. 0,4-0,6 es un rango habitual "
+                                  "en locales de tamaño medio con acabados claros.")
+        cm_lum = c4.number_input("Coef. de mantenimiento Cm", min_value=0.1, max_value=1.0, value=0.8,
+                                  key="bt_lum_cm", help="Depreciación del flujo por suciedad/envejecimiento; "
+                                  "0,8 es un valor típico con mantenimiento periódico normal.")
+        n_lum = math.ceil((e_lum * s_lum) / (flujo_lum * cu_lum * cm_lum)) if flujo_lum * cu_lum * cm_lum > 0 else 0
+        st.markdown(f"→ N = (E·S)/(Φ·Cu·Cm) = **{n_lum} luminarias** de {flujo_lum:g} lm para "
+                    f"{e_lum:g} lux en {s_lum:g} m².")
+        st.caption("Cálculo simplificado por el método de los lúmenes (nivel medio en el plano de trabajo). "
+                   "No sustituye a un estudio luminotécnico con software fotométrico para locales exigentes "
+                   "o con geometría compleja.")
+
+        st.divider()
+        st.markdown("**Alumbrado de emergencia** (orden de magnitud — ITC-BT-28 / CTE DB-SI 4)")
+        c1, c2 = st.columns(2)
+        s_emerg = c1.number_input("Superficie o longitud de recorrido a cubrir (m²)", min_value=1.0,
+                                   value=80.0, key="bt_emerg_s")
+        flujo_emerg = c2.selectbox("Flujo de la luminaria autónoma (lm)", [90, 150, 240, 315, 400], index=2,
+                                    key="bt_emerg_flujo")
+        area_cobertura = flujo_emerg / 5.0  # aproximación orientativa: ~1 lux de servicio sobre el área cubierta
+        n_emerg = math.ceil(s_emerg / area_cobertura) if area_cobertura > 0 else 0
+        st.markdown(f"→ Área de cobertura orientativa por luminaria ≈ **{area_cobertura:.0f} m²** → "
+                    f"**{n_emerg} luminarias** como orden de magnitud.")
+        st.caption("⚠️ Muy simplificado: la disposición real NO depende solo de la superficie, sino de "
+                   "colocar una luminaria en cada puerta de salida, cambio de dirección, escalera, cuadro "
+                   "eléctrico y equipo de seguridad, con una separación máxima entre ellas (recorridos "
+                   "≤ 25 m) — verifica siempre el trazado sobre plano. Autonomía mínima exigida: 1 hora. "
+                   "Iluminancia mínima: 1 lux en el suelo del recorrido, 5 lux en cuadros y equipos de "
+                   "seguridad.")
+
+    # ---------------------------------------------------------------- VEHICULO ELECTRICO
+    with st.expander("🚗 Punto de recarga de vehículo eléctrico (ITC-BT-52)"):
+        c1, c2, c3 = st.columns(3)
+        modo_carga = c1.selectbox("Modo de carga", ["Modo 2 — toma + cable con protección", "Modo 3 — wallbox dedicado"],
+                                   key="bt_ve_modo")
+        sistema_ve = c2.selectbox("Sistema", [SISTEMA_MONO, SISTEMA_TRI], key="bt_ve_sistema")
+        p_ve = c3.number_input("Potencia del cargador (kW)", min_value=1.0, value=7.4 if sistema_ve == SISTEMA_MONO else 22.0,
+                                key="bt_ve_p")
+        c1, c2, c3 = st.columns(3)
+        v_ve = c1.number_input("Tensión (V)", value=230.0 if sistema_ve == SISTEMA_MONO else 400.0, key="bt_ve_v")
+        l_ve = c2.number_input("Longitud del circuito (m)", min_value=0.1, value=15.0, key="bt_ve_l")
+        du_max_ve = c3.number_input("ΔU máx. recomendada (%)", min_value=0.5, value=3.0, key="bt_ve_du",
+                                     help="El REBT admite hasta 5% en un circuito interior, pero para no "
+                                     "perder potencia de carga se recomienda ser más exigente (≤3%).")
+
+        in_ve = p_ve * 1000 / (v_ve * math.sqrt(3) if sistema_ve == SISTEMA_TRI else v_ve)  # cos phi ~ 1
+        ib_calc_ve = 1.25 * in_ve  # ITC-BT-52: circuito dedicado, sin coeficiente de simultaneidad
+        n_carg_ve = 2 if sistema_ve == SISTEMA_MONO else 3
+        s_iz_ve, iz_ve, _, _ = seccion_por_criterio_termico(ib_calc_ve, METODO_B1, "PVC", "Cobre", n_carg_ve, 1.0)
+        kappa_ve = kappa_servicio("Cobre", "PVC")
+        s_du_ve, _, _ = seccion_por_caida_tension(sistema_ve, ib_calc_ve, l_ve, v_ve, 1.0, kappa_ve, du_max_ve, "Cobre")
+        s_final_ve = max(s_iz_ve or 0, s_du_ve or 0) or None
+        calibre_ve = calibre_magnetotermico_sugerido(ib_calc_ve)
+
+        st.markdown(f"→ In del cargador ≈ **{in_ve:.2f} A** · Ib de cálculo (125%, ITC-BT-52) = "
+                    f"**{ib_calc_ve:.2f} A**")
+        cve1, cve2, cve3 = st.columns(3)
+        cve1.metric("Sección mínima", f"{s_final_ve:g} mm²" if s_final_ve else "—")
+        cve2.metric("Interruptor automático", f"{calibre_ve} A, curva C")
+        cve3.metric("Diferencial mínimo", "Tipo A" if "Modo 2" in modo_carga else "Tipo A o B")
+        st.caption("El circuito debe ser **dedicado** (sin compartir con otros usos) y llevar protección "
+                   "diferencial de, como mínimo, tipo A; si el cargador no garantiza por diseño la ausencia "
+                   "de componente continua de defecto, se exige tipo B — dato que debe indicar el fabricante "
+                   "del cargador (igual criterio que en instalaciones fotovoltaicas, ITC-BT-52 / ITC-BT-40).")
+
+    # ---------------------------------------------------------------- POTENCIA CONTRATADA Y RESPALDO
+    with st.expander("🔋 Potencia contratada, grupo electrógeno y SAI"):
+        st.markdown("**Potencia contratada óptima**")
+        c1, c2, c3 = st.columns(3)
+        p_max_obs = c1.number_input("Potencia máxima demandada observada/estimada (kW)", min_value=0.1,
+                                     value=8.5, key="bt_pc_pmax")
+        margen_pc = c2.number_input("Margen de seguridad (%)", min_value=0.0, value=10.0, key="bt_pc_margen")
+        peaje_pc = c3.number_input("Peaje de potencia orientativo (€/kW y año)", min_value=0.0, value=38.0,
+                                    key="bt_pc_peaje", help="Suma de peaje de acceso + cargos de potencia; "
+                                    "varía según la comunidad autónoma y la comercializadora — ajusta este "
+                                    "valor a tu caso real.")
+        p_optima = p_max_obs * (1 + margen_pc / 100)
+        st.markdown(f"→ Potencia a contratar recomendada ≈ **{p_optima:.2f} kW**")
+        cp1, cp2, cp3 = st.columns(3)
+        for col, factor, etiqueta in zip([cp1, cp2, cp3], [0.9, 1.0, 1.15], ["Ajustada (-10%)", "Recomendada", "Con holgura (+15%)"]):
+            p_test = p_optima * factor
+            coste_fijo = p_test * peaje_pc
+            with col:
+                st.metric(etiqueta, f"{p_test:.2f} kW", f"{_fmt_eur(coste_fijo)}/año término fijo")
+        st.caption("Contratar por debajo de la potencia realmente demandada expone a penalización por "
+                   "excesos de potencia en la factura; contratar de más solo encarece el término fijo sin "
+                   "beneficio. El margen de seguridad amortigua picos puntuales no observados en la muestra.")
+
+        st.divider()
+        st.markdown("**Grupo electrógeno de respaldo**")
+        c1, c2, c3 = st.columns(3)
+        p_criticas_ge = c1.number_input("Suma de cargas críticas (kW)", min_value=0.1, value=15.0,
+                                         key="bt_ge_p")
+        cosphi_ge = c2.number_input("cos φ medio de las cargas", min_value=0.1, max_value=1.0, value=0.85,
+                                     key="bt_ge_cosphi")
+        factor_arranque_ge = c3.number_input("Factor por arranque de motores", min_value=1.0, value=1.25,
+                                              step=0.05, key="bt_ge_factor", help="Sobredimensionado para "
+                                              "cubrir la punta de corriente al arrancar motores u otras "
+                                              "cargas con arranque brusco; 1,25-1,5 es habitual si hay "
+                                              "motores en las cargas críticas.")
+        s_ge = (p_criticas_ge / cosphi_ge) * factor_arranque_ge
+        escalones_kva = [5, 8, 10, 15, 20, 25, 30, 40, 50, 65, 80, 100, 125, 150, 200, 250]
+        ge_sugerido = next((e for e in escalones_kva if e >= s_ge), escalones_kva[-1])
+        st.markdown(f"→ Potencia aparente necesaria ≈ **{s_ge:.1f} kVA** → grupo comercial recomendado: "
+                    f"**{ge_sugerido:g} kVA** (siguiente escalón normalizado).")
+
+        st.divider()
+        st.markdown("**SAI / UPS de respaldo**")
+        c1, c2, c3, c4 = st.columns(4)
+        p_criticas_sai = c1.number_input("Carga crítica (kW)", min_value=0.05, value=2.0, key="bt_sai_p")
+        autonomia_sai = c2.number_input("Autonomía deseada (min)", min_value=1.0, value=15.0, key="bt_sai_t")
+        v_bateria_sai = c3.number_input("Tensión del banco de baterías (V)", min_value=1.0, value=48.0,
+                                         key="bt_sai_v")
+        eficiencia_sai = c4.number_input("Eficiencia del SAI (%)", min_value=50.0, max_value=100.0, value=90.0,
+                                          key="bt_sai_eff") / 100
+        energia_sai_wh = p_criticas_sai * 1000 * (autonomia_sai / 60) / eficiencia_sai
+        capacidad_sai_ah = energia_sai_wh / v_bateria_sai
+        st.markdown(f"→ Energía necesaria ≈ **{energia_sai_wh:.0f} Wh** → capacidad de batería ≈ "
+                    f"**{capacidad_sai_ah:.1f} Ah** a {v_bateria_sai:g} V.")
+
+    # ---------------------------------------------------------------- TARIFAS Y EFICIENCIA ENERGETICA
+    with st.expander("💡 Tarifas eléctricas y eficiencia energética"):
+        st.markdown("**Comparador de tarifas de acceso (2.0TD / 3.0TD)**")
+        st.caption("⚠️ Modelo simplificado a 3 periodos (punta/llano/valle) para orientar la decisión — la "
+                   "3.0TD real tiene 6 periodos estacionales, y los peajes/cargos son precios regulados que "
+                   "cambian; ajusta los valores por defecto a la tarifa real de tu comercializadora.")
+        ct1, ct2 = st.columns(2)
+        with ct1:
+            potencia_contratada_cmp = st.number_input("Potencia contratada (kW)", min_value=0.1, value=10.0,
+                                                        step=0.5, key="bt_tar_potencia")
+            tarifa_aplicable = "2.0TD (≤15 kW)" if potencia_contratada_cmp <= 15 else "3.0TD (>15 kW)"
+            st.info(f"Tarifa de acceso aplicable: **{tarifa_aplicable}**")
+        with ct2:
+            consumo_anual_cmp = st.number_input("Consumo anual (kWh)", min_value=1.0, value=4000.0, step=100.0,
+                                                 key="bt_tar_consumo")
+        ct3, ct4, ct5 = st.columns(3)
+        pct_punta = ct3.number_input("% consumo en punta", min_value=0.0, max_value=100.0, value=25.0,
+                                      key="bt_tar_pct_punta")
+        pct_llano = ct4.number_input("% consumo en llano", min_value=0.0, max_value=100.0, value=45.0,
+                                      key="bt_tar_pct_llano")
+        pct_valle = ct5.number_input("% consumo en valle", min_value=0.0, max_value=100.0, value=30.0,
+                                      key="bt_tar_pct_valle")
+        suma_pct = pct_punta + pct_llano + pct_valle
+        if abs(suma_pct - 100) > 0.5:
+            st.warning(f"⚠️ Los 3 porcentajes suman {suma_pct:.0f}%, deberían sumar 100%.")
+        st.markdown("**Precios orientativos** (edítalos según tu tarifa real)")
+        pt1, pt2, pt3, pt4 = st.columns(4)
+        precio_potencia_ano = pt1.number_input("Precio potencia (€/kW·año)", min_value=0.0,
+                                                value=38.0 if potencia_contratada_cmp <= 15 else 29.0,
+                                                key="bt_tar_precio_pot")
+        precio_punta = pt2.number_input("Precio energía punta (€/kWh)", min_value=0.0, value=0.22, step=0.01,
+                                         key="bt_tar_precio_punta")
+        precio_llano = pt3.number_input("Precio energía llano (€/kWh)", min_value=0.0, value=0.16, step=0.01,
+                                         key="bt_tar_precio_llano")
+        precio_valle = pt4.number_input("Precio energía valle (€/kWh)", min_value=0.0, value=0.10, step=0.01,
+                                         key="bt_tar_precio_valle")
+        incluir_impuestos = st.checkbox("Incluir impuesto eléctrico (5,11269632%) e IVA (21%)", value=True,
+                                         key="bt_tar_impuestos")
+
+        termino_potencia_cmp = potencia_contratada_cmp * precio_potencia_ano
+        termino_energia_cmp = (consumo_anual_cmp * pct_punta / 100 * precio_punta +
+                               consumo_anual_cmp * pct_llano / 100 * precio_llano +
+                               consumo_anual_cmp * pct_valle / 100 * precio_valle)
+        subtotal_cmp = termino_potencia_cmp + termino_energia_cmp
+        if incluir_impuestos:
+            subtotal_cmp *= 1.0511269632
+            total_cmp = subtotal_cmp * 1.21
+        else:
+            total_cmp = subtotal_cmp
+
+        tc1, tc2, tc3 = st.columns(3)
+        tc1.metric("Término de potencia (año)", _fmt_eur(termino_potencia_cmp))
+        tc2.metric("Término de energía (año)", _fmt_eur(termino_energia_cmp))
+        tc3.metric("Estimación factura anual", _fmt_eur(total_cmp),
+                   f"≈ {_fmt_eur(total_cmp/12)}/mes")
+        st.caption("Estimación orientativa para comparar escenarios (p. ej. bajar la potencia contratada o "
+                   "desplazar consumo a horario valle) — no sustituye a la factura real de tu "
+                   "comercializadora, que puede incluir otros conceptos (alquiler de contador, descuentos, "
+                   "tarifas planas...).")
+
+        st.divider()
+        st.markdown("**Amortización de eficiencia energética** (p. ej. cambio a LED)")
+        ef1, ef2, ef3 = st.columns(3)
+        potencia_actual_ef = ef1.number_input("Potencia actual instalada (W)", min_value=1.0, value=1000.0,
+                                               key="bt_ef_p_actual")
+        potencia_nueva_ef = ef2.number_input("Potencia nueva (LED) (W)", min_value=1.0, value=350.0,
+                                              key="bt_ef_p_nueva")
+        horas_dia_ef = ef3.number_input("Horas de uso al día", min_value=0.1, value=8.0, key="bt_ef_horas")
+        ef4, ef5 = st.columns(2)
+        precio_kwh_ef = ef4.number_input("Precio kWh (€)", min_value=0.01, value=0.18, key="bt_ef_precio")
+        inversion_ef = ef5.number_input("Inversión en el cambio (€)", min_value=0.0, value=600.0,
+                                         key="bt_ef_inversion")
+
+        kwh_ahorrado_dia = (potencia_actual_ef - potencia_nueva_ef) / 1000 * horas_dia_ef
+        ahorro_anual_ef = kwh_ahorrado_dia * 365 * precio_kwh_ef
+        payback_ef = inversion_ef / ahorro_anual_ef if ahorro_anual_ef > 0 else None
+
+        ee1, ee2, ee3 = st.columns(3)
+        ee1.metric("Reducción de potencia", f"{potencia_actual_ef - potencia_nueva_ef:.0f} W",
+                   f"{(1 - potencia_nueva_ef/potencia_actual_ef)*100:.0f}%" if potencia_actual_ef else None)
+        ee2.metric("Ahorro anual estimado", _fmt_eur(ahorro_anual_ef))
+        ee3.metric("Retorno de la inversión", f"{payback_ef:.1f} años" if payback_ef else "—")
+        if payback_ef and payback_ef < 5:
+            st.success(f"✅ Con estos datos, el cambio se amortiza en menos de 5 años "
+                       f"({payback_ef:.1f} años).")
+
+    # ---------------------------------------------------------------- NEUTRO CON ARMONICOS
+    with st.expander("➰ Sección de neutro con cargas no lineales (armónicos)"):
+        st.caption("Justificación según la guía de armónicos de tercer orden (triplen) de la norma "
+                   "UNE-HD 60364-5-52 / IEC 60364-5-523, para cargas no lineales (electrónica, iluminación "
+                   "LED/fluorescente con balasto electrónico, variadores de frecuencia, informática...).")
+        thd3 = st.slider("Contenido de 3er armónico en la corriente de fase, THD₃ (%)", 0, 60, 20,
+                          key="bt_arm_thd3")
+        if thd3 < 15:
+            st.success(f"✅ THD₃ = {thd3}% < 15%: el efecto de los armónicos es despreciable. El neutro se "
+                       "dimensiona con el criterio general (igual sección que la fase, sin coeficientes "
+                       "adicionales).")
+        elif thd3 <= 33:
+            st.warning(f"⚠️ THD₃ = {thd3}% (entre 15% y 33%): debe aplicarse un factor de reducción de "
+                       "**0,86** a la intensidad admisible del conductor de fase (equivale a sobredimensionar "
+                       "la fase respecto al cálculo sin armónicos). El neutro debe tener, como mínimo, la "
+                       "misma sección que la fase — no es reducible aunque la fase sea de sección grande.")
+        else:
+            st.error(f"❌ THD₃ = {thd3}% (> 33%): la corriente por el neutro puede superar a la de fase. El "
+                     "neutro pasa a ser el conductor determinante del dimensionado: calcúlalo con el mismo "
+                     "criterio térmico que una fase (su propia Iz), y aplica igualmente el factor de "
+                     "reducción de **0,86** a la fase.")
+        st.caption("La corriente de tercer armónico (y sus múltiplos, 3º-9º-15º...) se suma en fase en el "
+                   "neutro de un sistema trifásico con neutro, en vez de cancelarse como ocurre con la "
+                   "componente fundamental equilibrada — por eso puede llegar a superar la propia corriente "
+                   "de fase con cargas no lineales importantes.")
+
 
 
 def _render_sidebar():
@@ -5018,6 +6671,7 @@ def _render_sidebar():
 
         AYUDA_NAV = {
             "Inicio": "Panel principal: resumen del proyecto, accesos rápidos y plantillas.",
+            "Presentación cliente": "Vista simplificada del proyecto, sin jerga técnica, para explicarlo a alguien no técnico.",
             "Proyectos": "Guardar, abrir, duplicar y comparar tus proyectos.",
             "Estadísticas": "Gráficos del presupuesto y de la producción fotovoltaica.",
             "Calculadora": "Punto de partida: calcula la sección de un cable de baja tensión.",
@@ -5028,6 +6682,7 @@ def _render_sidebar():
             "Documentación": "Genera la MTD, el Anexo de Cálculos y el Pliego de Condiciones en PDF.",
             "Tablas normativas": "Consulta las tablas de intensidades y factores de la Guía-BT-19.",
             "Metodología": "Qué criterios y normativa aplica cada cálculo de la app.",
+            "Autoevaluación": "Test rápido con preguntas generadas a partir de las tablas normativas de la app.",
             "Configuración": "Tu nombre, logo y firma (para los PDF) y el tema de la app.",
             "Acerca de": "Qué es esta aplicación y sus limitaciones conocidas.",
         }
@@ -5036,6 +6691,7 @@ def _render_sidebar():
         nav_button("🏠", "Inicio", AYUDA_NAV["Inicio"])
         nav_button("📁", "Proyectos", AYUDA_NAV["Proyectos"])
         nav_button("📊", "Estadísticas", AYUDA_NAV["Estadísticas"])
+        nav_button("🗣️", "Presentación cliente", AYUDA_NAV["Presentación cliente"])
 
         st.markdown('<p class="nav-group-label">Herramientas</p>', unsafe_allow_html=True)
         iconos_herr = {"Calculadora": "🔌", "Fórmulas": "🧮", "Fotovoltaica": "☀️",
@@ -5049,6 +6705,7 @@ def _render_sidebar():
         st.markdown('<p class="nav-group-label">Normativa</p>', unsafe_allow_html=True)
         nav_button("📚", "Tablas normativas", AYUDA_NAV["Tablas normativas"])
         nav_button("📖", "Metodología", AYUDA_NAV["Metodología"])
+        nav_button("🎓", "Autoevaluación", AYUDA_NAV["Autoevaluación"])
 
         st.markdown('<p class="nav-group-label">Sistema</p>', unsafe_allow_html=True)
         nav_button("⚙️", "Configuración", AYUDA_NAV["Configuración"])
@@ -5787,6 +7444,316 @@ normativa aplicable antes de firmar un proyecto.
 # 9. PUNTO DE ENTRADA
 # ==============================================================================
 
+def _generar_pregunta_iz():
+    s = random.choice(list(TABLA_A_COBRE.keys()))
+    metodo_col = random.choice(["B1", "CE"])
+    idx_col = random.choice([IDX_3PVC, IDX_2PVC])
+    valor_real = TABLA_A_COBRE[s][metodo_col][idx_col]
+    nombre_metodo = "B1 (tubo empotrado)" if metodo_col == "B1" else "C/E (bandeja o directo)"
+    n_cond = "3 cargados (trifásico)" if idx_col == IDX_3PVC else "2 cargados (monofásico)"
+    distractores = {round(valor_real * f, 1) for f in (0.75, 0.85, 1.15, 1.3) if round(valor_real * f, 1) != valor_real}
+    opciones = list(distractores)[:3] + [valor_real]
+    random.shuffle(opciones)
+    return {
+        "pregunta": f"Según la Guía-BT-19 (Tabla A), ¿cuál es la intensidad admisible (Iz) de un cable de "
+                    f"cobre de {s:g} mm², aislamiento PVC, método {nombre_metodo}, {n_cond}?",
+        "opciones": [f"{v:g} A" for v in opciones],
+        "correcta": opciones.index(valor_real),
+        "explicacion": f"La Tabla A de la Guía-BT-19 da {valor_real:g} A para esa combinación exacta de "
+                       f"sección, método y nº de conductores cargados — antes de aplicar los factores de "
+                       "corrección por temperatura, agrupamiento, etc.",
+    }
+
+
+def _generar_pregunta_agrupamiento():
+    disposicion = random.choice(list(TABLA_E_AGRUPAMIENTO.keys()))
+    n_circ = random.choice(list(TABLA_E_AGRUPAMIENTO[disposicion].keys()))
+    valor_real = TABLA_E_AGRUPAMIENTO[disposicion][n_circ]
+    distractores = {round(valor_real + d, 2) for d in (-0.15, -0.08, 0.08, 0.15) if 0.2 < round(valor_real + d, 2) <= 1.0}
+    opciones = list(distractores)[:3] + [valor_real]
+    opciones = list(dict.fromkeys(opciones))[:4]
+    if valor_real not in opciones:
+        opciones[0] = valor_real
+    random.shuffle(opciones)
+    return {
+        "pregunta": f"Con {n_circ} circuitos agrupados en disposición «{disposicion}», ¿qué factor de "
+                    "corrección por agrupamiento (Tabla E) se aplica a la Iz de cada circuito?",
+        "opciones": [f"{v:.2f}" for v in opciones],
+        "correcta": opciones.index(valor_real),
+        "explicacion": f"La Tabla E de la Guía-BT-19 fija {valor_real:.2f} para {n_circ} circuitos en esa "
+                       "disposición — cuantos más circuitos agrupados, menor es el factor, porque se "
+                       "calientan entre sí.",
+    }
+
+
+def _generar_pregunta_seccion_proteccion():
+    s_fase = random.choice([4, 10, 16, 25, 35, 50, 70])
+    if s_fase <= 16:
+        correcta = s_fase
+    elif s_fase <= 35:
+        correcta = 16
+    else:
+        correcta = s_fase / 2
+    opciones_posibles = sorted({s_fase, 16, s_fase / 2, s_fase * 2})
+    opciones = [o for o in opciones_posibles if o > 0][:4]
+    while len(opciones) < 4:
+        opciones.append(max(opciones) * 1.5)
+    random.shuffle(opciones)
+    return {
+        "pregunta": f"Según la tabla de la ITC-BT-18, para un conductor de fase de {s_fase:g} mm², ¿qué "
+                    "sección mínima debe tener el conductor de protección?",
+        "opciones": [f"{v:g} mm²" for v in opciones],
+        "correcta": opciones.index(correcta),
+        "explicacion": "ITC-BT-18: Sf≤16 → Sp=Sf; 16<Sf≤35 → Sp=16 mm²; Sf>35 → Sp=Sf/2.",
+    }
+
+
+def _generar_pregunta_curva_magnetotermico():
+    curva = random.choice(list(CURVA_MAGNETOTERMICO_RANGOS.keys()))
+    rango_real = CURVA_MAGNETOTERMICO_RANGOS[curva]
+    otras_curvas = [c for c in CURVA_MAGNETOTERMICO_RANGOS if c != curva]
+    opciones_rangos = [rango_real] + [CURVA_MAGNETOTERMICO_RANGOS[c] for c in otras_curvas]
+    random.shuffle(opciones_rangos)
+    return {
+        "pregunta": f"¿Entre qué múltiplos de In dispara instantáneamente (zona magnética) un interruptor "
+                    f"automático de curva {curva}?",
+        "opciones": [f"{r[0]}-{r[1]}×In" for r in opciones_rangos],
+        "correcta": opciones_rangos.index(rango_real),
+        "explicacion": f"La curva {curva} dispara instantáneamente entre {rango_real[0]} y {rango_real[1]} "
+                       "veces la intensidad nominal (UNE-EN 60898). B es la más sensible (circuitos "
+                       "resistivos/largos), D la menos (motores, transformadores).",
+    }
+
+
+def _generar_pregunta_ratio_motor():
+    pmin, pmax, ratio_real = random.choice(RATIO_IA_IN_MAX_MOTOR)
+    otros_ratios = [r for _, _, r in RATIO_IA_IN_MAX_MOTOR if r != ratio_real]
+    opciones = [ratio_real] + otros_ratios
+    random.shuffle(opciones)
+    rango_txt = f"{pmin:g}-{pmax:g} kW" if pmax != float("inf") else f"más de {pmin:g} kW"
+    return {
+        "pregunta": f"Según la ITC-BT-47, para un motor de potencia en el rango {rango_txt}, ¿cuál es la "
+                    "relación máxima admisible entre la intensidad de arranque directo y la nominal (Ia/In)?",
+        "opciones": [f"{v:g}" for v in opciones],
+        "correcta": opciones.index(ratio_real),
+        "explicacion": f"La ITC-BT-47 limita Ia/In a {ratio_real:g} para motores en ese rango de potencia; "
+                       "por encima, se exige un sistema de arranque que reduzca la corriente (p. ej. "
+                       "estrella-triángulo).",
+    }
+
+
+def _generar_pregunta_resistividad_terreno():
+    terrenos_validos = {k: v for k, v in RESISTIVIDAD_TERRENOS_REF.items() if v is not None}
+    terreno = random.choice(list(terrenos_validos.keys()))
+    valor_real = terrenos_validos[terreno]
+    valores_unicos = list({v for v in terrenos_validos.values() if v != valor_real})
+    otros = random.sample(valores_unicos, min(3, len(valores_unicos)))
+    opciones = [valor_real] + otros
+    random.shuffle(opciones)
+    return {
+        "pregunta": f"¿Cuál es la resistividad orientativa del terreno tipo «{terreno}» (Ω·m), a efectos de "
+                    "cálculo de puesta a tierra (ITC-BT-18)?",
+        "opciones": [f"{v:g} Ω·m" for v in opciones],
+        "correcta": opciones.index(valor_real),
+        "explicacion": f"Valor de referencia: {valor_real:g} Ω·m. La resistividad real del terreno debe "
+                       "medirse in situ siempre que sea posible; estos valores son solo orientativos para "
+                       "un anteproyecto.",
+    }
+
+
+def _generar_pregunta_colores_resistencia():
+    col1 = random.choice([c for c in COLORES_DIGITO if c not in ("Negro",)])
+    col2 = random.choice(list(COLORES_DIGITO.keys()))
+    col3 = random.choice(list(COLORES_MULTIPLICADOR.keys()))
+    valor_real, _ = valor_resistencia_4_bandas(col1, col2, col3, "Oro")
+    distractores = {valor_real * f for f in (10, 0.1, 2) if valor_real * f != valor_real}
+    opciones = list(distractores)[:3] + [valor_real]
+    opciones = list(dict.fromkeys(opciones))
+    random.shuffle(opciones)
+    return {
+        "pregunta": f"Una resistencia con bandas {col1}-{col2}-{col3} (código de 4 bandas), ¿qué valor "
+                    "representa?",
+        "opciones": [f"{v:g} Ω" for v in opciones],
+        "correcta": opciones.index(valor_real),
+        "explicacion": f"Valor = (dígito1×10 + dígito2) × multiplicador = "
+                       f"({COLORES_DIGITO[col1]}×10+{COLORES_DIGITO[col2]})×{COLORES_MULTIPLICADOR[col3]:g} = "
+                       f"{valor_real:g} Ω.",
+    }
+
+
+def _generar_pregunta_du_maxima():
+    caso = random.choice([
+        ("alumbrado, en instalación interior", 3.0),
+        ("otros usos, en instalación interior", 5.0),
+        ("derivación individual, sin línea general de alimentación", 1.5),
+    ])
+    descripcion, valor_real = caso
+    opciones = sorted({1.5, 3.0, 5.0, 6.5})
+    return {
+        "pregunta": f"¿Cuál es la caída de tensión máxima admisible (%) para un circuito de {descripcion}?",
+        "opciones": [f"{v:g} %" for v in opciones],
+        "correcta": opciones.index(valor_real),
+        "explicacion": "ITC-BT-19/14/15: 3% alumbrado y 5% otros usos en instalación interior; 1,5% en "
+                       "derivación individual cuando no existe línea general de alimentación.",
+    }
+
+
+GENERADORES_PREGUNTAS = [
+    _generar_pregunta_iz, _generar_pregunta_agrupamiento, _generar_pregunta_seccion_proteccion,
+    _generar_pregunta_curva_magnetotermico, _generar_pregunta_ratio_motor,
+    _generar_pregunta_resistividad_terreno, _generar_pregunta_colores_resistencia,
+    _generar_pregunta_du_maxima,
+]
+
+
+def _render_autoevaluacion():
+    st.markdown('<p class="section-label">Autoevaluación</p>', unsafe_allow_html=True)
+    st.caption("Preguntas generadas en el momento a partir de las mismas tablas normativas que usa la "
+               "app (Tabla A, Tabla E, ITC-BT-18, ITC-BT-47...) — no son un banco fijo de preguntas, cada "
+               "test es distinto. Pensado para repasar antes de un examen o una prueba de aptitud.")
+
+    n_preguntas = st.slider("Número de preguntas", 4, len(GENERADORES_PREGUNTAS), 8, key="quiz_n")
+    if st.button("🎲 Generar test nuevo", type="primary"):
+        generadores_elegidos = random.sample(GENERADORES_PREGUNTAS, min(n_preguntas, len(GENERADORES_PREGUNTAS)))
+        st.session_state["quiz_preguntas"] = [g() for g in generadores_elegidos]
+        st.session_state["quiz_respuestas"] = [None] * len(generadores_elegidos)
+        st.session_state["quiz_corregido"] = False
+        st.rerun()
+
+    preguntas = st.session_state.get("quiz_preguntas")
+    if not preguntas:
+        st.info("Pulsa «Generar test nuevo» para empezar.")
+        return
+
+    respuestas = st.session_state["quiz_respuestas"]
+    corregido = st.session_state.get("quiz_corregido", False)
+
+    for i_p, preg in enumerate(preguntas):
+        st.markdown(f"**{i_p + 1}. {preg['pregunta']}**")
+        idx_elegido = st.radio("Respuesta", preg["opciones"], index=respuestas[i_p], key=f"quiz_resp_{i_p}",
+                                label_visibility="collapsed")
+        respuestas[i_p] = preg["opciones"].index(idx_elegido) if idx_elegido is not None else None
+        if corregido:
+            if respuestas[i_p] == preg["correcta"]:
+                st.success(f"✅ Correcto — {preg['explicacion']}")
+            else:
+                st.error(f"❌ La respuesta correcta era «{preg['opciones'][preg['correcta']]}» — "
+                         f"{preg['explicacion']}")
+        st.divider()
+
+    if not corregido:
+        if st.button("✔️ Corregir test", type="primary"):
+            if any(r is None for r in respuestas):
+                st.warning("Responde todas las preguntas antes de corregir.")
+            else:
+                st.session_state["quiz_corregido"] = True
+                st.rerun()
+    else:
+        aciertos = sum(1 for i, preg in enumerate(preguntas) if respuestas[i] == preg["correcta"])
+        pct = aciertos / len(preguntas) * 100
+        st.markdown(f"### Resultado: {aciertos}/{len(preguntas)} ({pct:.0f}%)")
+        st.progress(pct / 100)
+        if pct >= 80:
+            st.success("🎉 Muy buen resultado.")
+        elif pct >= 50:
+            st.warning("Vas por buen camino — repasa lo que hayas fallado.")
+        else:
+            st.error("Conviene repasar estos temas antes de un examen o prueba real.")
+
+
+def _render_presentacion_cliente():
+    st.markdown('<p class="section-label">Presentación cliente</p>', unsafe_allow_html=True)
+    st.caption("La misma información del proyecto, sin siglas ni jerga técnica (REBT, ITC-BT, mm²...) — "
+               "pensada para compartir pantalla o imprimir cuando se lo explicas a alguien que no es del "
+               "sector.")
+
+    inputs_cable = st.session_state.get("inputs_cable", {})
+    resultado_cable = st.session_state.get("resultado_cable", {})
+    inputs_fv = st.session_state.get("inputs_fv", {})
+    resultado_fv = st.session_state.get("resultado_fv", {})
+    capitulos = st.session_state.get("presupuesto_capitulos", [])
+    cfg_presu = st.session_state.get("presupuesto_config", {
+        "pct_beneficio": PORCENTAJE_BENEFICIO_DEFECTO, "pct_amortizacion": PORCENTAJE_AMORTIZACION_DEFECTO,
+        "pct_iva": IVA_DEFECTO_PCT,
+    })
+    datos = st.session_state.get("datos_proyecto", {})
+
+    hay_cable = resultado_cable.get("seccion_final") is not None
+    hay_fv = bool(resultado_fv) and resultado_fv.get("p_pico_kwp") is not None
+    subtotal = sum(calcular_totales_capitulo(c["items"], cfg_presu["pct_beneficio"], cfg_presu["pct_amortizacion"])
+                   for c in capitulos)
+    total_presupuesto = subtotal * (1 + cfg_presu["pct_iva"] / 100) if capitulos else 0.0
+
+    if not hay_cable and not hay_fv and not capitulos:
+        st.info("Todavía no hay nada calculado — completa la Calculadora, la Fotovoltaica o el Presupuesto "
+                "para ver aquí el resumen listo para presentar.")
+        return
+
+    nombre_cliente = datos.get("titular") or "tu proyecto"
+    st.markdown(f"## 👋 Esto es lo que hemos preparado para {nombre_cliente}")
+
+    if hay_cable:
+        with st.container(border=True):
+            st.markdown("### 🔌 La instalación eléctrica")
+            grosor_mm = resultado_cable["seccion_final"]
+            comparacion = ("un cable fino, como el de un cargador de móvil" if grosor_mm <= 2.5 else
+                          "un cable de grosor medio, como el de un electrodoméstico grande" if grosor_mm <= 10 else
+                          "un cable considerablemente grueso, pensado para mover mucha potencia con seguridad")
+            st.markdown(f"Para esta parte de la instalación hace falta un cable de **{grosor_mm:g} mm²** de "
+                        f"grosor — a modo de referencia, es {comparacion}.")
+            cumple_du = resultado_cable.get("e_final_pct", 0) <= inputs_cable.get("delta_u_max", 5)
+            if cumple_du:
+                st.success("✅ Con este cable, la corriente llega con la fuerza necesaria de principio a "
+                           "fin sin perder potencia por el camino.")
+            st.markdown(f"Además, se instala una protección automática de **{resultado_cable['calibre_magnetotermico']} A** "
+                        "que corta la luz sola si algo va mal, antes de que pueda ser peligroso.")
+
+    if hay_fv:
+        with st.container(border=True):
+            st.markdown("### ☀️ Los paneles solares")
+            p_pico = resultado_fv["p_pico_kwp"]
+            produccion = resultado_fv["produccion_anual_kwh"]
+            n_paneles = resultado_fv["n_paneles_configurados"]
+            st.markdown(f"Se instalan **{n_paneles} paneles solares**, con una potencia conjunta de "
+                        f"**{p_pico:.1f} kW** — suficiente para producir aproximadamente "
+                        f"**{_miles(produccion)} kWh de electricidad al año**.")
+            equivalente_hogares_dias = produccion / 10  # aprox 10 kWh/dia consumo hogar medio
+            st.caption(f"Para hacerte una idea: es más o menos lo que consumiría una vivienda media durante "
+                       f"{equivalente_hogares_dias:.0f} días.")
+            if resultado_fv.get("ahorro_anual"):
+                st.markdown(f"Esto se traduce en un ahorro estimado de **{_fmt_eur(resultado_fv['ahorro_anual'])} "
+                            "al año** en la factura de la luz.")
+            if resultado_fv.get("payback_anos"):
+                st.markdown(f"Con la inversión que nos has indicado, los paneles se pagan solos en unos "
+                            f"**{resultado_fv['payback_anos']:.0f} años** — a partir de ahí, el ahorro es "
+                            "beneficio neto.")
+            co2 = resultado_fv.get("co2_evitado_kg_ano", 0) / 1000
+            if co2:
+                st.markdown(f"De paso, se evita la emisión de unas **{co2:.1f} toneladas de CO₂ al año** — "
+                            "el equivalente a lo que absorben decenas de árboles.")
+
+    if capitulos:
+        with st.container(border=True):
+            st.markdown("### 💰 El coste total")
+            st.markdown(f"## {_fmt_eur(total_presupuesto)}")
+            st.caption(f"Impuestos incluidos. Repartido en {len(capitulos)} bloques de trabajo "
+                       f"({', '.join(c['nombre'] for c in capitulos[:4])}"
+                       f"{'...' if len(capitulos) > 4 else ''}).")
+
+    st.divider()
+    st.caption("💡 Los números técnicos completos (secciones exactas, normativa aplicada, desglose de "
+               "precios) siguen disponibles en la pestaña Documentación, por si en algún momento hace "
+               "falta el detalle.")
+
+    with st.spinner("Generando ficha para el cliente..."):
+        pdf_cliente = generar_pdf_presentacion_cliente(datos, inputs_cable, resultado_cable, inputs_fv,
+                                                         resultado_fv, total_presupuesto,
+                                                         st.session_state.get("config_profesional", {}))
+    if st.download_button("⬇️ Descargar esta misma vista en PDF", data=pdf_cliente,
+                           file_name="presentacion_cliente.pdf", mime="application/pdf"):
+        _registrar_actividad("🗣️", "Ficha de presentación cliente descargada")
+
+
 def main():
     st.set_page_config(page_title="REBT Suite · Instalaciones Eléctricas", page_icon="⚡", layout="wide",
                        initial_sidebar_state="expanded")
@@ -5816,6 +7783,12 @@ def main():
         return
     if pagina == "Metodología":
         _render_metodologia()
+        return
+    if pagina == "Autoevaluación":
+        _render_autoevaluacion()
+        return
+    if pagina == "Presentación cliente":
+        _render_presentacion_cliente()
         return
 
     # --- Páginas de herramientas: mismo cajetín de cabecera que antes ---
@@ -5866,6 +7839,7 @@ def main():
             st.session_state["_ultima_potencia_fv"] = resultado_fv["p_pico_kwp"]
             _registrar_actividad("☀️", f"FV calculada: {resultado_fv['p_pico_kwp']:.1f} kWp")
         _render_resultados_fv(inputs_fv, resultado_fv)
+        _render_comparador_fv(inputs_fv, resultado_fv)
 
     elif pagina == "Cálculos BT":
         _render_calculos_bt()
