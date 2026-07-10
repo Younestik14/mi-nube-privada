@@ -440,25 +440,55 @@ TARIFAS_MANO_OBRA_DEFECTO = {
 # cable, cajas); las de tipo "tierra" y "elemento" tienen su propio cálculo.
 # Valores por defecto orientativos — siempre editables en la propia UI.
 TIPOS_INSTALACION_ESTIMADOR = {
-    "🏠 Vivienda unifamiliar / piso": [
+    "🏠 Vivienda — Electrificación básica (ITC-BT-25, ≥5.750 W)": [
         {"nombre": "C1 · Iluminación", "tipo": "circuito", "unidad_elem": "puntos de luz",
          "n_defecto": 10, "long_defecto": 8.0, "conductores": 3},
-        {"nombre": "C2 · Tomas de uso general", "tipo": "circuito", "unidad_elem": "tomas",
+        {"nombre": "C2 · Tomas de uso general y frigorífico", "tipo": "circuito", "unidad_elem": "tomas",
          "n_defecto": 12, "long_defecto": 10.0, "conductores": 3},
         {"nombre": "C3 · Cocina y horno", "tipo": "circuito", "unidad_elem": "tomas",
          "n_defecto": 2, "long_defecto": 6.0, "conductores": 3},
-        {"nombre": "C4 · Lavadora / lavavajillas / termo", "tipo": "circuito", "unidad_elem": "tomas",
+        {"nombre": "C4 · Lavadora, lavavajillas y termo eléctrico", "tipo": "circuito", "unidad_elem": "tomas",
          "n_defecto": 3, "long_defecto": 8.0, "conductores": 3},
         {"nombre": "C5 · Baño y tomas auxiliares de cocina", "tipo": "circuito", "unidad_elem": "tomas",
          "n_defecto": 2, "long_defecto": 6.0, "conductores": 3},
-        {"nombre": "C7 · Climatización", "tipo": "circuito", "unidad_elem": "unidades",
-         "n_defecto": 1, "long_defecto": 12.0, "conductores": 3},
         {"nombre": "Derivación individual", "tipo": "circuito", "unidad_elem": "líneas",
          "n_defecto": 1, "long_defecto": 15.0, "conductores": 3},
-        {"nombre": "Cuadro general de mando y protección", "tipo": "elemento", "unidad_elem": "cuadros",
-         "n_defecto": 1, "precio_estimado": 48.0},
+        {"nombre": "Cuadro general de mando y protección (básica, ~12 módulos)", "tipo": "elemento",
+         "unidad_elem": "cuadros", "n_defecto": 1, "precio_estimado": 42.0},
         {"nombre": "Puesta a tierra", "tipo": "tierra", "unidad_elem": "picas", "n_defecto": 1,
          "long_defecto": 20.0},
+    ],
+    "🏠 Vivienda — Electrificación elevada (ITC-BT-25, ≥9.200 W)": [
+        {"nombre": "C1 · Iluminación", "tipo": "circuito", "unidad_elem": "puntos de luz",
+         "n_defecto": 14, "long_defecto": 10.0, "conductores": 3},
+        {"nombre": "C2 · Tomas de uso general y frigorífico", "tipo": "circuito", "unidad_elem": "tomas",
+         "n_defecto": 16, "long_defecto": 12.0, "conductores": 3},
+        {"nombre": "C3 · Cocina y horno", "tipo": "circuito", "unidad_elem": "tomas",
+         "n_defecto": 2, "long_defecto": 6.0, "conductores": 3},
+        {"nombre": "C4 · Lavadora, lavavajillas y termo eléctrico", "tipo": "circuito", "unidad_elem": "tomas",
+         "n_defecto": 3, "long_defecto": 8.0, "conductores": 3},
+        {"nombre": "C5 · Baño y tomas auxiliares de cocina", "tipo": "circuito", "unidad_elem": "tomas",
+         "n_defecto": 2, "long_defecto": 6.0, "conductores": 3},
+        {"nombre": "C6 · Circuito adicional C1/C2/C3 (exceso de puntos)", "tipo": "circuito",
+         "unidad_elem": "tomas/puntos", "n_defecto": 6, "long_defecto": 10.0, "conductores": 3},
+        {"nombre": "C7 · Calefacción eléctrica", "tipo": "circuito", "unidad_elem": "unidades",
+         "n_defecto": 1, "long_defecto": 15.0, "conductores": 3},
+        {"nombre": "C8 · Aire acondicionado", "tipo": "circuito", "unidad_elem": "unidades",
+         "n_defecto": 1, "long_defecto": 12.0, "conductores": 3},
+        {"nombre": "C9 · Secadora independiente", "tipo": "circuito", "unidad_elem": "tomas",
+         "n_defecto": 1, "long_defecto": 8.0, "conductores": 3},
+        {"nombre": "C10 · Automatización, gestión técnica de energía y seguridad", "tipo": "circuito",
+         "unidad_elem": "puntos", "n_defecto": 4, "long_defecto": 12.0, "conductores": 3},
+        {"nombre": "C11 · Alimentación circuitos derivados de automatización (C10)", "tipo": "circuito",
+         "unidad_elem": "líneas", "n_defecto": 1, "long_defecto": 10.0, "conductores": 3},
+        {"nombre": "C12 · Circuito adicional C3/C4/C5 (exceso de puntos o baños)", "tipo": "circuito",
+         "unidad_elem": "tomas", "n_defecto": 3, "long_defecto": 8.0, "conductores": 3},
+        {"nombre": "Derivación individual", "tipo": "circuito", "unidad_elem": "líneas",
+         "n_defecto": 1, "long_defecto": 15.0, "conductores": 3},
+        {"nombre": "Cuadro general de mando y protección (elevada, ~24 módulos)", "tipo": "elemento",
+         "unidad_elem": "cuadros", "n_defecto": 1, "precio_estimado": 78.0},
+        {"nombre": "Puesta a tierra", "tipo": "tierra", "unidad_elem": "picas", "n_defecto": 1,
+         "long_defecto": 25.0},
     ],
     "🏢 Local comercial / oficina": [
         {"nombre": "Alumbrado general", "tipo": "circuito", "unidad_elem": "puntos de luz",
@@ -4319,6 +4349,15 @@ def _render_presupuesto(inputs_cable: dict, resultado_cable: dict, inputs_fv: di
 
         tipo_inst_sel = st.selectbox("Tipo de instalación", list(TIPOS_INSTALACION_ESTIMADOR.keys()),
                                       key="est_tipo_inst")
+        if "Electrificación básica" in tipo_inst_sel:
+            st.info("ITC-BT-25: grado básico, potencia mínima **5.750 W**. Obligatorio en toda vivienda; "
+                     "cubre los circuitos C1 a C5 (iluminación, tomas generales, cocina, "
+                     "lavadora/lavavajillas/termo, y baño).")
+        elif "Electrificación elevada" in tipo_inst_sel:
+            st.info("ITC-BT-25: grado elevado, potencia mínima **9.200 W**. Obligatorio si la superficie útil "
+                     "supera 160 m², o hay previsión de calefacción/aire acondicionado eléctricos, secadora, "
+                     "automatización, o más de 30 puntos de utilización. Incluye C1-C5 de la básica más "
+                     "C6 a C12.")
         est_holgura = st.slider("Holgura por curvas/subidas en tubo, cable y conductor de tierra (%)",
                                  0, 40, 15, key="est_holgura_global")
 
