@@ -4348,11 +4348,12 @@ def _render_presupuesto(inputs_cable: dict, resultado_cable: dict, inputs_fv: di
                         st.caption("(elemento único, sin tubo/cable)")
                 datos_subpartes.append((sp, incluido, n_val, long_val))
 
-        filas_resumen, items_a_exportar = [], []
+        filas_resumen, items_por_subparte = [], {}
         total_tubo = total_cable = total_cajas = 0.0
         for sp, incluido, n_val, long_val in datos_subpartes:
             if not incluido or n_val <= 0:
                 continue
+            items_sp = items_por_subparte.setdefault(sp["nombre"], [])
             if sp["tipo"] == "circuito":
                 tubo = n_val * long_val * (1 + est_holgura / 100)
                 cable = tubo * sp["conductores"]
@@ -4362,30 +4363,30 @@ def _render_presupuesto(inputs_cable: dict, resultado_cable: dict, inputs_fv: di
                 total_cajas += cajas
                 filas_resumen.append({"Subparte": sp["nombre"], "Tubo (m)": f"{tubo:.1f}",
                                       "Cable (m)": f"{cable:.1f}", "Cajas/uds": str(cajas)})
-                items_a_exportar.append({"designacion": f"Tubo corrugado Ø20mm — {sp['nombre']} (estimado)",
-                                         "unidades": "m", "cantidad": round(tubo, 1),
-                                         "precio_base": catalogo["Canalizaciones"]["Tubo corrugado empotrar Ø20mm"]})
-                items_a_exportar.append({"designacion": f"Cable H07V-K 2,5mm² — {sp['nombre']} (estimado)",
-                                         "unidades": "m", "cantidad": round(cable, 1),
-                                         "precio_base": catalogo["Cables (por tipo, además del cálculo automático)"]["Cable H07V-K 2,5mm²"]})
-                items_a_exportar.append({"designacion": f"Caja de derivación — {sp['nombre']} (estimado)",
-                                         "unidades": "ud", "cantidad": cajas,
-                                         "precio_base": catalogo["Cajas y mecanismos"]["Caja de derivación empotrar 100x100"]})
+                items_sp.append({"designacion": f"Tubo corrugado Ø20mm — {sp['nombre']} (estimado)",
+                                 "unidades": "m", "cantidad": round(tubo, 1),
+                                 "precio_base": catalogo["Canalizaciones"]["Tubo corrugado empotrar Ø20mm"]})
+                items_sp.append({"designacion": f"Cable H07V-K 2,5mm² — {sp['nombre']} (estimado)",
+                                 "unidades": "m", "cantidad": round(cable, 1),
+                                 "precio_base": catalogo["Cables (por tipo, además del cálculo automático)"]["Cable H07V-K 2,5mm²"]})
+                items_sp.append({"designacion": f"Caja de derivación — {sp['nombre']} (estimado)",
+                                 "unidades": "ud", "cantidad": cajas,
+                                 "precio_base": catalogo["Cajas y mecanismos"]["Caja de derivación empotrar 100x100"]})
             elif sp["tipo"] == "tierra":
                 conductor = long_val * (1 + est_holgura / 100)
                 filas_resumen.append({"Subparte": sp["nombre"], "Tubo (m)": "—", "Cable (m)": "—",
                                       "Cajas/uds": f"{n_val} picas + {conductor:.0f} m cond."})
-                items_a_exportar.append({"designacion": f"Pica de tierra — {sp['nombre']} (estimado)",
-                                         "unidades": "ud", "cantidad": n_val,
-                                         "precio_base": catalogo["Puesta a tierra"]["Pica de acero cobreado 2m Ø14mm"]})
-                items_a_exportar.append({"designacion": f"Cable desnudo Cu 16mm² — {sp['nombre']} (estimado)",
-                                         "unidades": "m", "cantidad": round(conductor, 1),
-                                         "precio_base": catalogo["Puesta a tierra"]["Cable desnudo Cu 16mm² (tierra)"]})
+                items_sp.append({"designacion": f"Pica de tierra — {sp['nombre']} (estimado)",
+                                 "unidades": "ud", "cantidad": n_val,
+                                 "precio_base": catalogo["Puesta a tierra"]["Pica de acero cobreado 2m Ø14mm"]})
+                items_sp.append({"designacion": f"Cable desnudo Cu 16mm² — {sp['nombre']} (estimado)",
+                                 "unidades": "m", "cantidad": round(conductor, 1),
+                                 "precio_base": catalogo["Puesta a tierra"]["Cable desnudo Cu 16mm² (tierra)"]})
             else:  # elemento
                 filas_resumen.append({"Subparte": sp["nombre"], "Tubo (m)": "—", "Cable (m)": "—",
                                       "Cajas/uds": f"{n_val} ud"})
-                items_a_exportar.append({"designacion": f"{sp['nombre']} (estimado)", "unidades": "ud",
-                                         "cantidad": n_val, "precio_base": sp["precio_estimado"]})
+                items_sp.append({"designacion": f"{sp['nombre']} (estimado)", "unidades": "ud",
+                                 "cantidad": n_val, "precio_base": sp["precio_estimado"]})
 
         if filas_resumen:
             st.markdown("**Resumen por subparte**")
@@ -4395,23 +4396,31 @@ def _render_presupuesto(inputs_cable: dict, resultado_cable: dict, inputs_fv: di
             rt2.metric("Total cable", f"{total_cable:.0f} m")
             rt3.metric("Total cajas de derivación", f"{total_cajas:.0f}")
 
-            exp1, exp2 = st.columns([2, 1])
-            with exp1:
-                cap_destino_est = st.selectbox(
-                    "Capítulo destino", [c["nombre"] for c in capitulos] if capitulos else ["— crea un capítulo primero —"],
-                    key="est_cap_destino")
-            with exp2:
-                st.markdown("<br>", unsafe_allow_html=True)
-                if st.button("📤 Exportar al capítulo", disabled=not capitulos, key="est_exportar_btn"):
-                    idx_destino = next(i for i, c in enumerate(capitulos) if c["nombre"] == cap_destino_est)
-                    cap_dest = capitulos[idx_destino]
-                    for j, it in enumerate(items_a_exportar):
-                        it["partida"] = f"{idx_destino + 1}.{len(cap_dest['items']) + j + 1}"
-                    cap_dest["items"].extend(items_a_exportar)
-                    _registrar_actividad("📏", f"{len(items_a_exportar)} partidas de «{tipo_inst_sel}» "
-                                         f"exportadas a {cap_destino_est}")
-                    st.success(f"{len(items_a_exportar)} partidas añadidas a '{cap_destino_est}'.")
-                    st.rerun()
+            st.caption(f"Al exportar, cada subparte crea (o usa, si ya existe) **su propio capítulo** — "
+                       f"se crearán/rellenarán {len(items_por_subparte)} capítulos, uno por subparte, en vez "
+                       "de mezclarlo todo en uno solo.")
+            if st.button("📤 Exportar — cada subparte a su propio capítulo", key="est_exportar_btn"):
+                nombres_actuales = {c["nombre"]: c for c in capitulos}
+                n_nuevos, n_reutilizados, total_items = 0, 0, 0
+                for nombre_sp, items_sp in items_por_subparte.items():
+                    if nombre_sp in nombres_actuales:
+                        cap_dest = nombres_actuales[nombre_sp]
+                        n_reutilizados += 1
+                    else:
+                        cap_dest = {"nombre": nombre_sp, "items": []}
+                        capitulos.append(cap_dest)
+                        nombres_actuales[nombre_sp] = cap_dest
+                        n_nuevos += 1
+                    idx_cap = capitulos.index(cap_dest)
+                    for j, it in enumerate(items_sp):
+                        it["partida"] = f"{idx_cap + 1}.{len(cap_dest['items']) + j + 1}"
+                    cap_dest["items"].extend(items_sp)
+                    total_items += len(items_sp)
+                _registrar_actividad("📏", f"Estimación de «{tipo_inst_sel}» exportada: {n_nuevos} capítulos "
+                                     f"nuevos, {n_reutilizados} reutilizados, {total_items} partidas")
+                st.success(f"{total_items} partidas repartidas en {len(items_por_subparte)} capítulos "
+                           f"({n_nuevos} nuevos, {n_reutilizados} ya existentes y reutilizados).")
+                st.rerun()
         else:
             st.info("Marca al menos una subparte con cantidad mayor que 0 para ver el resumen.")
 
@@ -5015,7 +5024,7 @@ def _render_sidebar():
             <div class="sidebar-credit-links">
                 <a href="https://www.instagram.com/younes.tik/?hl=es" target="_blank" title="Instagram">📷</a>
                 <a href="https://www.linkedin.com/in/younesse-tikent-tifaoui-5b9aa3241/" target="_blank" title="LinkedIn">💼</a>
-                <a href="mailto:younessetikenttifaoui@gmail.com" title="Gmail">✉️</a>
+                <a href="https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to=younessetikenttifaoui@gmail.com" target="_blank" title="Gmail">✉️</a>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -5411,22 +5420,73 @@ def _render_estadisticas():
                 fig2.update_layout(**layout_base, height=320, showlegend=False, xaxis_title="", yaxis_title="€")
                 st.plotly_chart(fig2, width='stretch')
 
-            st.markdown("**Distribución por categoría de material**")
+            st.markdown("**Materiales frente a mano de obra**")
+            partidas_compuestas_stats = st.session_state.get("partidas_compuestas", {})
+
+            def _categorias_de_item(designacion):
+                """Devuelve {categoria: fraccion} para una partida. Si es una
+                partida compuesta, reparte la fracción entre las categorías
+                reales de sus componentes (así la mano de obra que lleva
+                dentro de una partida compuesta también cuenta como mano de
+                obra, no como 'Otros')."""
+                for cat, items_cat in CATALOGO_MATERIALES.items():
+                    if designacion in items_cat:
+                        return {cat: 1.0}
+                if designacion in partidas_compuestas_stats:
+                    componentes = partidas_compuestas_stats[designacion]["componentes"]
+                    precio_total = sum(c["cantidad"] * c["precio_unitario"] for c in componentes)
+                    if precio_total > 0:
+                        reparto = {}
+                        for c in componentes:
+                            cat_comp = "Otros / manual"
+                            for cat, items_cat in CATALOGO_MATERIALES.items():
+                                if c["designacion"] in items_cat:
+                                    cat_comp = cat
+                                    break
+                            frac = (c["cantidad"] * c["precio_unitario"]) / precio_total
+                            reparto[cat_comp] = reparto.get(cat_comp, 0) + frac
+                        return reparto
+                return {"Otros / manual": 1.0}
+
             coste_por_categoria = {}
+            coste_mano_obra, coste_materiales = 0.0, 0.0
             for cap in capitulos:
                 for it in cap["items"]:
-                    cat_encontrada = "Otros / manual"
-                    for cat, items_cat in CATALOGO_MATERIALES.items():
-                        if it["designacion"] in items_cat:
-                            cat_encontrada = cat
-                            break
                     pu = calcular_precio_venta(it["precio_base"], cfg_p["pct_beneficio"], cfg_p["pct_amortizacion"])
-                    coste_por_categoria[cat_encontrada] = coste_por_categoria.get(cat_encontrada, 0) + it["cantidad"] * pu
+                    importe_it = it["cantidad"] * pu
+                    for cat, frac in _categorias_de_item(it["designacion"]).items():
+                        coste_por_categoria[cat] = coste_por_categoria.get(cat, 0) + importe_it * frac
+                        if cat == "Mano de obra":
+                            coste_mano_obra += importe_it * frac
+                        else:
+                            coste_materiales += importe_it * frac
+
+            mo1, mo2 = st.columns(2)
+            with mo1:
+                fig_mo = go.Figure(data=[go.Pie(
+                    labels=["Materiales y equipos", "Mano de obra"],
+                    values=[coste_materiales, coste_mano_obra], hole=0.6,
+                    marker=dict(colors=["#3b82f6", "#e8a33d"]))])
+                fig_mo.update_layout(**layout_base, height=260, legend=dict(orientation="h", y=-0.15))
+                st.plotly_chart(fig_mo, width='stretch')
+            with mo2:
+                st.metric("Materiales y equipos", _fmt_eur(coste_materiales),
+                          f"{coste_materiales/subtotal*100:.0f}% del PEM" if subtotal else None)
+                st.metric("Mano de obra", _fmt_eur(coste_mano_obra),
+                          f"{coste_mano_obra/subtotal*100:.0f}% del PEM" if subtotal else None)
+                if coste_mano_obra == 0:
+                    st.caption("No hay partidas de mano de obra en este presupuesto todavía — añádelas "
+                               "desde la categoría «Mano de obra» del catálogo, sueltas o dentro de una "
+                               "partida compuesta.")
+
+            st.markdown("**Distribución por categoría** (mano de obra resaltada aparte)")
             if coste_por_categoria:
-                fig_cat = px.bar(x=list(coste_por_categoria.values()), y=list(coste_por_categoria.keys()),
-                                 orientation="h", color=list(coste_por_categoria.keys()),
-                                 color_discrete_sequence=colores_plot)
-                fig_cat.update_layout(**layout_base, height=max(220, 45 * len(coste_por_categoria)),
+                nombres_cat = list(coste_por_categoria.keys())
+                valores_cat = list(coste_por_categoria.values())
+                colores_cat = ["#e8a33d" if c == "Mano de obra" else "#3b82f6" for c in nombres_cat]
+                fig_cat = go.Figure(go.Bar(x=valores_cat, y=nombres_cat, orientation="h",
+                                           marker=dict(color=colores_cat)))
+                fig_cat.update_layout(**layout_base, height=max(220, 42 * len(coste_por_categoria)),
                                        showlegend=False, xaxis_title="€", yaxis_title="")
                 st.plotly_chart(fig_cat, width='stretch')
         else:
