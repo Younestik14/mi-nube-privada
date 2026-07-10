@@ -1258,6 +1258,40 @@ _PDF_REPLACEMENTS = {
     "⬇️": "", "🔌": "", "📊": "", "📖": "", "⚙️": "", "🌡️": "", "⚡": "",
 }
 
+# Caracteres Unicode de super/subíndice que Helvetica NO tiene como glifo
+# real (se comprobó con stringWidth: todos devuelven el mismo ancho de
+# "carácter no encontrado"). Se sustituyen por la etiqueta <super>/<sub> de
+# reportlab con el dígito normal correspondiente — ESO sí tiene glifo real,
+# porque reportlab dibuja el dígito normal más pequeño y desplazado, no
+# busca un glifo de superíndice en la fuente. Solo válido dentro de un
+# Paragraph (no en celdas de tabla con texto plano).
+_PDF_SUPERSCRIPT_SAFE = {
+    "⁻": "<super>-</super>", "⁴": "<super>4</super>", "⁵": "<super>5</super>",
+    "⁰": "<super>0</super>", "¹": "<super>1</super>", "⁶": "<super>6</super>",
+    "⁷": "<super>7</super>", "⁸": "<super>8</super>", "⁹": "<super>9</super>",
+}
+_PDF_SUBSCRIPT_SAFE = {
+    "₀": "<sub>0</sub>", "₁": "<sub>1</sub>", "₂": "<sub>2</sub>", "₃": "<sub>3</sub>",
+    "₄": "<sub>4</sub>", "₅": "<sub>5</sub>",
+}
+
+
+def _pdf_safe_markup(texto: str) -> str:
+    """Como _pdf_safe, pero para texto que SÍ va dentro de un Paragraph (o
+    de una celda de _tabla_pdf, que también usa Paragraph): además de los
+    reemplazos habituales, convierte super/subíndices Unicode sin glifo en
+    <super>/<sub> con dígitos normales, que sí se ven."""
+    texto = str(texto)
+    for k, v in _PDF_SUPERSCRIPT_SAFE.items():
+        texto = texto.replace(k, v)
+    for k, v in _PDF_SUBSCRIPT_SAFE.items():
+        texto = texto.replace(k, v)
+    for k, v in _PDF_REPLACEMENTS.items():
+        if k in ("²", "³", "·", "×"):  # estos SÍ tienen glifo real, no hace falta sustituirlos aquí
+            continue
+        texto = texto.replace(k, v)
+    return texto
+
 
 def _pdf_safe(texto: str) -> str:
     texto = str(texto)
@@ -1266,29 +1300,69 @@ def _pdf_safe(texto: str) -> str:
     return texto
 
 
+def _tabla_pdf(datos, colw, AZUL, colors, fuente=8.5, fuente_header=8.8, header=True, alinear_num=None,
+                extra_estilos=None, negrita_col0=False):
+    """Tabla única y robusta para todos los documentos PDF. Cada celda es un
+    Paragraph (no texto plano), así que SIEMPRE ajusta su contenido al
+    ancho de columna — nunca se sale del recuadro ni se corta a media
+    palabra, sea cual sea el número de columnas o lo largo del texto.
+    También permite <sub>/<super> en el contenido vía _pdf_safe_markup.
+    alinear_num: lista de índices de columna a alinear a la derecha (para
+    cifras). extra_estilos: lista adicional de tuplas TableStyle.
+    negrita_col0: pinta la primera columna en negrita/azul (nota: al ser
+    Paragraph, esto NO se puede hacer con FONTNAME de TableStyle — hace
+    falta un ParagraphStyle propio para esa columna)."""
+    from reportlab.platypus import Table, TableStyle, Paragraph
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.units import cm as _cm
+
+    estilo_celda = ParagraphStyle("celda_tabla", fontName="Helvetica", fontSize=fuente,
+                                   leading=fuente * 1.28, textColor=colors.HexColor("#1a2433"))
+    estilo_col0_negrita = ParagraphStyle("celda_col0_negrita", parent=estilo_celda, fontName="Helvetica-Bold",
+                                          textColor=AZUL)
+    estilo_header = ParagraphStyle("celda_header", fontName="Helvetica-Bold", fontSize=fuente_header,
+                                    leading=fuente_header * 1.25, textColor=colors.white)
+    alinear_num = alinear_num or []
+
+    filas_wrapped = []
+    for i_fila, fila in enumerate(datos):
+        es_header = header and i_fila == 0
+        fila_w = []
+        for i_col, valor in enumerate(fila):
+            if es_header:
+                estilo = estilo_header
+            elif negrita_col0 and i_col == 0:
+                estilo = estilo_col0_negrita
+            else:
+                estilo = estilo_celda
+            fila_w.append(Paragraph(_pdf_safe_markup(valor), estilo))
+        filas_wrapped.append(fila_w)
+
+    t = Table(filas_wrapped, colWidths=[c * _cm for c in colw], repeatRows=1 if header else 0)
+    estilo_tabla = [
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#c9ccd1")),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6), ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]
+    if header:
+        estilo_tabla.append(("BACKGROUND", (0, 0), (-1, 0), AZUL))
+    for idx_col in alinear_num:
+        estilo_tabla.append(("ALIGN", (idx_col, 0), (idx_col, -1), "RIGHT"))
+    if extra_estilos:
+        estilo_tabla.extend(extra_estilos)
+    t.setStyle(TableStyle(estilo_tabla))
+    return t
+
+
 def generar_pdf_memoria(inp: dict, res: dict, config_prof: dict = None) -> bytes:
-    from reportlab.lib.units import cm
-    from reportlab.platypus import Table, TableStyle, Paragraph, Spacer
+    from reportlab.platypus import Paragraph, Spacer
 
     buffer, doc, cajetin, AZUL, colors, h2, h3, normal, h1, COBRE, lista_item = _preparar_doc_pdf(
         "MEMORIA DE CALCULO - SECCION DE CONDUCTORES",
         f"Circuito: {inp['tipo_circuito']}", {"titular": (config_prof or {}).get("empresa", "")}, config_prof)
     from reportlab.lib.styles import ParagraphStyle
     aviso_style = ParagraphStyle("avisoc", parent=normal, textColor=colors.HexColor("#8a4b00"))
-
-    def fila_estilo(header=True):
-        base = [
-            ("FONTSIZE", (0, 0), (-1, -1), 9),
-            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#c9ccd1")),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 6),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ]
-        if header:
-            base += [("BACKGROUND", (0, 0), (-1, 0), AZUL), ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                      ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold")]
-        return TableStyle(base)
 
     story = _bloque_portada("Memoria de Cálculo", "Sección de conductores — ITC-BT-19",
                              {"titular": (config_prof or {}).get("empresa", "")}, config_prof, AZUL, COBRE,
@@ -1297,15 +1371,13 @@ def generar_pdf_memoria(inp: dict, res: dict, config_prof: dict = None) -> bytes
     story.append(Paragraph("1. Datos del circuito", h2))
     datos = [
         ["Concepto", "Valor"],
-        ["Tipo de circuito", _pdf_safe(inp["tipo_circuito"])],
-        ["Sistema", _pdf_safe(inp["sistema"]) + f"  -  {inp['tension']:g} V"],
+        ["Tipo de circuito", inp["tipo_circuito"]],
+        ["Sistema", inp["sistema"] + f"  -  {inp['tension']:g} V"],
         ["Conductor / Aislamiento", f"{inp['conductor']} / {inp['aislamiento']}"],
-        ["Metodo de instalacion", _pdf_safe(inp["metodo"])],
+        ["Metodo de instalacion", inp["metodo"]],
         ["Longitud", f"{inp['longitud']:g} m"],
     ]
-    t = Table(datos, colWidths=[6.5 * cm, 9.5 * cm])
-    t.setStyle(fila_estilo())
-    story.append(t)
+    story.append(_tabla_pdf(datos, (6.5, 9.5), AZUL, colors))
 
     story.append(Paragraph("2. Criterio termico (Ib &lt;= In &lt;= Iz) - ITC-BT-19 art. 19", h2))
     termico = [
@@ -1316,9 +1388,7 @@ def generar_pdf_memoria(inp: dict, res: dict, config_prof: dict = None) -> bytes
         ["Seccion por criterio termico", f"{res['s_termica']:g} mm2" if res["s_termica"] else "-"],
         ["Iz obtenida (tabla x factores)", f"{res['iz_termica']:.1f} A" if res["iz_termica"] else "-"],
     ]
-    t = Table(termico, colWidths=[6.5 * cm, 9.5 * cm])
-    t.setStyle(fila_estilo())
-    story.append(t)
+    story.append(_tabla_pdf(termico, (6.5, 9.5), AZUL, colors))
 
     story.append(Paragraph("3. Criterio de caida de tension - ITC-BT-14/15/19/40", h2))
     du = [
@@ -1327,9 +1397,7 @@ def generar_pdf_memoria(inp: dict, res: dict, config_prof: dict = None) -> bytes
         ["Delta U con la seccion adoptada", f"{res['e_final_pct']:.2f} %"],
         ["Cumple", "SI" if res["e_final_pct"] <= inp["delta_u_max"] else "NO"],
     ]
-    t = Table(du, colWidths=[6.5 * cm, 9.5 * cm])
-    t.setStyle(fila_estilo())
-    story.append(t)
+    story.append(_tabla_pdf(du, (6.5, 9.5), AZUL, colors))
 
     story.append(Paragraph("4. Seccion final adoptada", h2))
     final_rows = [["Elemento", "Seccion"]]
@@ -1342,9 +1410,7 @@ def generar_pdf_memoria(inp: dict, res: dict, config_prof: dict = None) -> bytes
     if res.get("necesita_paralelo"):
         final_rows.append(["Conductores en paralelo", f"{res['n_paralelo']} x {res['seccion_final']:g} mm2 por fase"])
     final_rows.append(["Interruptor automatico sugerido", f"{res['calibre_magnetotermico']} A"])
-    t = Table(final_rows, colWidths=[6.5 * cm, 9.5 * cm])
-    t.setStyle(fila_estilo())
-    story.append(t)
+    story.append(_tabla_pdf(final_rows, (6.5, 9.5), AZUL, colors))
 
     if res.get("cumple_cc") is not None:
         story.append(Paragraph("5. Verificacion termica de cortocircuito", h2))
@@ -1354,9 +1420,7 @@ def generar_pdf_memoria(inp: dict, res: dict, config_prof: dict = None) -> bytes
             ["Resultado", estado],
             ["Seccion minima necesaria", f"{res['s_min_cc']:g} mm2"],
         ]
-        t = Table(cc_rows, colWidths=[6.5 * cm, 9.5 * cm])
-        t.setStyle(fila_estilo())
-        story.append(t)
+        story.append(_tabla_pdf(cc_rows, (6.5, 9.5), AZUL, colors))
 
     story.append(Paragraph("6. Formulas aplicadas", h2))
     for linea in _lineas_formulas_texto(inp, res):
@@ -1651,7 +1715,7 @@ def _crear_numbered_canvas(margin, GRIS_HEX="#5a6472"):
 def _bloque_portada(titulo_doc: str, subtitulo_doc: str, datos_proyecto: dict, config_prof: dict,
                      AZUL, COBRE, colors, h1_style, normal_style):
     """Portada: logo grande, título, datos del proyecto y 'elaborado por'."""
-    from reportlab.platypus import Paragraph, Spacer, Table, TableStyle, Image, PageBreak
+    from reportlab.platypus import Paragraph, Spacer, Image, PageBreak
     from reportlab.lib.units import cm
 
     config_prof = config_prof or {}
@@ -1680,12 +1744,10 @@ def _bloque_portada(titulo_doc: str, subtitulo_doc: str, datos_proyecto: dict, c
     if config_prof.get("empresa") or config_prof.get("nombre"):
         filas.append(["Elaborado por", " / ".join(filter(None, [config_prof.get("nombre"),
                                                                    config_prof.get("empresa")]))])
-    t = Table(filas, colWidths=[4.5 * cm, 9 * cm])
-    t.setStyle(TableStyle([
-        ("FONTSIZE", (0, 0), (-1, -1), 10), ("TEXTCOLOR", (0, 0), (0, -1), AZUL),
-        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"), ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+    t = _tabla_pdf(filas, (4.5, 9), AZUL, colors, header=False, negrita_col0=True, extra_estilos=[
+        ("GRID", (0, 0), (-1, -1), 0, colors.white),  # sin cuadrícula visible en la portada
         ("LINEBELOW", (0, 0), (-1, -1), 0.4, colors.HexColor("#c9ccd1")),
-    ]))
+    ])
     story.append(t)
     story.append(Spacer(1, 1.5 * cm))
     story.append(Paragraph(
@@ -1728,7 +1790,7 @@ def _preparar_doc_pdf(titulo: str, subtitulo: str, datos_proyecto: dict, config_
 def generar_pdf_mtd(datos_proyecto: dict, inputs_cable: dict, resultado_cable: dict,
                      inputs_fv: dict, resultado_fv: dict, total_presupuesto: float,
                      config_prof: dict = None) -> bytes:
-    from reportlab.platypus import Table, TableStyle, Paragraph, Spacer, PageBreak
+    from reportlab.platypus import Paragraph, Spacer, PageBreak
 
     buffer, doc, cajetin, AZUL, colors, h2, h3, normal, h1, COBRE, lista_item = _preparar_doc_pdf(
         "MEMORIA TECNICA DE DISENO (MTD)", "REBT - ITC-BT-04", datos_proyecto, config_prof)
@@ -1738,16 +1800,7 @@ def generar_pdf_mtd(datos_proyecto: dict, inputs_cable: dict, resultado_cable: d
     d = datos_proyecto
 
     def tabla(datos, colw=(6.5, 9.5)):
-        from reportlab.lib.units import cm as _cm
-        t = Table(datos, colWidths=[colw[0] * _cm, colw[1] * _cm])
-        t.setStyle(TableStyle([
-            ("FONTSIZE", (0, 0), (-1, -1), 9), ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#c9ccd1")),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("LEFTPADDING", (0, 0), (-1, -1), 6),
-            ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ("BACKGROUND", (0, 0), (-1, 0), AZUL), ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ]))
-        return t
+        return _tabla_pdf(datos, colw, AZUL, colors)
 
     story = _bloque_portada("Memoria Técnica de Diseño", "Instalación de baja tensión — REBT / ITC-BT-04",
                              datos_proyecto, config_prof, AZUL, COBRE, colors, h1, normal)
@@ -2196,7 +2249,8 @@ def _parrafos_calculo_fv_pdf(inp: dict, res: dict, normal, formula) -> list:
 
     P.append(Paragraph("Las pérdidas por orientación e inclinación no óptimas se calculan según la "
                         "expresión del Documento Básico HE5 del Código Técnico de la Edificación:", normal))
-    P.append(Paragraph("Pérdidas (%) = 100 · [1,2·10⁻⁴·(β − φ + 10)² + 3,5·10⁻⁵·α²]", formula))
+    P.append(Paragraph("Pérdidas (%) = 100 · [1,2·10<super>-4</super>·(β − φ + 10)² + "
+                        "3,5·10<super>-5</super>·α²]", formula))
     P.append(Paragraph(f"con inclinación β = {inp['inclinacion']:g}°, latitud φ = {inp['latitud']:g}° y "
                         f"azimut α = {inp['azimut']:g}°, lo que da unas pérdidas de "
                         f"<b>{res['perdidas_orient_pct']:.2f} %</b>.", normal))
@@ -2216,8 +2270,8 @@ def _parrafos_calculo_fv_pdf(inp: dict, res: dict, normal, formula) -> list:
                         f"producción estimada será de {_miles(res['produccion_ano10'])} kWh/año en el año "
                         f"10 y de {_miles(res['produccion_ano25'])} kWh/año en el año 25. El ahorro de "
                         f"emisiones asociado, con un factor de emisión de la red de "
-                        f"{inp.get('factor_co2', FACTOR_CO2_RED_DEFECTO):.2f} kg CO₂/kWh, es de "
-                        f"<b>{res['co2_evitado_kg_ano']/1000:.2f} toneladas de CO₂ al año</b>.", normal))
+                        f"{inp.get('factor_co2', FACTOR_CO2_RED_DEFECTO):.2f} kg CO<sub>2</sub>/kWh, es de "
+                        f"<b>{res['co2_evitado_kg_ano']/1000:.2f} toneladas de CO<sub>2</sub> al año</b>.", normal))
 
     P.append(Paragraph(f"El generador se configura con {res['n_serie']} paneles en serie por string y "
                         f"{res['n_paralelo']} strings en paralelo. La tensión de circuito abierto del "
@@ -2283,8 +2337,7 @@ def generar_pdf_anexo_calculos(datos_proyecto: dict, inputs_cable: dict, resulta
                                  inputs_fv: dict, resultado_fv: dict, capitulos_presupuesto: list,
                                  pct_beneficio: float, pct_amortizacion: float,
                                  config_prof: dict = None) -> bytes:
-    from reportlab.platypus import Table, TableStyle, Paragraph, Spacer
-    from reportlab.lib.units import cm as _cm
+    from reportlab.platypus import Paragraph, Spacer
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.enums import TA_CENTER
 
@@ -2334,22 +2387,11 @@ def generar_pdf_anexo_calculos(datos_proyecto: dict, inputs_cable: dict, resulta
                 pu = calcular_precio_venta(it["precio_base"], pct_beneficio, pct_amortizacion)
                 importe = round(it["cantidad"] * pu, 2)
                 total_cap += importe
-                filas.append([it.get("partida", "-"), it["designacion"][:62], it["unidades"],
-                              f"{it['cantidad']:g}", f"{pu:,.2f}".replace(",", "."),
-                              f"{importe:,.2f}".replace(",", ".")])
-            filas.append(["", "", "", "", "TOTAL", f"{total_cap:,.2f} €".replace(",", ".")])
-            t = Table(filas, colWidths=[1.5 * _cm, 6.8 * _cm, 1.3 * _cm, 1.9 * _cm, 2.1 * _cm, 2.4 * _cm],
-                      repeatRows=1)
-            t.setStyle(TableStyle([
-                ("FONTSIZE", (0, 0), (-1, -1), 7.8), ("GRID", (0, 0), (-1, -2), 0.4, colors.HexColor("#c9ccd1")),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("ALIGN", (3, 0), (-1, -1), "RIGHT"),
-                ("TOPPADDING", (0, 0), (-1, -1), 3.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 3.5),
-                ("BACKGROUND", (0, 0), (-1, 0), AZUL), ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTNAME", (4, -1), (-1, -1), "Helvetica-Bold"), ("TEXTCOLOR", (4, -1), (-1, -1), COBRE),
-                ("LINEABOVE", (0, -1), (-1, -1), 0.8, COBRE),
-            ]))
-            story.append(t)
+                filas.append([it.get("partida", "-"), it["designacion"], it["unidades"],
+                              f"{it['cantidad']:g}", _miles(pu, 2), _miles(importe, 2)])
+            filas.append(["", "", "", "", "<b>TOTAL</b>", f"<b>{_miles(total_cap, 2)} €</b>"])
+            story.append(_tabla_pdf(filas, (1.6, 6.6, 1.4, 1.9, 2.1, 2.4), AZUL, colors, fuente=7.8,
+                                     alinear_num=[3, 4, 5]))
             story.append(Spacer(1, 4))
         story.append(Paragraph(f"Porcentajes aplicados: Beneficio industrial {pct_beneficio:g}%, "
                                 f"Amortización de medios auxiliares {pct_amortizacion:g}%. El desglose "
@@ -2369,8 +2411,7 @@ def generar_pdf_anexo_calculos(datos_proyecto: dict, inputs_cable: dict, resulta
 
 
 def generar_pdf_condiciones_generales(datos_proyecto: dict, hay_fv: bool, config_prof: dict = None) -> bytes:
-    from reportlab.platypus import Paragraph, Spacer, Table, TableStyle, PageBreak
-    from reportlab.lib.units import cm as _cm
+    from reportlab.platypus import Paragraph, Spacer, PageBreak
 
     buffer, doc, cajetin, AZUL, colors, h2, h3, normal, h1, COBRE, lista_item = _preparar_doc_pdf(
         "PLIEGO DE CONDICIONES", "Facultativas, económicas y técnicas particulares", datos_proyecto,
@@ -2380,15 +2421,7 @@ def generar_pdf_condiciones_generales(datos_proyecto: dict, hay_fv: bool, config
         return [Paragraph("• " + t, style or lista_item) for t in items]
 
     def tabla(datos, colw=(6.0, 5.0, 5.0), fuente=8.3):
-        t = Table(datos, colWidths=[c * _cm for c in colw], repeatRows=1)
-        t.setStyle(TableStyle([
-            ("FONTSIZE", (0, 0), (-1, -1), fuente), ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#c9ccd1")),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("LEFTPADDING", (0, 0), (-1, -1), 6),
-            ("TOPPADDING", (0, 0), (-1, -1), 4.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 4.5),
-            ("BACKGROUND", (0, 0), (-1, 0), AZUL), ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ]))
-        return t
+        return _tabla_pdf(datos, colw, AZUL, colors, fuente=fuente)
 
     story = _bloque_portada("Pliego de Condiciones", "Facultativas, económicas y técnicas particulares",
                              datos_proyecto, config_prof, AZUL, COBRE, colors, h1, normal)
