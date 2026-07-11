@@ -1573,7 +1573,6 @@ _PDF_REPLACEMENTS = {
     # Letras griegas sin glifo en Helvetica (WinAnsi) → su representación ASCII
     "φ": "fi", "κ": "k", "Ω": "Ohm", "α": "a", "β": "b", "η": "n",
     "µ": "u", "−": "-",
-    "°": "gr.",
 }
 
 # Caracteres Unicode de super/subíndice que Helvetica NO tiene como glifo
@@ -1595,20 +1594,23 @@ _PDF_SUBSCRIPT_SAFE = {
 
 
 def _pdf_safe_markup(texto: str) -> str:
-    """Como _pdf_safe, pero para texto que SÍ va dentro de un Paragraph (o
-    de una celda de _tabla_pdf, que también usa Paragraph): además de los
-    reemplazos habituales, convierte super/subíndices Unicode sin glifo en
-    <super>/<sub> con dígitos normales, que sí se ven. Escapa <, >, & para
-    que no rompan el parser XML de ReportLab."""
+    """Para texto que SÍ va dentro de un Paragraph (o celda de _tabla_pdf):
+    escapa <, >, & para XML, restaura tags intencionales <b>, <i>, <sub>,
+    <sup>, convierte super/subíndices Unicode sin glifo y reemplaza
+    caracteres sin glifo por representación legible."""
     texto = str(texto)
-    # 1. Escapar caracteres XML especiales (ANTES de añadir ningún tag)
+    # 1. Escapar caracteres XML especiales
     texto = texto.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    # 2. Convertir super/subíndices Unicode sin glifo → tags ReportLab
+    # 2. Restaurar tags intencionales (b, i, sub, sup)
+    for tag in ("b", "i", "sub", "sup"):
+        texto = texto.replace(f"&lt;{tag}&gt;", f"<{tag}>")
+        texto = texto.replace(f"&lt;/{tag}&gt;", f"</{tag}>")
+    # 3. Convertir super/subíndices Unicode sin glifo → tags ReportLab
     for k, v in _PDF_SUPERSCRIPT_SAFE.items():
         texto = texto.replace(k, v)
     for k, v in _PDF_SUBSCRIPT_SAFE.items():
         texto = texto.replace(k, v)
-    # 3. Reemplazar caracteres sin glifo por representación legible
+    # 4. Reemplazar caracteres sin glifo por representación legible
     for k, v in _PDF_REPLACEMENTS.items():
         if k in ("²", "³", "·", "×"):  # estos SÍ tienen glifo real en WinAnsi
             continue
@@ -1626,27 +1628,8 @@ def _pdf_safe(texto: str) -> str:
 
 
 def _pdf_safe_formula(texto: str) -> str:
-    """Para fórmulas tipográficas que SÍ contienen tags <b>/<sub>/<sup>
-    intencionales pero TAMBIÉN caracteres Unicode sin glifo (φ, κ, Ω, etc.):
-    protege los tags, reemplaza los caracteres problemáticos, restaura los tags."""
-    texto = str(texto)
-    # 1. Escapar XML en todo el texto
-    texto = texto.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    # 2. Restaurar tags intencionales
-    for tag in ("b", "sub", "sup"):
-        texto = texto.replace(f"&lt;{tag}&gt;", f"<{tag}>")
-        texto = texto.replace(f"&lt;/{tag}&gt;", f"</{tag}>")
-    # 3. Reemplazar caracteres sin glifo
-    for k, v in _PDF_REPLACEMENTS.items():
-        if k in ("²", "³", "·", "×"):
-            continue
-        texto = texto.replace(k, v)
-    # 4. Convertir super/subíndices Unicode restantes
-    for k, v in _PDF_SUPERSCRIPT_SAFE.items():
-        texto = texto.replace(k, v)
-    for k, v in _PDF_SUBSCRIPT_SAFE.items():
-        texto = texto.replace(k, v)
-    return texto
+    """Alias de _pdf_safe_markup (conservado para compatibilidad con código existente)."""
+    return _pdf_safe_markup(texto)
 
 
 def _tabla_pdf(datos, colw, AZUL, colors, fuente=8.5, fuente_header=8.8, header=True, alinear_num=None,
@@ -2643,7 +2626,7 @@ def generar_pdf_mtd(datos_proyecto: dict, inputs_cable: dict, resultado_cable: d
 
     if hay_cable:
         story.append(Paragraph("D.4 Instalación de baja tensión calculada", h3))
-        story.append(Paragraph(f"Circuito de referencia: <b>{inputs_cable['tipo_circuito']}</b>.", normal))
+        story.append(Paragraph(_pdf_safe_markup(f"Circuito de referencia: <b>{inputs_cable['tipo_circuito']}</b>."), normal))
         story.append(tabla([
             ["Concepto", "Valor"],
             ["Sistema", f"{inputs_cable['sistema']} — {inputs_cable['tension']:g} V"],
@@ -2701,14 +2684,14 @@ def generar_pdf_mtd(datos_proyecto: dict, inputs_cable: dict, resultado_cable: d
 
     story.append(Paragraph("D.8 Sistemas de instalación (canalizaciones)", h3))
     metodo_txt = inputs_cable.get("metodo", "") if hay_cable else ""
-    story.append(Paragraph(
+    story.append(Paragraph(_pdf_safe_markup(
         f"El sistema de canalización empleado se corresponde con el tipo {metodo_txt or '[a determinar]'} "
         "según la clasificación de la ITC-BT-19 y la norma UNE-HD 60364-5-52, seleccionado en función de "
         "las influencias externas del emplazamiento (humedad, temperatura, riesgo mecánico) conforme a la "
         "clasificación de la norma UNE 20460-3. Las características mínimas de los tubos protectores "
         "(resistencia a la compresión, al impacto y rango de temperatura de servicio) se detallan en el "
         "Pliego de Condiciones Técnicas, apartado 15, en función de si la instalación es superficial, "
-        "empotrada o enterrada.", normal))
+        "empotrada o enterrada."), normal))
 
     story.append(Paragraph("D.9 Protección contra sobreintensidades y sobretensiones", h3))
     story.append(Paragraph(
@@ -3389,7 +3372,7 @@ def generar_pdf_anexo_calculos(datos_proyecto: dict, inputs_cable: dict, resulta
 
     story.append(Paragraph("1. Cálculos justificativos", h2))
     if hay_cable:
-        story.append(Paragraph(f"1.1. Instalación de baja tensión — {inputs_cable['tipo_circuito']}", h3))
+        story.append(Paragraph(_pdf_safe_markup(f"1.1. Instalación de baja tensión — {inputs_cable['tipo_circuito']}"), h3))
         story.extend(_parrafos_calculo_cable_pdf(inputs_cable, resultado_cable, normal, formula))
     if hay_fv:
         story.append(Paragraph("1.2. Instalación fotovoltaica", h3))
@@ -3407,7 +3390,7 @@ def generar_pdf_anexo_calculos(datos_proyecto: dict, inputs_cable: dict, resulta
         for cap in capitulos_presupuesto:
             if not cap["items"]:
                 continue
-            story.append(Paragraph(cap["nombre"], h3))
+            story.append(Paragraph(_pdf_safe_markup(cap["nombre"]), h3))
             filas = [["Partida", "Designación", "Ud.", "Cantidad", "Pu (€)", "Importe (€)"]]
             total_cap = 0.0
             for it in cap["items"]:
@@ -4288,15 +4271,15 @@ def generar_pdf_cie(datos_proyecto: dict, inputs_cable: dict, resultado_cable: d
 
     story.append(Paragraph("4. Resumen de las características técnicas", h2))
     if hay_cable:
-        story.append(Paragraph(
+        story.append(Paragraph(_pdf_safe_markup(
             f"Circuito de referencia: <b>{inputs_cable['tipo_circuito']}</b>. Sección de fase adoptada: "
             f"<b>{resultado_cable['seccion_final']:g} mm²</b>. Protección: <b>{resultado_cable['calibre_magnetotermico']} A</b>. "
-            f"Caída de tensión: <b>{resultado_cable['e_final_pct']:.2f} %</b> (máx. {inputs_cable['delta_u_max']:g} %).",
+            f"Caída de tensión: <b>{resultado_cable['e_final_pct']:.2f} %</b> (máx. {inputs_cable['delta_u_max']:g} %)."),
             normal))
     if hay_fv:
-        story.append(Paragraph(
+        story.append(Paragraph(_pdf_safe_markup(
             f"Instalación generadora fotovoltaica: <b>{resultado_fv['p_pico_kwp']:.2f} kWp</b>, modalidad "
-            f"{inputs_fv.get('tipo_autoconsumo', '-')} (RD 244/2019).", normal))
+            f"{inputs_fv.get('tipo_autoconsumo', '-')} (RD 244/2019)."), normal))
     if not hay_cable and not hay_fv:
         story.append(Paragraph("No hay cálculos disponibles todavía en este proyecto.", normal))
 
