@@ -5631,8 +5631,9 @@ def _render_inputs_fv() -> dict:
                              help="HSP y latitud orientativos por zona (IDAE). Para el cálculo con datos "
                                   "reales de tu ubicación exacta, usa el botón «Consultar PVGIS» de abajo.")
         hsp_defecto, lat_defecto = ZONAS_CLIMATICAS_HSP[zona]
+        hsp_valor_inicial = float(st.session_state.get("pvgis_hsp", hsp_defecto or 4.5))
         hsp = st.number_input("HSP (horas de sol pico, h/día)", min_value=1.0, max_value=8.0,
-                               value=float(hsp_defecto or 4.5), step=0.1, key="fv_hsp")
+                               value=hsp_valor_inicial, step=0.1, key="fv_hsp")
         latitud = st.number_input("Latitud (°)", min_value=0.0, max_value=90.0,
                                    value=float(lat_defecto or 40.0), step=0.5, key="fv_latitud")
     with u2:
@@ -5692,7 +5693,7 @@ def _render_inputs_fv() -> dict:
                                                         loss_equivalente)
                     st.session_state["pvgis_resultado"] = resultado_pvgis
                     st.session_state["pvgis_activo"] = True
-                    st.session_state["fv_hsp"] = round(resultado_pvgis["hi_y"] / 365, 3)
+                    st.session_state["pvgis_hsp"] = round(resultado_pvgis["hi_y"] / 365, 3)
                     _registrar_actividad("🌍", f"PVGIS consultado: HSP real = {resultado_pvgis['hi_y']/365:.2f} h/día")
                     st.rerun()
                 except RuntimeError as e:
