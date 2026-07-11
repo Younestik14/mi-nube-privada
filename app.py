@@ -1227,16 +1227,6 @@ code {{
 /* ============ Dividers ============ */
 [data-testid="stVerticalBlockBorderWrapper"] {{ border-radius: var(--radius) !important; }}
 
-/* ============ Welcome banner ============ */
-.welcome-banner {{
-    background: var(--bg-panel);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius);
-    padding: 1.5rem 1.7rem 1.2rem 1.7rem;
-    margin: 0.5rem 0 1.5rem 0;
-}}
-.welcome-banner h4 {{ margin-top: 0; }}
-
 /* ============ Info / Warning / Error boxes ============ */
 [data-testid="stAlert"] {{
     border-radius: var(--radius-sm) !important;
@@ -1632,7 +1622,7 @@ def generar_pdf_memoria(inp: dict, res: dict, config_prof: dict = None) -> bytes
     story.append(Paragraph("3. Criterio de caida de tension - ITC-BT-14/15/19/40", h2))
     du = [
         ["Magnitud", "Valor"],
-        ["Delta U maxima admisible", f"{res['e_final_pct'] and inp['delta_u_max']:g} %"],
+        ["Delta U maxima admisible", f"{inp['delta_u_max']:g} %"],
         ["Delta U con la seccion adoptada", f"{res['e_final_pct']:.2f} %"],
         ["Cumple", "SI" if res["e_final_pct"] <= inp["delta_u_max"] else "NO"],
     ]
@@ -5302,9 +5292,10 @@ def _render_resultados(inp: dict, res: dict):
         </div>''', unsafe_allow_html=True)
     with r4:
         neutro_txt = f"{res['seccion_neutro']:g}" if res.get("seccion_neutro") else "—"
+        proteccion_txt = f"{res['seccion_proteccion']:g}" if res.get("seccion_proteccion") else "—"
         st.markdown(f'''<div class="result-card">
             <div class="result-label">Neutro / Protección (mm²)</div>
-            <div class="result-value small">{neutro_txt} / {res['seccion_proteccion']:g}</div>
+            <div class="result-value small">{neutro_txt} / {proteccion_txt}</div>
             <div class="result-sub">Interruptor sugerido: {res['calibre_magnetotermico']} A</div>
         </div>''', unsafe_allow_html=True)
 
@@ -7570,7 +7561,7 @@ def _render_landing():
     col1, col2 = st.columns(2, gap="large")
 
     with col1:
-        st.markdown('''<div style="background:var(--bg-panel); border:2px solid var(--accent);
+        st.markdown('''<div style="background:var(--bg-panel); border:2px solid var(--accent-primary);
             border-radius:var(--radius); padding:2rem 1.5rem; text-align:center; margin-bottom:0.5rem;">
             <div style="font-size:2.5rem; margin-bottom:0.6rem;">📋</div>
             <div style="font-size:1.15rem; font-weight:700; margin-bottom:0.4rem;">Proyecto de instalación</div>
@@ -7585,7 +7576,7 @@ def _render_landing():
             st.rerun()
 
     with col2:
-        st.markdown('''<div style="background:var(--bg-panel); border:2px solid var(--accent);
+        st.markdown('''<div style="background:var(--bg-panel); border:2px solid var(--accent-primary);
             border-radius:var(--radius); padding:2rem 1.5rem; text-align:center; margin-bottom:0.5rem;">
             <div style="font-size:2.5rem; margin-bottom:0.6rem;">🧮</div>
             <div style="font-size:1.15rem; font-weight:700; margin-bottom:0.4rem;">Cálculos eléctricos</div>
@@ -7606,7 +7597,7 @@ def _render_landing():
         with col_hist:
             st.markdown(f"**{len(st.session_state['historial_proyectos'])} proyecto(s) guardado(s)**")
             for p in st.session_state["historial_proyectos"][:4]:
-                st.caption(f"• {p.get('nombre', '(sin nombre)')} — {p.get('fecha', '')}")
+                st.caption(f"• {p.get('__nombre__', '(sin nombre)')} — {p.get('__fecha__', '')[:10]}")
         with col_act:
             if st.session_state.get("actividad"):
                 st.markdown("**Última actividad**")
@@ -7617,6 +7608,7 @@ def _render_landing():
 def _render_dashboard():
     nombre_usuario = st.session_state["config_profesional"].get("nombre") or "técnicos"
     st.session_state.setdefault("guia_bienvenida_oculta", False)
+    modo = st.session_state.get("modo_app")
 
     hay_cable = st.session_state["resultado_cable"].get("seccion_final") is not None
     hay_fv = bool(st.session_state["resultado_fv"]) and st.session_state["resultado_fv"].get("p_pico_kwp") is not None
