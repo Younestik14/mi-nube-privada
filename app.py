@@ -6650,12 +6650,15 @@ def _render_documentacion(inputs_cable: dict, resultado_cable: dict, inputs_fv: 
     st.caption("Genera la Memoria Técnica de Diseño (MTD), el Anexo de Cálculos y el Pliego de Condiciones, "
                "reuniendo toda la información del proyecto calculada en las demás pestañas.")
 
-    st.session_state.setdefault("datos_proyecto", {
+    defaults_datos = {
         "titular": "", "nif_titular": "", "emplazamiento": "", "referencia_catastral": "", "uso": "",
         "superficie": "", "tipo_instalacion": "Nueva instalación",
         "instalador": "", "nif_instalador": "", "n_autorizacion": "", "categoria_instalador": "Básica",
-    })
+    }
+    st.session_state.setdefault("datos_proyecto", dict(defaults_datos))
     datos = st.session_state["datos_proyecto"]
+    for _k_def, _v_def in defaults_datos.items():
+        datos.setdefault(_k_def, _v_def)
 
     st.markdown("**A · Titular**")
     d1, d2, d3 = st.columns(3)
