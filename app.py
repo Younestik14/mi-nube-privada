@@ -44,13 +44,15 @@ Autor: Younes — IDEA TSG
 from __future__ import annotations
 
 import base64
-import random
+import hashlib
 import io
 import json
 import math
 from datetime import date, datetime
 
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
 # ==============================================================================
@@ -874,18 +876,26 @@ def generar_css(tema: str = "Oscuro") -> str:
     --accent-warning: {v['warning']}; --warning-soft: {v['warning_soft']};
     --accent-fail: {v['error']}; --error-soft: {v['error_soft']};
     --shadow-sm: {v['shadow_sm']}; --shadow-md: {v['shadow_md']}; --shadow-lg: {v['shadow_lg']};
-    --radius: 12px; --radius-sm: 8px;
+    --radius: 12px; --radius-sm: 8px; --radius-xs: 6px;
+    --input-bg: {v['bg_panel_alt']}; --input-border: {v['border_strong']};
+    --input-focus: {v['accent']};
 }}
 
-.stApp {{
-    background-color: var(--bg-primary);
-}}
+/* ============ Base ============ */
+.stApp {{ background-color: var(--bg-primary); }}
 
 html, body, [class*="css"], .stMarkdown, p, span, label, div {{
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     color: var(--text-primary);
 }}
 h1, h2, h3, h4 {{ font-family: 'Inter', sans-serif; letter-spacing: -0.025em; font-weight: 700; line-height: 1.2; }}
+hr {{ border-color: var(--border-subtle); }}
+
+/* ============ Scrollbar ============ */
+::-webkit-scrollbar {{ width: 6px; height: 6px; }}
+::-webkit-scrollbar-track {{ background: transparent; }}
+::-webkit-scrollbar-thumb {{ background: var(--border-strong); border-radius: 3px; }}
+::-webkit-scrollbar-thumb:hover {{ background: var(--text-secondary); }}
 
 /* ============ Sidebar ============ */
 section[data-testid="stSidebar"] {{
@@ -933,6 +943,99 @@ section[data-testid="stSidebar"] .stButton button[kind="primary"] * {{ color: #f
 .sidebar-credit-links a {{ font-size: 0.95rem; text-decoration: none; opacity: 0.5; transition: opacity 0.15s; }}
 .sidebar-credit-links a:hover {{ opacity: 1; }}
 
+/* ============ Form inputs ============ */
+.stTextInput > div > div > input,
+.stNumberInput > div > div > input,
+.stTextArea > div > div > textarea,
+.stDateInput > div > div > input {{
+    background: var(--input-bg) !important;
+    border: 1px solid var(--input-border) !important;
+    border-radius: var(--radius-sm) !important;
+    color: var(--text-primary) !important;
+    padding: 0.55rem 0.75rem !important;
+    font-size: 0.88rem !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+}}
+.stTextInput > div > div > input:focus,
+.stNumberInput > div > div > input:focus,
+.stTextArea > div > div > textarea:focus {{
+    border-color: var(--input-focus) !important;
+    box-shadow: 0 0 0 2px var(--accent-soft) !important;
+}}
+
+.stSelectbox > div > div > div {{
+    background: var(--input-bg) !important;
+    border: 1px solid var(--input-border) !important;
+    border-radius: var(--radius-sm) !important;
+    color: var(--text-primary) !important;
+}}
+.stSelectbox > div > div > div:focus-within {{
+    border-color: var(--input-focus) !important;
+    box-shadow: 0 0 0 2px var(--accent-soft) !important;
+}}
+
+.stMultiSelect > div > div > div {{
+    background: var(--input-bg) !important;
+    border: 1px solid var(--input-border) !important;
+    border-radius: var(--radius-sm) !important;
+    color: var(--text-primary) !important;
+}}
+.stMultiSelect > div > div > div:focus-within {{
+    border-color: var(--input-focus) !important;
+    box-shadow: 0 0 0 2px var(--accent-soft) !important;
+}}
+
+/* ============ Select dropdown popover ============ */
+[data-baseweb="popover"] {{
+    background: var(--bg-panel) !important;
+    border: 1px solid var(--border-subtle) !important;
+    border-radius: var(--radius-sm) !important;
+    box-shadow: var(--shadow-lg) !important;
+}}
+[data-baseweb="list-option"] {{
+    color: var(--text-primary) !important;
+    font-size: 0.85rem !important;
+    border-radius: var(--radius-xs) !important;
+}}
+[data-baseweb="list-option"]:hover,
+[data-baseweb="list-option"]:focus {{
+    background: var(--accent-soft) !important;
+}}
+[data-baseweb="list-option"][aria-selected="true"] {{
+    background: var(--accent-soft) !important;
+    color: var(--accent-primary) !important;
+}}
+
+/* ============ Labels ============ */
+.stTextInput label, .stNumberInput label, .stSelectbox label,
+.stMultiSelect label, .stTextArea label, .stSlider label,
+.stRadio label, .stCheckbox label, .stDateInput label, .stFileUploader label {{
+    font-size: 0.78rem !important;
+    font-weight: 600 !important;
+    color: var(--text-secondary) !important;
+    letter-spacing: 0.02em;
+    margin-bottom: 0.3rem !important;
+}}
+
+/* ============ Slider ============ */
+.stSlider > div > div > div > div > div > div {{
+    color: var(--accent-primary) !important;
+}}
+
+/* ============ Checkbox & Radio ============ */
+.stCheckbox > label > div[data-baseweb="check"] {{
+    border-color: var(--input-border) !important;
+    background: var(--input-bg) !important;
+}}
+.stCheckbox > label > div[data-baseweb="check"]:has(div[data-baseweb="checkmark"]) {{
+    background: var(--accent-primary) !important;
+    border-color: var(--accent-primary) !important;
+}}
+
+.stRadio > div > div > label {{
+    font-size: 0.85rem !important;
+}}
+
 /* ============ Titleblock ============ */
 .titleblock {{
     display: flex; justify-content: space-between; align-items: stretch;
@@ -946,16 +1049,8 @@ section[data-testid="stSidebar"] .stButton button[kind="primary"] * {{ color: #f
     letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600;
 }}
 .titleblock-main h1 {{ font-size: 1.4rem; margin: 0.2rem 0 0 0; font-weight: 700; }}
-.titleblock-meta {{ display: flex; }}
-.titleblock-meta > div {{
-    border-left: 1px solid var(--border-subtle); padding: 0.8rem 1rem; min-width: 110px;
-    display: flex; flex-direction: column; justify-content: center;
-}}
-.titleblock-meta span {{
-    font-size: 0.6rem; color: var(--text-secondary); letter-spacing: 0.08em; text-transform: uppercase;
-}}
-.titleblock-meta strong {{ color: var(--text-primary); font-size: 0.8rem; margin-top: 0.1rem; }}
 
+/* ============ Section labels ============ */
 .section-label {{
     font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase;
     color: var(--text-secondary); font-weight: 600;
@@ -1008,9 +1103,9 @@ section[data-testid="stSidebar"] .stButton button[kind="primary"] * {{ color: #f
 .quick-card {{
     display: block; background: var(--bg-panel); border: 1px solid var(--border-subtle);
     border-radius: var(--radius); padding: 0.9rem 1rem; text-decoration: none !important;
-    height: 100%;
+    height: 100%; transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }}
-.quick-card:hover {{ border-color: var(--accent-primary); }}
+.quick-card:hover {{ border-color: var(--accent-primary); box-shadow: var(--shadow-sm); }}
 .quick-card .qc-icon {{ font-size: 1.3rem; margin-bottom: 0.3rem; }}
 .quick-card .qc-title {{ font-weight: 600; color: var(--text-primary) !important; font-size: 0.88rem; }}
 .quick-card .qc-sub {{ font-size: 0.72rem; color: var(--text-secondary) !important; margin-top: 0.1rem; }}
@@ -1033,23 +1128,105 @@ section[data-testid="stSidebar"] .stButton button[kind="primary"] * {{ color: #f
 .badge.error {{ background: var(--error-soft); color: var(--accent-fail); }}
 .badge.info {{ background: var(--accent-soft); color: var(--accent-primary); }}
 
-/* ============ Buttons & widgets ============ */
+/* ============ Buttons ============ */
 .stButton button {{
     border-radius: var(--radius-sm); font-weight: 600; transition: all 0.12s ease;
+    font-size: 0.88rem;
 }}
 .stButton button:hover {{ box-shadow: var(--shadow-sm); }}
 .stButton button[kind="primary"] {{ background: var(--accent-primary); border-color: var(--accent-primary); }}
 .stButton button[kind="primary"]:hover {{ background: var(--accent-primary-hover); }}
 .stDownloadButton button {{ border-radius: var(--radius-sm); font-weight: 600; }}
 
-[data-testid="stMetricValue"] {{ color: var(--accent-primary); font-weight: 700; }}
-[data-testid="stExpander"] {{
-    border: 1px solid var(--border-subtle); border-radius: var(--radius);
+/* ============ Tabs ============ */
+.stTabs [data-baseweb="tab-list"] {{
+    gap: 2px;
+    background: var(--bg-panel-alt);
+    border-radius: var(--radius-sm);
+    padding: 3px;
 }}
+.stTabs [data-baseweb="tab"] {{
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary) !important;
+    padding: 0.45rem 1rem;
+}}
+.stTabs [aria-selected="true"] {{
+    background: var(--bg-panel) !important;
+    color: var(--text-primary) !important;
+    font-weight: 600 !important;
+    box-shadow: var(--shadow-sm);
+}}
+.stTabs [data-baseweb="tab-highlight"] {{
+    display: none;
+}}
+.stTabs [data-baseweb="tab-border"] {{
+    display: none;
+}}
+
+/* ============ Expander ============ */
+[data-testid="stExpander"] {{
+    border: 1px solid var(--border-subtle) !important;
+    border-radius: var(--radius) !important;
+    background: var(--bg-panel) !important;
+}}
+[data-testid="stExpander"] summary {{
+    font-weight: 600 !important;
+    font-size: 0.88rem !important;
+}}
+
+/* ============ Metrics ============ */
+[data-testid="stMetricValue"] {{ color: var(--accent-primary); font-weight: 700; }}
+[data-testid="stMetric"] {{
+    background: var(--bg-panel);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 0.6rem 0.8rem;
+}}
+
+/* ============ DataFrame / Tables ============ */
+.stDataFrame {{
+    border: 1px solid var(--border-subtle) !important;
+    border-radius: var(--radius-sm) !important;
+    overflow: hidden;
+}}
+[data-testid="stDataFrame"] table {{
+    border-collapse: collapse;
+}}
+[data-testid="stDataFrame"] th {{
+    background: var(--bg-panel-alt) !important;
+    font-size: 0.75rem !important;
+    font-weight: 600 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary) !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
+}}
+[data-testid="stDataFrame"] td {{
+    font-size: 0.82rem !important;
+    color: var(--text-primary) !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
+}}
+[data-testid="stDataFrame"] tr:hover td {{
+    background: var(--accent-soft) !important;
+}}
+
+/* ============ Code blocks ============ */
+.stCodeBlock {{
+    border-radius: var(--radius-sm) !important;
+    border: 1px solid var(--border-subtle) !important;
+}}
+code {{
+    font-size: 0.82rem !important;
+    background: var(--bg-panel-alt) !important;
+    color: var(--accent-primary) !important;
+    padding: 0.15rem 0.4rem !important;
+    border-radius: var(--radius-xs) !important;
+}}
+
+/* ============ Dividers ============ */
 [data-testid="stVerticalBlockBorderWrapper"] {{ border-radius: var(--radius) !important; }}
-hr {{ border-color: var(--border-subtle); }}
-.stTabs [data-baseweb="tab-list"] {{ gap: 2px; }}
-.stTabs [data-baseweb="tab"] {{ border-radius: var(--radius-sm) var(--radius-sm) 0 0; }}
 
 /* ============ Welcome banner ============ */
 .welcome-banner {{
@@ -1061,9 +1238,36 @@ hr {{ border-color: var(--border-subtle); }}
 }}
 .welcome-banner h4 {{ margin-top: 0; }}
 
+/* ============ Info / Warning / Error boxes ============ */
+[data-testid="stAlert"] {{
+    border-radius: var(--radius-sm) !important;
+    font-size: 0.85rem !important;
+    border-left-width: 3px !important;
+}}
+
+/* ============ Progress bar ============ */
+.stProgress > div > div > div > div {{
+    background: var(--accent-primary) !important;
+    border-radius: 999px !important;
+}}
+
+/* ============ Tooltip ============ */
+div[data-baseweb="tooltip"] {{
+    background: var(--bg-panel) !important;
+    border: 1px solid var(--border-subtle) !important;
+    border-radius: var(--radius-sm) !important;
+    color: var(--text-primary) !important;
+    box-shadow: var(--shadow-md) !important;
+}}
+
 /* ============ Ayuda ============ */
 .ayuda-texto {{ font-size: 0.82rem; line-height: 1.5; color: var(--text-secondary); }}
 .ayuda-texto b {{ color: var(--text-primary); }}
+
+/* ============ Column spacing ============ */
+[data-testid="column"] {{
+    padding: 0 0.3rem;
+}}
 
 /* ============ Accessibility ============ */
 a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {{
@@ -1076,7 +1280,6 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 }}
 @media (max-width: 900px) {{
     .titleblock {{ flex-direction: column; }}
-    .titleblock-meta {{ border-top: 1px solid var(--border-subtle); }}
     .kpi-value {{ font-size: 1.2rem; }}
 }}
 </style>
@@ -4091,7 +4294,6 @@ TIPO_AUTOCONSUMO_FV = [
 PR_DEFECTO_FV = 0.80
 EFICIENCIA_INVERSOR_DEFECTO = 97.0        # % — típico 95-98% (SunFields, fabricantes)
 DEGRADACION_ANUAL_DEFECTO = 0.5           # %/año — típico 0,3-0,8%/año
-# (definido en la sección de constantes, al inicio del archivo)
 AREA_PANEL_DEFECTO = 1.95                 # m² — panel estándar ~450Wp (aprox. 1,75x1,13 m)
 PRECIO_COMPENSACION_DEFECTO = 0.08        # €/kWh excedente compensado (orientativo, varía por comercializadora)
 
@@ -4775,7 +4977,6 @@ def _render_inputs_fv() -> dict:
                        f"(elevación del terreno: {r_pv['elevacion']:.0f} m)." if r_pv.get('elevacion') is not None
                        else f"✅ Usando datos reales de PVGIS: irradiación anual en el plano inclinado "
                        f"**{r_pv['hi_y']:.0f} kWh/m²/año** → HSP equivalente **{r_pv['hi_y']/365:.2f} h/día**.")
-            import plotly.graph_objects as go
             meses_nom = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
             fig_pvgis = go.Figure(go.Bar(x=meses_nom, y=[m["e_m"] for m in r_pv["mensual"]],
                                          marker=dict(color="#3b82f6")))
@@ -4974,7 +5175,6 @@ def _render_comparador_fv(inp_actual: dict, res_actual: dict):
                            "comparar de verdad.")
             st.dataframe(df_comp, hide_index=True, width='stretch')
 
-            import plotly.graph_objects as go
             metricas_grafico = ["Potencia pico (kWp)", "Producción año 1 (MWh)", "Ahorro anual (k€)"]
             valores_a = [res_a.get("p_pico_kwp", 0), res_a.get("produccion_anual_kwh", 0) / 1000,
                         res_a.get("ahorro_anual", 0) / 1000]
@@ -5982,7 +6182,6 @@ def _render_calculos_bt():
             filas_metodos.append({"Método": metodo_cmp.split(" — ")[0], "Descripción": metodo_cmp.split(" — ")[1],
                                   "Iz (A)": iz_m if iz_m is not None else None})
         df_metodos = pd.DataFrame(filas_metodos)
-        import plotly.express as px
         df_validos = df_metodos.dropna(subset=["Iz (A)"])
         if not df_validos.empty:
             fig_metodos = px.bar(df_validos, x="Método", y="Iz (A)", color="Método", text="Iz (A)",
@@ -6614,6 +6813,13 @@ def _render_sidebar():
         st.markdown("<div style='margin-top:1.4rem;'></div>", unsafe_allow_html=True)
         st.caption(f"📌 {st.session_state['nombre_proyecto_actual']}")
 
+        st.markdown("<div style='margin-top:0.6rem;border-top:1px solid var(--border-subtle);padding-top:0.6rem;'>", unsafe_allow_html=True)
+        if st.button("🔒 Cerrar sesión", key="btn_logout", width='stretch'):
+            for k in list(st.session_state.keys()):
+                del st.session_state[k]
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
         st.markdown("""
         <div class="sidebar-credit">
             <div class="sidebar-credit-name">Younesse Tikent Tifaoui</div>
@@ -6927,8 +7133,6 @@ def _render_estadisticas():
                 "fotovoltaica o añade capítulos al presupuesto para ver estadísticas.")
         return
 
-    import plotly.graph_objects as go
-    import plotly.express as px
     colores_plot = ["#3b82f6", "#e8a33d", "#22c55e", "#ef4444", "#a78bfa", "#06b6d4", "#f59e0b", "#ec4899"]
     layout_base = dict(margin=dict(t=10, b=10, l=10, r=10), paper_bgcolor="rgba(0,0,0,0)",
                         plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#8b96a8"))
@@ -7126,20 +7330,12 @@ def _render_configuracion():
 
     with tab_apariencia:
         st.caption("El tema se aplica a toda la aplicación (no afecta a los PDF, que mantienen un diseño "
-                   "fijo pensado para imprimir).")
+                    "fijo pensado para imprimir).")
         tema_sel = st.radio("Tema", ["Oscuro", "Claro"],
                             index=0 if st.session_state["tema"] == "Oscuro" else 1, horizontal=True)
         if tema_sel != st.session_state["tema"]:
             st.session_state["tema"] = tema_sel
             st.rerun()
-        if st.session_state["tema"] == "Claro":
-            st.info(
-                "⚠️ Limitación conocida: los campos y tablas nativos de Streamlit (números, desplegables, "
-                "editor de precios) mantienen un fondo oscuro incluso en modo claro. Streamlit fija ese "
-                "estilo a nivel de servidor (`.streamlit/config.toml`), no por sesión de usuario, así que "
-                "no hay forma fiable de sincronizarlo con el interruptor de tema de la app. El modo oscuro "
-                "es el que tiene el acabado completo."
-            )
 
 
 def _render_acerca_de():
@@ -7165,7 +7361,10 @@ documentación técnica (MTD, Anexo de Cálculos, Pliego de Condiciones).
 **Aviso legal:** las tablas y fórmulas se han contrastado contra la Guía-BT-19 y las ITC-BT
 correspondientes, pero pueden existir erratas. Verifica los valores críticos antes de un uso profesional.
     """)
-    st.caption("Versión 4.0 · Última actualización de este documento: sesión actual.")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Versión", "4.0")
+    c2.metric("Norma", "REBT / ITC-BT")
+    c3.metric("Autor", "Younesse Tikent")
 
 
 def _render_tablas():
@@ -7335,14 +7534,18 @@ def _render_login():
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
         with st.form("login_form", clear_on_submit=False):
-            clave = st.text_input("Contraseña", type="password", placeholder="Contraseña", label_visibility="collapsed")
+            clave = st.text_input("Contraseña", type="password", placeholder="Introduce la contraseña", label_visibility="collapsed")
             enviado = st.form_submit_button("Entrar", type="primary", width='stretch')
             if enviado:
-                if clave == "1868628":
+                hash_clave = hashlib.sha256(clave.encode()).hexdigest()
+                hash_esperado = hashlib.sha256("1868628".encode()).hexdigest()
+                if hash_clave == hash_esperado:
                     st.session_state["autenticado"] = True
                     st.rerun()
                 else:
                     st.error("Contraseña incorrecta.")
+        st.caption("<div style='text-align:center;color:var(--text-secondary);font-size:0.7rem;margin-top:1rem;'>"
+                   "REBT Suite v4.0 · REBT / ITC-BT</div>", unsafe_allow_html=True)
 
 
 def main():
@@ -7391,9 +7594,7 @@ def main():
             <div class="titleblock-main">
                 <span class="titleblock-eyebrow">{eyebrow}</span>
                 <h1>{pagina}</h1>
-            </div>
-            <div class="titleblock-meta">
-                <div><span>Proyecto</span><strong>{st.session_state['nombre_proyecto_actual'][:16]}</strong></div>
+                <span style="font-size:0.75rem;color:var(--text-secondary);">Proyecto: {st.session_state['nombre_proyecto_actual'][:24]}</span>
             </div>
         </div>
         """, unsafe_allow_html=True)
