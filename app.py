@@ -2094,6 +2094,263 @@ def _docx_bytes(doc) -> bytes:
     return buffer.getvalue()
 
 
+def _docx_rich_parrafo(doc, html: str, justificar: bool = True, tamano: float = 10.5,
+                       negrita: bool = False, cursiva: bool = False, centrar: bool = False):
+    """Añade un párrafo a *doc* parseando las etiquetas HTML simples
+    <b>, <i>, <sub>, <sup> y convirtiéndolas a runs con formato."""
+    import re
+    from docx.shared import Pt
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    p = doc.add_paragraph()
+    if centrar:
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    elif justificar:
+        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+
+    tokens = re.split(r'(<[bi]/>|<sub>|</sub>|<sup>|</sup>)', html)
+    sub_sup = False
+    for tok in tokens:
+        if tok == '<b>':
+            negrita = True
+            continue
+        if tok == '</b>':
+            negrita = False
+            continue
+        if tok == '<i>':
+            cursiva = True
+            continue
+        if tok == '</i>':
+            cursiva = False
+            continue
+        if tok == '<sub>':
+            sub_sup = True
+            continue
+        if tok == '</sub>':
+            sub_sup = False
+            continue
+        if tok == '<sup>':
+            sub_sup = True
+            continue
+        if tok == '</sup>':
+            sub_sup = False
+            continue
+        if not tok:
+            continue
+        r = p.add_run(tok)
+        r.font.size = Pt(tamano)
+        r.bold = negrita
+        r.italic = cursiva
+        if sub_sup:
+            from docx.enum.text import WD_SCRIPT
+            r.font.subscript = True
+    return p
+
+
+def _docx_formula(doc, texto: str, tamano: float = 10.0):
+    """Párrafo centrado con estilo de fórmula (cobre)."""
+    return _docx_rich_parrafo(doc, texto, centrar=True, tamano=tamano)
+
+
+def _docx_parrafos_calculo_cable(doc, inp: dict, res: dict):
+    """Reproduce en DOCX la justificación de cálculo del cable
+    (equivalente a _parrafos_calculo_cable_pdf)."""
+    sistema = inp["sistema"]
+    cosphi = inp["cos_phi"]
+
+    if inp["modo_entrada"] == "Potencia activa":
+        p_w = inp["potencia_kw"] * 1000.0
+        p_w_txt = _miles(p_w)
+        if sistema == SISTEMA_MONO:
+            _docx_parrafo(doc, "La intensidad de empleo del circuito, para un sistema monofásico, se "
+                         "determina mediante la expresión:")
+            _docx_formula(doc, "Ib = P / (V · cos φ)")
+            _docx_parrafo(doc, f"Sustituyendo los valores de la instalación (P = {p_w_txt} W, "
+                         f"V = {inp['tension']:g} V, cos φ = {cosphi:.2f}), resulta:")
+            _docx_formula(doc, f"Ib = {p_w_txt} / ({inp['tension']:g} × {cosphi:.2f}) = "
+                          f"<b>{res['ib']:.2f} A</b>")
+        else:
+            _docx_parrafo(doc, "La intensidad de empleo del circuito, para un sistema trifásico "
+                         "equilibrado, se determina mediante la expresión:")
+            _docx_formula(doc, "Ib = P / (√3 · V · cos φ)")
+            _docx_parrafo(doc, f"Sustituyendo los valores de la instalación (P = {p_w_txt} W, "
+                         f"V = {inp['tension']:g} V, cos φ = {cosphi:.2f}), resulta:")
+            _docx_formula(doc, f"Ib = {p_w_txt} / (√3 × {inp['tension']:g} × {cosphi:.2f}) = "
+                          f"<b>{res['ib']:.2f} A</b>")
+    else:
+        _docx_parrafo(doc, f"La intensidad de empleo se ha introducido de forma directa: "
+                      f"Ib = <b>{res['ib']:.2f} A</b>.")
+
+    if res.get("ib_motor") is not None:
+        if len(inp["corrientes_motores"]) == 1:
+            _docx_parrafo(doc, "Al tratarse de un circuito de motor único, la ITC-BT-47 exige dimensionar "
+                         "el conductor para el 125% de la intensidad a plena carga del motor:")
+            _docx_formula(doc, f"Ib,motor = 1,25 · In = 1,25 × "
+                          f"{inp['corrientes_motores'][0]:.2f} = <b>{res['ib_motor']:.2f} A</b>")
+        else:
+            ordenados = sorted(inp["corrientes_motores"], reverse=True)
+            resto = " + ".join(f"{x:.1f}" for x in ordenados[1:])
+            _docx_parrafo(doc, "Al existir varios motores en el mismo circuito, la ITC-BT-47 exige "
+                         "dimensionar el conductor para el 125% de la intensidad del motor de mayor "
+                         "potencia, más el 100% de la intensidad del resto:")
+            _docx_formula(doc, f"Ib,motor = 1,25 × {ordenados[0]:.2f} + ({resto}) = "
+                          f"<b>{res['ib_motor']:.2f} A</b>")
+        if inp["ascensor_grua"]:
+            _docx_parrafo(doc, "Por tratarse de un ascensor o grúa, se aplica adicionalmente el factor "
+                         "×1,3 previsto en la ITC-BT-47.")
+    if inp["alumbrado_descarga"]:
+        _docx_parrafo(doc, "Al tratarse de alumbrado con lámparas de descarga sin corregir el factor de "
+                     "potencia, se incrementa la intensidad de cálculo con un factor orientativo de "
+                     "1,8, según la ITC-BT-44:")
+        _docx_formula(doc, f"Ib,cálculo = Ib × 1,8 = <b>{res['ib_calculo']:.2f} A</b>")
+
+    _docx_parrafo(doc, "El criterio térmico del artículo 19.2 de la ITC-BT-19 exige que la intensidad "
+                 "admisible del cable, corregida por las condiciones reales de la instalación, no "
+                 "sea inferior a la intensidad de empleo:")
+    _docx_formula(doc, "Ib ≤ In ≤ Iz ,  con  Iz = Iz,tabla · ftemp · fagrup · fcapas · fresist")
+    factor_base = res["iz_termica"] / max(res["factor_total"], 1e-9)
+    _docx_parrafo(doc, f"Para la sección adoptada, la Guía-BT-19 establece una intensidad admisible de "
+                 f"base de {factor_base:.1f} A que, corregida por los factores de temperatura "
+                 f"({res['f_temp']:.3f}), agrupamiento ({res['f_agrup']:.3f}), capas "
+                 f"({res['f_capas']:.3f}) y resistividad del terreno ({res['f_resist']:.3f}), "
+                 "resulta:")
+    _docx_formula(doc, f"Iz = {factor_base:.1f} × {res['f_temp']:.3f} × {res['f_agrup']:.3f} × "
+                  f"{res['f_capas']:.3f} × {res['f_resist']:.3f} = "
+                  f"<b>{res['iz_termica']:.2f} A</b>")
+    i_comparar = res["ib_calculo"] / (res["n_paralelo"] if res["necesita_paralelo"] else 1)
+    cumple_termico = res["iz_termica"] >= i_comparar
+    _docx_parrafo(doc, f"Al ser Iz = {res['iz_termica']:.2f} A "
+                 f"{'superior' if cumple_termico else 'inferior'} a la intensidad de cálculo "
+                 f"({i_comparar:.2f} A), la sección de <b>{res['s_termica']:g} mm²</b> "
+                 f"{'satisface' if cumple_termico else 'NO satisface'} el criterio térmico.")
+
+    _docx_parrafo(doc, "Para el criterio de caída de tensión, la conductividad del conductor se toma a su "
+                 "temperatura de servicio (más conservadora que a 20 °C):")
+    _docx_formula(doc, "κ(T) = κ20°C / [1 + α · (Tservicio − 20)]")
+    kappa = res["kappa"]
+    _docx_formula(doc, f"κ = {CONDUCTIVIDAD_20C[inp['conductor']]:g} / [1 + "
+                  f"{COEF_TEMP_RESIST[inp['conductor']]:g} × "
+                  f"({TEMP_SERVICIO[inp['aislamiento']]:g} − 20)] = <b>{kappa:.2f} m/(Ω·mm²)</b>")
+    S = res["seccion_final"]
+    r_metro = 1.0 / (kappa * S)
+    k_sist_txt = "2" if sistema == SISTEMA_MONO else "√3"
+    _docx_parrafo(doc, "La caída de tensión se calcula, con resistencia R = 1/(κ·S), mediante:")
+    _docx_formula(doc, f"ΔU = {k_sist_txt} · L · Ib · (R·cos φ + X·sen φ)")
+    _docx_parrafo(doc, f"Para L = {inp['longitud']:g} m y S = {S:g} mm², R = 1/({kappa:.2f}×{S:g}) = "
+                 f"{r_metro:.5f} Ω/m, resultando:")
+    _docx_formula(doc, f"ΔU = {res['e_final']:.2f} V = <b>{res['e_final_pct']:.2f} %</b> de "
+                  f"{inp['tension']:g} V")
+    cumple_du = res["e_final_pct"] <= inp["delta_u_max"]
+    _docx_parrafo(doc, f"Como {res['e_final_pct']:.2f} % es {'inferior' if cumple_du else 'superior'} al "
+                 f"máximo admisible del {inp['delta_u_max']:g} % para este tramo, la sección "
+                 f"{'satisface' if cumple_du else 'NO satisface'} el criterio de caída de tensión.")
+
+    if res.get("seccion_neutro"):
+        _docx_parrafo(doc, "La sección del conductor neutro se obtiene según el criterio general del REBT "
+                     "(igual a la de fase hasta 16 mm², o la mitad redondeada para secciones "
+                     "mayores sin armónicos significativos):")
+        _docx_formula(doc, f"Sf = {S:g} mm² → <b>Sn = {res['seccion_neutro']:g} mm²</b>")
+    if res.get("seccion_proteccion"):
+        _docx_parrafo(doc, "La sección del conductor de protección se obtiene según la tabla de la "
+                     "ITC-BT-18:")
+        _docx_formula(doc, f"Sf = {S:g} mm² → <b>Sp = {res['seccion_proteccion']:g} mm²</b>")
+
+    if res.get("cumple_cc") is not None:
+        k_cc = K_CORTOCIRCUITO[(inp["conductor"], inp["aislamiento"])]
+        _docx_parrafo(doc, "Por último, se verifica el criterio térmico de cortocircuito (IEC 60364-5-54):")
+        _docx_formula(doc, "Smín = Icc · √t / k")
+        _docx_formula(doc, f"Smín = ({inp['icc_ka']:g}×1000 × √{inp['tiempo_s']:g}) / {k_cc} = "
+                      f"<b>{res['s_min_cc']:g} mm²</b>, frente a los {S:g} mm² adoptados: "
+                      f"{'cumple' if res['cumple_cc'] else 'NO cumple'}.")
+
+
+def _docx_parrafos_calculo_fv(doc, inp: dict, res: dict):
+    """Reproduce en DOCX la justificación de cálculo fotovoltaico
+    (equivalente a _parrafos_calculo_fv_pdf)."""
+    _docx_parrafo(doc, f"El generador fotovoltaico se dimensiona para una potencia pico de "
+                  f"<b>{res['p_pico_kwp']:.2f} kWp</b>, equivalente a {res['n_paneles']} paneles de "
+                  f"{inp['potencia_panel_wp']:g} Wp y una superficie de captación de "
+                  f"{res['superficie_necesaria_m2']:.1f} m².")
+
+    _docx_parrafo(doc, "Las pérdidas por orientación e inclinación no óptimas se calculan según la "
+                 "expresión del Documento Básico HE5 del Código Técnico de la Edificación:")
+    _docx_formula(doc, "Pérdidas (%) = 100 · [1,2·10⁻⁴·(β − φ + 10)² + 3,5·10⁻⁵·α²]")
+    _docx_parrafo(doc, f"con inclinación β = {inp['inclinacion']:g}°, latitud φ = {inp['latitud']:g}° y "
+                 f"azimut α = {inp['azimut']:g}°, lo que da unas pérdidas de "
+                 f"<b>{res['perdidas_orient_pct']:.2f} %</b>.")
+    _docx_parrafo(doc, "El rendimiento efectivo (Performance Ratio) incorpora además las pérdidas por "
+                 "sombras/suciedad y la eficiencia del inversor:")
+    _docx_formula(doc, f"PRefectivo = PRbase · (1 − porient) · (1 − psombras) · ηinversor = "
+                  f"{inp['pr']:.2f} × (1 − {res['perdidas_orient_pct']/100:.3f}) × "
+                  f"(1 − {inp['perdidas_sombras']/100:.2f}) × {inp['eficiencia_inversor']/100:.3f} = "
+                  f"<b>{res['pr_efectivo']:.3f}</b>")
+    _docx_parrafo(doc, "La producción anual estimada resulta de aplicar la fórmula del IDAE:")
+    _docx_formula(doc, "Eanual = Ppico · HSP · 365 · PRefectivo")
+    _docx_formula(doc, f"Eanual = {res['p_pico_kwp']:.2f} × {inp['hsp']:g} × 365 × "
+                  f"{res['pr_efectivo']:.3f} = <b>{_miles(res['produccion_anual_kwh'])} kWh/año</b>")
+    _docx_parrafo(doc, f"Considerando una degradación anual del panel del {inp['degradacion_anual']:g}%, la "
+                 f"producción estimada será de {_miles(res['produccion_ano10'])} kWh/año en el año "
+                 f"10 y de {_miles(res['produccion_ano25'])} kWh/año en el año 25. El ahorro de "
+                 f"emisiones asociado, con un factor de emisión de la red de "
+                 f"{inp.get('factor_co2', FACTOR_CO2_RED_DEFECTO):.2f} kg CO₂/kWh, es de "
+                 f"<b>{res['co2_evitado_kg_ano']/1000:.2f} toneladas de CO₂ al año</b>.")
+
+    _docx_parrafo(doc, f"El generador se configura con {res['n_serie']} paneles en serie por string y "
+                 f"{res['n_paralelo']} strings en paralelo. La tensión de circuito abierto del "
+                 "string en la condición más desfavorable (frío) se calcula como:")
+    _docx_formula(doc, "Vstring,frío = Nserie · Voc · [1 + αV · (25 − Tmin)]")
+    _docx_formula(doc, f"Vstring,frío = {res['n_serie']} × {inp['voc']:g} × "
+                  f"[1 + {inp['coef_temp_voc']/100:.4f} × (25 − {inp['temp_min']:g})] = "
+                  f"<b>{res['v_string_frio']:.1f} V</b>")
+    cumple_v = res["cumple_vmax"] and res["cumple_vmpp_min"] and res["cumple_vmpp_max"]
+    _docx_parrafo(doc, f"Este valor {'se mantiene dentro' if cumple_v else 'NO se mantiene dentro'} de la "
+                 f"ventana de tensión admisible del inversor "
+                 f"({inp['vmin_mppt']:g}-{inp['vmax_mppt']:g} V de rango MPPT, "
+                 f"{inp['vmax_entrada_inversor']:g} V de tensión máxima de entrada).")
+
+    _docx_parrafo(doc, "De acuerdo con la ITC-BT-40, los cables de conexión de instalaciones generadoras "
+                 "se dimensionan para una intensidad no inferior al 125% de la intensidad máxima del "
+                 "generador, con una caída de tensión conjunta (continua + alterna) no superior al "
+                 "1,5% entre el generador y el punto de interconexión:")
+    _docx_formula(doc, f"Idiseño,CC = 1,25 · Isc = 1,25 × {inp['isc']:g} = "
+                  f"<b>{res['i_diseno_cc']:.2f} A</b>  →  sección adoptada "
+                  f"<b>{res['s_cc_final']:g} mm²</b> (ΔU = {res['du_cc_pct']:.2f} %)")
+    _docx_formula(doc, f"Idiseño,CA = 1,25 · Ib = <b>{res['i_diseno_ca']:.2f} A</b>  →  "
+                  f"sección adoptada <b>{res['s_ca_final']:g} mm²</b> "
+                  f"(ΔU = {res['e_ca_pct']:.2f} %)")
+    cumple_total = res["du_total_pct"] <= 1.5
+    _docx_parrafo(doc, f"La caída de tensión conjunta resulta ΔU = {res['du_total_pct']:.2f} %, que "
+                 f"{'cumple' if cumple_total else 'NO cumple'} el límite del 1,5% establecido por "
+                 "la ITC-BT-40.")
+
+    if res.get("calibre_fusible_string"):
+        _docx_parrafo(doc, f"Al haber más de un string en paralelo, se dispone fusible de protección de "
+                     f"cada string, de calibre <b>{res['calibre_fusible_string']} A</b> y tensión "
+                     f"nominal <b>{res.get('tension_fusible_string','—')} V</b> (criterio orientativo "
+                     "1,5-2,4 veces la Isc del string, UNE-EN 62548).")
+    if res.get("capacidad_bateria_kwh"):
+        _docx_parrafo(doc, "La capacidad de la batería de acumulación se determina a partir del consumo "
+                     "diario a cubrir, la autonomía deseada y la profundidad de descarga admisible:")
+        _docx_formula(doc, "Cbatería = (Consumodiario · Díasautonomía) / Profundidaddescarga")
+        _docx_formula(doc, f"Cbatería = ({inp.get('consumo_diario_bateria_kwh',0):.2f} × "
+                      f"{inp.get('autonomia_dias',0):g}) / {inp.get('profundidad_descarga',80)/100:.2f} "
+                      f"= <b>{res['capacidad_bateria_kwh']:.1f} kWh</b>")
+
+    if res.get("ahorro_anual"):
+        texto_ahorro = (f"Del total producido, se estima que un {inp['pct_autoconsumo']:g}% se "
+                        f"autoconsume directamente ({_miles(res['energia_autoconsumida'])} kWh/año), "
+                        f"generando un ahorro de <b>{_fmt_eur(res['ahorro_autoconsumo'])}/año</b>")
+        if res["ingreso_excedentes"]:
+            texto_ahorro += (f", más un ingreso por compensación de excedentes de "
+                              f"<b>{_fmt_eur(res['ingreso_excedentes'])}/año</b>")
+        texto_ahorro += "."
+        _docx_parrafo(doc, texto_ahorro)
+        if res.get("payback_anos"):
+            _docx_parrafo(doc, f"Con una inversión estimada de {_fmt_eur(inp['inversion_total'])} y un "
+                         f"ahorro anual de {_fmt_eur(res['ahorro_anual'])}, el retorno simple de la "
+                         f"inversión es de <b>{res['payback_anos']:.1f} años</b>.")
+
+
 def _bloque_portada(titulo_doc: str, subtitulo_doc: str, datos_proyecto: dict, config_prof: dict,
                      AZUL, COBRE, colors, h1_style, normal_style):
     """Portada: logo grande, título, datos del proyecto y 'elaborado por'."""
@@ -2426,6 +2683,21 @@ def generar_pdf_mtd(datos_proyecto: dict, inputs_cable: dict, resultado_cable: d
         "ambientales normales (AD1, AA4, BA1 según UNE 20460-3), sin riesgo de incendio ni explosión, por lo "
         "que no son de aplicación las prescripciones adicionales de la ITC-BT-29 para locales de "
         "características especiales.", normal))
+
+    contador_d += 1
+    story.append(Paragraph(f"D.{contador_d} Inspecciones periódicas y mantenimiento", h3))
+    story.append(Paragraph(
+        "De acuerdo con la ITC-BT-05, las instalaciones eléctricas de baja tensión estarán sometidas a "
+        "inspecciones periódicas realizadas por organismo de control autorizado. La periodicidad mínima será la "
+        "siguiente: cada 5 años para instalaciones con potencia contratada superior a 100 kW o que dispongan "
+        "de automático de protección general superior a 25 A; cada 10 años para las demás instalaciones. "
+        "Quedan exentas de inspección periódica las instalaciones de viviendas unifamiliares con potencia "
+        "contratada no superior a 25 kW. El titular deberá conservar la documentación de la instalación "
+        "(Memoria Técnica, Anexo de Cálculos, Certificado de Instalación Eléctrica e informes de inspecciones "
+        "anteriores) y ponerla a disposición del organismo de control. Se recomienda la realización de "
+        "mantenimientos preventivos periódicos, incluyendo la comprobación de: continuidad de conductores de "
+        "protección y equipotenciales, resistencia de aislamiento, disparo de diferenciales, estado de "
+        "conexiones y conexiones a tierra, conforme a los criterios de la norma UNE-HD 60364-6.", normal))
 
 
     # ---------------------------------------------------------------- E. Memoria Justificativa
@@ -2804,16 +3076,19 @@ def generar_docx_mtd(datos_proyecto: dict, inputs_cable: dict, resultado_cable: 
     _docx_heading(doc, "D.4 Instalación de baja tensión calculada", 3, COBRE)
     if hay_cable:
         _docx_parrafo(doc, f"Circuito de referencia: {inputs_cable['tipo_circuito']}.")
-        _docx_tabla(doc, [
+        filas_d4 = [
             ["Concepto", "Valor"],
             ["Sistema", f"{inputs_cable['sistema']} — {inputs_cable['tension']:g} V"],
             ["Conductor / Aislamiento", f"{inputs_cable['conductor']} / {inputs_cable['aislamiento']}"],
-            ["Método de instalación", inputs_cable["metodo"]],
+            ["Método de instalación (canalización)", inputs_cable["metodo"]],
             ["Longitud del circuito", f"{inputs_cable['longitud']:g} m"],
             ["Sección de fase adoptada", f"{resultado_cable['seccion_final']:g} mm²"],
+            ["Sección de neutro", f"{resultado_cable['seccion_neutro']:g} mm²" if resultado_cable.get("seccion_neutro") else "—"],
+            ["Sección de protección (PE)", f"{resultado_cable['seccion_proteccion']:g} mm²" if resultado_cable.get("seccion_proteccion") else "—"],
             ["Protección (interruptor automático)", f"{resultado_cable['calibre_magnetotermico']} A"],
             ["Caída de tensión", f"{resultado_cable['e_final_pct']:.2f} % (máx. {inputs_cable['delta_u_max']:g} %)"],
-        ], AZUL)
+        ]
+        _docx_tabla(doc, filas_d4, AZUL)
     else:
         _docx_parrafo(doc, "No se ha completado ningún cálculo de circuito en la pestaña Calculadora; esta "
                       "sección se completará cuando se disponga de esos datos.")
@@ -2906,11 +3181,48 @@ def generar_docx_mtd(datos_proyecto: dict, inputs_cable: dict, resultado_cable: 
                   "ambientales normales (AD1, AA4, BA1 según UNE 20460-3), sin riesgo de incendio ni "
                   "explosión.")
 
+    contador_d += 1
+    _docx_heading(doc, f"D.{contador_d} Inspecciones periódicas y mantenimiento", 3, COBRE)
+    _docx_parrafo(doc, "De acuerdo con la ITC-BT-05, las instalaciones eléctricas de baja tensión estarán "
+                  "sometidas a inspecciones periódicas realizadas por organismo de control autorizado. La "
+                  "periodicidad mínima será la siguiente: cada 5 años para instalaciones con potencia contratada "
+                  "superior a 100 kW o que dispongan de automático de protección general superior a 25 A; "
+                  "cada 10 años para las demás instalaciones. Quedan exentas de inspección periódica las "
+                  "instalaciones de viviendas unifamiliares con potencia contratada no superior a 25 kW. El "
+                  "titular deberá conservar la documentación de la instalación (Memoria Técnica, Anexo de "
+                  "Cálculos, Certificado de Instalación Eléctrica e informes de inspecciones anteriores) y "
+                  "ponerla a disposición del organismo de control. Se recomienda la realización de "
+                  "mantenimientos preventivos periódicos, incluyendo la comprobación de: continuidad de "
+                  "conductores de protección y equipotenciales, resistencia de aislamiento, disparo de "
+                  "diferenciales, estado de conexiones y conexiones a tierra, conforme a los criterios de la "
+                  "norma UNE-HD 60364-6.")
+
     _docx_heading(doc, "E. Memoria justificativa (resumen de cálculos)", 2, AZUL)
-    _docx_parrafo(doc, "El detalle completo de fórmulas y valores se recoge en el Anexo de Cálculos y "
-                  "Mediciones, documento que forma parte integrante de esta Memoria.")
+    _docx_parrafo(doc, "El detalle completo de las fórmulas y valores empleados para justificar las secciones, "
+                  "protecciones y caídas de tensión se recoge en el Anexo de Cálculos y Mediciones, documento que "
+                  "forma parte integrante de esta Memoria. A continuación se resume el resultado:")
     if not hay_cable and not hay_fv:
         _docx_parrafo(doc, "No hay cálculos disponibles todavía.", cursiva=True)
+    else:
+        filas_resumen = [["Parte de la instalación", "Potencia (kW)", "Longitud (m)", "Sección (mm²)", "ΔU (%)"]]
+        if hay_cable:
+            filas_resumen.append([
+                inputs_cable["tipo_circuito"][:28],
+                f"{inputs_cable['potencia_kw']:.2f}" if inputs_cable.get("potencia_kw") else "—",
+                f"{inputs_cable['longitud']:g}", f"{resultado_cable['seccion_final']:g}",
+                f"{resultado_cable['e_final_pct']:.2f}",
+            ])
+        if hay_fv:
+            filas_resumen.append([
+                "Generador FV (tramo CC)", f"{resultado_fv['p_pico_kwp']:.2f}", f"{inputs_fv['longitud_cc']:g}",
+                f"{resultado_fv['s_cc_final']:g}", f"{resultado_fv['du_cc_pct']:.2f}",
+            ])
+            filas_resumen.append([
+                "Generador FV (tramo CA)", f"{inputs_fv['potencia_inversor_kw']:g}", f"{inputs_fv['longitud_ca']:g}",
+                f"{resultado_fv['s_ca_final']:g}", f"{resultado_fv['e_ca_pct']:.2f}",
+            ])
+        if len(filas_resumen) > 1:
+            _docx_tabla(doc, filas_resumen, AZUL)
 
     _docx_heading(doc, "F. Presupuesto", 2, AZUL)
     _docx_parrafo(doc, f"El presupuesto de la instalación asciende a la cantidad de "
@@ -3033,38 +3345,17 @@ def generar_docx_anexo_calculos(datos_proyecto: dict, inputs_cable: dict, result
     _docx_heading(doc, "1. Cálculos justificativos", 2, AZUL)
     if hay_cable:
         _docx_heading(doc, f"1.1. Instalación de baja tensión — {inputs_cable['tipo_circuito']}", 3, COBRE)
-        _docx_tabla(doc, [
-            ["Magnitud", "Valor"],
-            ["Intensidad de empleo Ib", f"{resultado_cable['ib']:.2f} A"],
-            ["Intensidad de cálculo (tras factores)", f"{resultado_cable['ib_calculo']:.2f} A"],
-            ["Iz obtenida (tabla × factores)", f"{resultado_cable['iz_termica']:.1f} A" if resultado_cable.get("iz_termica") else "-"],
-            ["Sección adoptada", f"{resultado_cable['seccion_final']:g} mm²"],
-            ["Caída de tensión", f"{resultado_cable['e_final_pct']:.2f} % (máx. {inputs_cable['delta_u_max']:g} %)"],
-            ["Protección", f"{resultado_cable['calibre_magnetotermico']} A"],
-        ], AZUL)
-        _docx_parrafo(doc, "La sección se ha determinado por el criterio más desfavorable entre intensidad "
-                      "máxima admisible (Ib ≤ In ≤ Iz, ITC-BT-19) y caída de tensión máxima admisible, "
-                      "conforme se detalla en la tabla anterior.")
+        _docx_parrafos_calculo_cable(doc, inputs_cable, resultado_cable)
     else:
         _docx_parrafo(doc, "No se ha completado ningún cálculo de circuito en la pestaña Calculadora.",
                       cursiva=True)
 
     if hay_fv:
         _docx_heading(doc, "1.2. Instalación fotovoltaica", 3, COBRE)
-        _docx_tabla(doc, [
-            ["Magnitud", "Valor"],
-            ["Potencia pico", f"{resultado_fv['p_pico_kwp']:.2f} kWp"],
-            ["Nº de paneles / configuración",
-             f"{resultado_fv['n_paneles_configurados']} ({resultado_fv['n_serie']}S{resultado_fv['n_paralelo']}P)"],
-            ["Producción anual estimada", f"{_miles(resultado_fv['produccion_anual_kwh'])} kWh/año"],
-            ["Producción año 10", f"{_miles(resultado_fv.get('produccion_ano10', 0))} kWh/año"],
-            ["Producción año 25", f"{_miles(resultado_fv.get('produccion_ano25', 0))} kWh/año"],
-            ["Sección CC / CA", f"{resultado_fv.get('s_cc_final', 0):g} mm² / {resultado_fv.get('s_ca_final', 0):g} mm²"],
-            ["CO₂ evitado", f"{resultado_fv.get('co2_evitado_kg_ano', 0)/1000:.2f} t/año"],
-        ], AZUL)
-        _docx_parrafo(doc, "Dimensionado conforme a la ITC-BT-40: cables de conexión dimensionados al 125% "
-                      "de la intensidad máxima del generador, con caída de tensión conjunta (CC+CA) no "
-                      "superior al 1,5% entre el generador y el punto de interconexión.")
+        _docx_parrafos_calculo_fv(doc, inputs_fv, resultado_fv)
+    else:
+        _docx_parrafo(doc, "No se ha completado el módulo Fotovoltaico.",
+                      cursiva=True)
 
     _docx_heading(doc, "2. Mediciones", 2, AZUL)
     _docx_parrafo(doc, "Relación de unidades de obra y materiales, agrupadas por capítulo, que dan origen "
@@ -3124,110 +3415,320 @@ def generar_docx_condiciones_generales(datos_proyecto: dict, hay_fv: bool, confi
     ])
 
     _docx_heading(doc, "PARTE I — Condiciones facultativas", 1, AZUL)
-    secciones_facultativas = [
-        ("2. Técnico director / instalador autorizado", "Redacta complementos y rectificaciones, asiste a "
-         "la obra, supervisa el replanteo, comprueba instalaciones provisionales y condiciones de "
-         "seguridad, dirige la ejecución material, realiza las pruebas de calidad y suscribe el CIE."),
-        ("3. Constructor o instalador", "Organiza los trabajos, elabora el Plan de Seguridad y Salud, "
-         "asegura la idoneidad de los materiales, y suscribe las actas de recepción."),
-        ("4. Verificación de la documentación y replanteo", "El instalador consignará por escrito que la "
-         "documentación aportada resulta suficiente antes de iniciar los trabajos, e iniciará éstos con el "
-         "replanteo de la instalación."),
-        ("5. Orden y ritmo de ejecución", "Facultad del instalador, salvo variación técnica que disponga la "
-         "Dirección Facultativa, dentro del plazo acordado con el titular."),
-        ("6. Trabajos no estipulados y modificaciones", "El instalador ejecutará cuanto sea necesario para "
-         "la buena ejecución, reflejando por escrito cualquier modificación sobre lo proyectado."),
-        ("7. Obras y conexiones ocultas", "Se levantará croquis acotado de los tramos que queden ocultos, "
-         "si el titular lo requiere, antes de su cierre."),
-        ("8. Trabajos defectuosos y vicios ocultos", "El instalador es responsable de los defectos por mala "
-         "gestión o deficiente calidad de los materiales, pudiendo la Dirección Facultativa exigir la "
-         "demolición y reconstrucción a su costa."),
-        ("9. Recepción y plazo de garantía", "Doce meses de garantía frente a defectos de ejecución, sin "
-         "perjuicio de las garantías comerciales de los fabricantes de los equipos."),
-    ]
-    for titulo_s, texto_s in secciones_facultativas:
-        _docx_heading(doc, titulo_s, 3, COBRE)
-        _docx_parrafo(doc, texto_s)
+
+    _docx_heading(doc, "2. Técnico director / instalador autorizado", 3, COBRE)
+    _docx_parrafo(doc, "Corresponde al técnico director o instalador autorizado que suscribe la "
+                  "documentación técnica:")
+    _docx_lista(doc, [
+        "Redactar los complementos o rectificaciones del proyecto o memoria que se precisen.",
+        "Asistir a la obra cuantas veces lo requiera su naturaleza, resolviendo las incidencias que se "
+        "produzcan e impartiendo las órdenes complementarias necesarias.",
+        "Efectuar o supervisar el replanteo de la instalación.",
+        "Comprobar las instalaciones provisionales, medios auxiliares y condiciones de seguridad y salud.",
+        "Ordenar y dirigir la ejecución material con arreglo al proyecto, a las normas técnicas y a las "
+        "reglas de la buena práctica constructiva.",
+        "Realizar o disponer las pruebas y verificaciones de materiales e instalaciones necesarias para "
+        "asegurar la calidad de la ejecución.",
+        "Suscribir el Certificado de Instalación Eléctrica (CIE) o el certificado final que corresponda.",
+    ])
+
+    _docx_heading(doc, "3. Constructor o instalador", 3, COBRE)
+    _docx_parrafo(doc, "Corresponde al constructor o instalador:")
+    _docx_lista(doc, [
+        "Organizar los trabajos y disponer las instalaciones provisionales y medios auxiliares necesarios.",
+        "Elaborar, cuando se requiera, el Plan de Seguridad y Salud en aplicación del estudio "
+        "correspondiente, velando por su cumplimiento.",
+        "Ostentar la jefatura del personal que intervenga en la obra y coordinar a los subcontratistas.",
+        "Asegurar la idoneidad de todos los materiales y elementos que se utilicen, rechazando los "
+        "suministros que no cuenten con las garantías o documentos de idoneidad exigidos.",
+        "Facilitar al técnico director, con antelación suficiente, los datos precisos para el cumplimiento "
+        "de su cometido.",
+        "Suscribir con el titular las actas de recepción provisional y definitiva de la instalación.",
+    ])
+
+    _docx_heading(doc, "4. Verificación de la documentación y replanteo", 3, COBRE)
+    _docx_parrafo(doc, "Antes de dar comienzo a los trabajos, el instalador consignará por escrito que la "
+                  "documentación aportada (Memoria, Anexo de Cálculos, planos si los hubiera) le resulta "
+                  "suficiente para la comprensión de la totalidad de la instalación contratada o, en caso "
+                  "contrario, solicitará las aclaraciones pertinentes al técnico director. El instalador "
+                  "iniciará los trabajos con el replanteo de la instalación, sometiéndolo a la aprobación del "
+                  "técnico director cuando este exista.")
+
+    _docx_heading(doc, "5. Orden y ritmo de ejecución de los trabajos", 3, COBRE)
+    _docx_parrafo(doc, "La determinación del orden de los trabajos es, con carácter general, facultad del "
+                  "instalador, salvo que por circunstancias de orden técnico convenga su variación a juicio "
+                  "de la Dirección Facultativa. Los trabajos se desarrollarán de forma que la ejecución total "
+                  "se lleve a efecto dentro del plazo acordado con el titular, comunicando el instalador el "
+                  "inicio de los trabajos con la antelación que se acuerde.")
+
+    _docx_heading(doc, "6. Trabajos no estipulados expresamente y modificaciones", 3, COBRE)
+    _docx_parrafo(doc, "Es obligación del instalador ejecutar cuanto sea necesario para la buena ejecución "
+                  "de la instalación, aun cuando no se halle expresamente detallado en la Memoria o el Anexo "
+                  "de Cálculos, siempre que, sin apartarse de su espíritu, lo disponga el técnico director. "
+                  "Cualquier modificación sobre lo proyectado deberá quedar reflejada por escrito y, en su "
+                  "caso, en la documentación 'as built' entregada al titular a la finalización de los "
+                  "trabajos.")
+
+    _docx_heading(doc, "7. Obras y conexiones ocultas", 3, COBRE)
+    _docx_parrafo(doc, "De todos los tramos de canalización y conexiones que hayan de quedar ocultos "
+                  "(empotrados, enterrados o bajo falso techo) se levantará, si el titular lo requiere, "
+                  "croquis suficientemente acotado antes de proceder a su cierre, de forma que quede "
+                  "constancia de su trazado para futuras intervenciones o ampliaciones.")
+
+    _docx_heading(doc, "8. Trabajos defectuosos y vicios ocultos", 3, COBRE)
+    _docx_parrafo(doc, "El instalador es responsable de la ejecución de los trabajos contratados y de los "
+                  "defectos que en ellos puedan existir por su mala gestión o por deficiente calidad de los "
+                  "materiales empleados, sin que le exima de responsabilidad el hecho de que los trabajos "
+                  "hayan sido facturados o certificados a buena cuenta. Si el técnico director advirtiese "
+                  "vicios o defectos, podrá disponer que las partes defectuosas sean demolidas y "
+                  "reconstruidas de acuerdo con lo contratado, a costa del instalador.")
+
+    _docx_heading(doc, "9. Recepción y plazo de garantía", 3, COBRE)
+    _docx_parrafo(doc, "Concluidos los trabajos y realizadas con resultado favorable las verificaciones "
+                  "descritas en el apartado 24, se procederá a la recepción de la instalación por el titular. "
+                  "El instalador garantizará la instalación frente a defectos de ejecución durante el plazo "
+                  "legal aplicable (con carácter general, doce meses), sin perjuicio de las garantías "
+                  "comerciales de cada fabricante sobre los equipos suministrados (aparamenta, luminarias, "
+                  "inversor, paneles, baterías). Durante dicho plazo, el instalador corregirá a su cargo los "
+                  "defectos observados y reparará las averías que por causa imputable a la ejecución se "
+                  "produjeran.")
 
     _docx_heading(doc, "PARTE II — Condiciones económicas", 1, AZUL)
-    secciones_economicas = [
-        ("10. Composición de precios y presupuesto", "El precio de cada partida resulta de sumar el precio "
-         "base (coste directo) más los porcentajes de beneficio industrial y amortización de medios "
-         "auxiliares. El IVA se aplica sobre dicha suma y no está incluido en los precios unitarios."),
-        ("11. Certificaciones y forma de pago", "El instalador podrá presentar relaciones valoradas de la "
-         "instalación ejecutada, tomando como base las mediciones practicadas y los precios del "
-         "Presupuesto."),
-        ("12. Precios contradictorios y revisión de precios", "Las unidades no previstas se fijarán por "
-         "precio contradictorio antes de su ejecución. Salvo pacto en contrario, no se admite revisión de "
-         "precios sobre unidades ya contratadas."),
-        ("13. Seguro y conservación de la instalación", "Durante el plazo de garantía, la conservación "
-         "corresponde al instalador salvo asunción expresa del titular. Se recomienda seguro de "
-         "responsabilidad civil y daños a terceros durante la ejecución."),
-    ]
-    for titulo_s, texto_s in secciones_economicas:
-        _docx_heading(doc, titulo_s, 3, COBRE)
-        _docx_parrafo(doc, texto_s)
+
+    _docx_heading(doc, "10. Composición de precios y presupuesto", 3, COBRE)
+    _docx_parrafo(doc, "El precio de cada partida del Presupuesto resulta de sumar el precio base del "
+                  "material o unidad de obra (coste directo) más los porcentajes de beneficio industrial y "
+                  "amortización de medios auxiliares que se detallan en el propio documento de Presupuesto. "
+                  "El IVA se aplica sobre dicha suma y no está incluido en los precios unitarios.")
+
+    _docx_heading(doc, "11. Certificaciones y forma de pago", 3, COBRE)
+    _docx_parrafo(doc, "Cuando así se acuerde entre las partes, el instalador podrá presentar relaciones "
+                  "valoradas de la instalación ejecutada en los plazos que se establezcan, tomando como base "
+                  "las mediciones practicadas y los precios del Presupuesto. Los pagos se efectuarán por el "
+                  "titular en los plazos acordados, correspondiendo su importe al de las certificaciones o "
+                  "facturas conformadas.")
+
+    _docx_heading(doc, "12. Precios contradictorios y revisión de precios", 3, COBRE)
+    _docx_parrafo(doc, "Si durante la ejecución fuese necesario introducir unidades no previstas en el "
+                  "Presupuesto, se fijará un precio contradictorio antes de su ejecución, tomando como "
+                  "referencia los precios más análogos del propio Presupuesto o, en su defecto, precios de "
+                  "mercado de uso habitual en la zona. Salvo pacto en contrario, no se admitirá revisión de "
+                  "precios sobre las unidades ya contratadas.")
+
+    _docx_heading(doc, "13. Seguro y conservación de la instalación", 3, COBRE)
+    _docx_parrafo(doc, "Durante el plazo de garantía, la conservación de la instalación corresponderá al "
+                  "instalador salvo que el titular la hubiese asumido expresamente. Se recomienda que la "
+                  "instalación quede cubierta por un seguro de responsabilidad civil y daños a terceros "
+                  "durante la ejecución de los trabajos, a suscribir por el instalador conforme a la normativa "
+                  "vigente.")
 
     _docx_heading(doc, "PARTE III — Condiciones técnicas particulares", 1, AZUL)
     _docx_parrafo(doc, "Ejecución y montaje de instalaciones eléctricas en baja tensión.", cursiva=True)
-    secciones_tecnicas = [
-        ("14. Condiciones generales de los materiales", "Todos los materiales serán de primera calidad, "
-         "con marcado CE cuando sea de aplicación, y podrán someterse a análisis o pruebas por cuenta del "
-         "instalador."),
-        ("15. Canalizaciones eléctricas", "Cables bajo tubo, fijados sobre paredes, enterrados, empotrados, "
-         "en huecos, bajo canales o en bandeja, según la Memoria y el Anexo de Cálculos. Diámetro de tubos "
-         "según ITC-BT-21."),
-        ("16. Conductores", "Cobre o aluminio, siempre aislados, tensión asignada ≥450/750 V (≥0,6/1 kV en "
-         "acometidas, derivaciones individuales, enterrados o FV). Identificación por color según norma."),
-        ("17. Cajas de empalme y derivación", "Material aislante no propagador de la llama o metálicas "
-         "protegidas contra la corrosión; nunca unión de conductores por simple retorcimiento."),
-        ("18. Mecanismos y tomas de corriente", "Corte de la corriente máxima sin arco permanente, mínimo "
-         "10.000 maniobras; tomas de corriente con puesta a tierra."),
-        ("19. Aparamenta de mando y protección", "Cuadros nuevos, ensamblados en fábrica, IP 30 mínimo. "
-         "Interruptores automáticos UNE-EN 60898, diferenciales UNE-EN 61008/61009 (tipo A mínimo, tipo B "
-         "en FV si procede), fusibles de alta capacidad de ruptura."),
-        ("20. Receptores de alumbrado", "Conformes a UNE-EN 60598, con conexión a tierra en Clase I; carga "
-         "mínima 1,8× la potencia en descarga; factor de potencia compensado ≥0,9."),
-        ("21. Receptores a motor", "Conductores dimensionados al 125% de la intensidad a plena carga "
-         "(ITC-BT-47); protección contra cortocircuitos y sobrecargas en todas las fases."),
-        ("22. Puesta a tierra", "Conforme a la ITC-BT-18; conductores de tierra enterrados sin protección "
-         "mínimo 25 mm² de cobre; tensión de contacto ≤24V en locales húmedos, ≤50V en los demás."),
-    ]
-    for titulo_s, texto_s in secciones_tecnicas:
-        _docx_heading(doc, titulo_s, 3, COBRE)
-        _docx_parrafo(doc, texto_s)
+
+    _docx_heading(doc, "14. Condiciones generales de los materiales", 3, COBRE)
+    _docx_lista(doc, [
+        "Todos los materiales serán de primera calidad y reunirán las condiciones exigidas por el REBT y "
+        "demás disposiciones vigentes, disponiendo del marcado CE cuando sea de aplicación.",
+        "Podrán ser sometidos a los análisis o pruebas que se crean necesarios para acreditar su calidad, "
+        "por cuenta del instalador.",
+        "Los materiales no consignados expresamente que den lugar a precios contradictorios reunirán las "
+        "condiciones de idoneidad necesarias a juicio de la Dirección Facultativa.",
+        "Todos los trabajos se ejecutarán esmeradamente, con arreglo a las buenas prácticas de las "
+        "instalaciones eléctricas, cumpliendo estrictamente el REBT y las instrucciones de la Dirección "
+        "Facultativa.",
+    ])
+
+    _docx_heading(doc, "15. Canalizaciones eléctricas", 3, COBRE)
+    _docx_parrafo(doc, "Los cables se colocarán bajo tubo, fijados directamente sobre paredes, enterrados, "
+                  "empotrados en estructuras, en huecos de la construcción, bajo canales o molduras, o en "
+                  "bandeja, según se haya definido en la Memoria y el Anexo de Cálculos. Antes de iniciar el "
+                  "tendido deberán estar ejecutados los elementos estructurales que hayan de soportar o alojar "
+                  "la canalización.")
+    _docx_heading(doc, "15.1 Tubos protectores — características mínimas según norma UNE-EN 61386", 4, COBRE)
+    _docx_tabla(doc, [
+        ["Tipo de instalación", "Resist. compresión", "Resist. impacto", "Temp. mín / máx"],
+        ["Superficie", "Fuerte (4)", "Media (3)", "-5 °C / +60 °C"],
+        ["Empotrado en obra de fábrica", "Ligera (2)", "Ligera (2)", "-5 °C / +60 °C"],
+        ["Empotrado embebido en hormigón", "Media (3)", "Media (3)", "-5 °C / +90 °C"],
+        ["Aéreo / flexible", "Fuerte (4)", "Media (3)", "-5 °C / +60 °C"],
+        ["Enterrado", "250-750 N según terreno", "Ligero-Normal", "No aplicable"],
+    ], AZUL)
+    _docx_parrafo(doc, "El diámetro exterior mínimo de los tubos, en función del número y sección de los "
+                  "conductores, se obtendrá de las tablas de la ITC-BT-21. En tramos rectos los registros no "
+                  "distarán más de 15 m entre sí, ni habrá más de 3 curvas entre dos registros consecutivos. "
+                  "Los tubos metálicos accesibles se pondrán a tierra y no se emplearán como conductor de "
+                  "protección o de neutro.")
+    _docx_heading(doc, "15.2 Otros sistemas de canalización", 4, COBRE)
+    _docx_lista(doc, [
+        "Conductores fijados directamente sobre paredes: cables de tensión asignada no inferior a 0,6/1 kV, "
+        "fijados con bridas o abrazaderas a una distancia máxima de 0,40 m entre puntos de fijación.",
+        "Conductores enterrados: bajo tubo salvo que dispongan de cubierta y tensión asignada 0,6/1 kV, "
+        "según ITC-BT-07 e ITC-BT-21.",
+        "Conductores en bandeja: unipolares o multipolares con cubierta, bandeja de acero galvanizado con "
+        "ancho mínimo de 100 mm, sujeta de forma que no se produzcan flechas superiores a 10 mm.",
+        "Conductores bajo canal protectora: canal con grado de protección IP4X mínimo, tapa desmontable "
+        "solo con herramienta, conectada a la red de tierra si es metálica.",
+    ])
+
+    _docx_heading(doc, "16. Conductores", 3, COBRE)
+    _docx_parrafo(doc, "Los conductores serán de cobre (o aluminio cuando lo justifique el cálculo) y siempre "
+                  "aislados, con tensión asignada no inferior a 450/750 V en instalación interior y 0,6/1 kV "
+                  "en acometidas, derivaciones individuales, enterrados o instalación fotovoltaica. Los "
+                  "conductores de sección igual o superior a 6 mm² estarán constituidos por cable trenzado de "
+                  "hilo de cobre.")
+    _docx_parrafo(doc, "La sección se determinará por el criterio más desfavorable entre intensidad máxima "
+                  "admisible (ITC-BT-19, con los factores de corrección que procedan) y caída de tensión (3% "
+                  "alumbrado / 5% otros usos en instalación interior; 1,5% en derivación individual sin LGA), "
+                  "según se desarrolla en el Anexo de Cálculos. La sección del conductor neutro y del conductor "
+                  "de protección seguirán, respectivamente, el criterio general del REBT y la tabla de la "
+                  "ITC-BT-18.")
+    _docx_parrafo(doc, "Identificación: neutro en azul claro, protección en verde-amarillo, fases en marrón, "
+                  "negro o gris. Todo conductor de fase, o aquel para el que no se prevea su paso posterior a "
+                  "neutro, se identificará con estos últimos colores.")
+
+    _docx_heading(doc, "17. Cajas de empalme y derivación", 3, COBRE)
+    _docx_parrafo(doc, "Las conexiones entre conductores se realizarán en el interior de cajas de material "
+                  "aislante no propagador de la llama o metálicas protegidas contra la corrosión, de "
+                  "dimensiones suficientes para alojar holgadamente los conductores que deban contener "
+                  "(profundidad mínima 40 mm, lado o diámetro mínimo 60-80 mm según el tipo de instalación). "
+                  "No se permitirá la unión de conductores por simple retorcimiento; se utilizarán siempre "
+                  "bornes de conexión, regletas o sistemas equivalentes.")
+
+    _docx_heading(doc, "18. Mecanismos y tomas de corriente", 3, COBRE)
+    _docx_parrafo(doc, "Los interruptores y conmutadores cortarán la corriente máxima del circuito sin "
+                  "formación de arco permanente, serán de tipo cerrado y material aislante, y soportarán un "
+                  "mínimo de 10.000 maniobras con su carga nominal. Las tomas de corriente dispondrán, como "
+                  "norma general, de puesta a tierra e irán instaladas en caja empotrada, quedando al "
+                  "exterior únicamente el mando y la tapa embellecedora.")
+
+    _docx_heading(doc, "19. Aparamenta de mando y protección", 3, COBRE)
+    _docx_heading(doc, "19.1 Cuadros eléctricos", 4, COBRE)
+    _docx_parrafo(doc, "Serán nuevos, diseñados para servicio interior, ensamblados y cableados en fábrica, "
+                  "con estructura adecuada para montaje mural o sobre el suelo y grado de protección acorde a "
+                  "su ubicación (mínimo IP 30 según UNE-EN 60529). Cada circuito de salida estará protegido "
+                  "contra sobrecargas y cortocircuitos, y contra corrientes de defecto mediante diferencial de "
+                  "sensibilidad adecuada (ITC-BT-24). Dispondrán de un espacio de reserva no inferior al 20% "
+                  "de los módulos instalados y todos sus componentes serán accesibles desde el frente.")
+    _docx_heading(doc, "19.2 Interruptores automáticos, diferenciales y fusibles", 4, COBRE)
+    _docx_lista(doc, [
+        "Los interruptores automáticos (PIA) cumplirán la norma UNE-EN 60898, con poder de corte no "
+        "inferior a la intensidad de cortocircuito prevista en su punto de instalación, y curva térmica y "
+        "electromagnética adecuadas a la carga protegida.",
+        "Los interruptores diferenciales cumplirán UNE-EN 61008/61009, siendo de tipo A o superinmunizado "
+        "en circuitos con receptores electrónicos, y de tipo B en instalación fotovoltaica cuando el "
+        "inversor no garantice por diseño la ausencia de componente continua de defecto.",
+        "Los fusibles serán de alta capacidad de ruptura; de acción lenta en protección de motores y de "
+        "acción rápida en protección de circuitos de consumidores óhmicos. Se montarán de forma que no "
+        "pueda proyectarse metal fundido al fundirse.",
+        "Los guardamotores dispondrán de protección térmica de rearme manual, con relé de característica "
+        "retardada en arranques de larga duración.",
+    ])
+    _docx_heading(doc, "19.3 Seccionadores y embarrados", 4, COBRE)
+    _docx_parrafo(doc, "Los seccionadores serán de conexión y desconexión brusca, independiente de la acción "
+                  "del operador, adecuados para abrir y cerrar la corriente nominal a tensión nominal. El "
+                  "embarrado principal constará de barras de cobre electrolítico de alta conductividad para "
+                  "las fases y una barra (seccionable) para el neutro, más una barra independiente de puesta "
+                  "a tierra.")
+
+    _docx_heading(doc, "20. Receptores de alumbrado", 3, COBRE)
+    _docx_parrafo(doc, "Las luminarias cumplirán la serie de normas UNE-EN 60598. Sus partes metálicas "
+                  "accesibles, si no son de Clase II o III, dispondrán de conexión al conductor de "
+                  "protección. Para receptores con lámparas de descarga, la carga mínima prevista será de "
+                  "1,8 veces la potencia en vatios de las lámparas (ITC-BT-44), siendo obligatoria la "
+                  "compensación del factor de potencia hasta un valor mínimo de 0,9.")
+
+    _docx_heading(doc, "21. Receptores a motor", 3, COBRE)
+    _docx_parrafo(doc, "Los conductores de conexión de un motor único se dimensionarán para el 125% de su "
+                  "intensidad a plena carga; si alimentan varios motores, para el 125% del de mayor potencia "
+                  "más el 100% del resto (ITC-BT-47). Los motores estarán protegidos contra cortocircuitos y "
+                  "sobrecargas en todas sus fases y, cuando proceda, contra la falta de tensión. Los motores "
+                  "de potencia superior a 0,75 kW estarán provistos de dispositivo de arranque que limite la "
+                  "relación entre la corriente de arranque y la nominal, conforme a la tabla de la ITC-BT-47 "
+                  "según su potencia.")
+
+    _docx_heading(doc, "22. Puesta a tierra", 3, COBRE)
+    _docx_parrafo(doc, "La puesta a tierra se ejecutará conforme a la ITC-BT-18, mediante electrodo o grupo "
+                  "de electrodos (picas, placas o conductor enterrado) conectados al borne principal de "
+                  "tierra, del que partirá el conductor de protección hacia todas las masas metálicas de la "
+                  "instalación. Los conductores de tierra enterrados sin protección mecánica ni contra la "
+                  "corrosión serán de cobre de 25 mm² mínimo. El valor de la resistencia de tierra será tal "
+                  "que ninguna masa pueda dar lugar a tensiones de contacto superiores a 24 V en locales "
+                  "húmedos o conductores y 50 V en los demás casos, condición que se verificará mediante la "
+                  "relación Ra·Ia ≤ U.")
 
     if hay_fv:
         _docx_heading(doc, "23. Condiciones específicas de la instalación fotovoltaica", 3, COBRE)
         _docx_lista(doc, [
-            "Cumplimiento de la ITC-BT-40 y el RD 244/2019.",
-            "Cables CC/CA dimensionados al 125% de la intensidad máxima del generador, ΔU conjunta ≤1,5%.",
-            "Mecanismo antivertido en autoconsumo sin excedentes (Anexo I, ITC-BT-40).",
-            "Conectores CC normalizados, estancos e inconfundibles con otros sistemas.",
-            "Estructura de soporte conectada equipotencialmente a tierra.",
+            "La instalación generadora cumplirá la ITC-BT-40 y el Real Decreto 244/2019 sobre condiciones "
+            "administrativas, técnicas y económicas del autoconsumo de energía eléctrica.",
+            "Los cables de conexión (tramos CC y CA) se dimensionarán para una intensidad no inferior al "
+            "125% de la intensidad máxima del generador, con una caída de tensión conjunta no superior al "
+            "1,5% entre el generador y el punto de interconexión.",
+            "Las instalaciones de autoconsumo sin excedentes dispondrán de un mecanismo antivertido "
+            "conforme al Anexo I de la ITC-BT-40.",
+            "Los conectores del lado de corriente continua serán del tipo normalizado para aplicaciones "
+            "fotovoltaicas, estancos e inconfundibles con los de otros sistemas.",
+            "Las estructuras metálicas de soporte de los módulos se conectarán equipotencialmente a tierra.",
         ])
 
     _docx_heading(doc, "24. Inspecciones y pruebas antes de la puesta en servicio", 3, COBRE)
     _docx_parrafo(doc, "Antes de la puesta en servicio se realizarán, como mínimo, las siguientes "
                   "comprobaciones (ITC-BT-05 y UNE-HD 60364-6):")
-    _docx_tabla(doc, [["Ensayo", "Criterio de aceptación"]] + [list(e) for e in ENSAYOS_PUESTA_SERVICIO], AZUL)
+    _docx_tabla(doc, [
+        ["Ensayo", "Criterio de aceptación"],
+        ["Continuidad de conductores de protección y equipotenciales", "Continuidad eléctrica verificada"],
+        ["Resistencia de aislamiento (circuitos ≤500V, ensayo a 500V c.c.)", "≥ 0,50 MΩ"],
+        ["Resistencia de aislamiento (circuitos MBTS/MBTP, ensayo a 250V c.c.)", "≥ 0,25 MΩ"],
+        ["Resistencia de aislamiento (circuitos >500V, ensayo a 1000V c.c.)", "≥ 1,00 MΩ"],
+        ["Rigidez dieléctrica (1 min a 2U+1000V, mínimo 1.500V)", "Sin perforación del aislamiento"],
+        ["Resistencia de puesta a tierra", "Compatible con la sensibilidad del diferencial instalado"],
+        ["Disparo de los interruptores diferenciales (botón de test e Idn)", "Disparo correcto"],
+        ["Caída de tensión en los circuitos más desfavorables", "Conforme al Anexo de Cálculos"],
+        ["Secuencia de fases y tensiones (instalación trifásica)", "Correcta y equilibrada"],
+    ], AZUL)
+    _docx_parrafo(doc, "En fábrica, la aparamenta habrá sido sometida a idénticos ensayos de aislamiento y "
+                  "rigidez dieléctrica, además de comprobación visual y funcional de todas sus partes "
+                  "móviles; cuando se exijan, el instalador aportará los certificados de ensayo del "
+                  "fabricante. Realizadas las comprobaciones con resultado favorable, se emitirá el "
+                  "correspondiente Certificado de Instalación Eléctrica (CIE), que se presentará ante el "
+                  "órgano competente de la Comunidad Autónoma para su registro.")
 
-    for titulo_s, texto_s in [
-        ("25. Seguridad en los trabajos eléctricos", "Los trabajos se realizarán sin tensión, verificando "
-         "su ausencia (las 'cinco reglas de oro'). Guantes y herramientas aislantes; aparatos portátiles de "
-         "clase II o a tensión de seguridad."),
-        ("26. Limpieza y mantenimiento", "Antes de la recepción, los cuadros se limpiarán de polvo y "
-         "residuos de la ejecución. El titular revisará periódicamente conductores, protecciones y puesta "
-         "a tierra (test del diferencial mensual)."),
-        ("27. Criterios de medición", "Cables, bandejas y tubos por metro lineal; cuadros y receptores por "
-         "unidad montada y conexionada, con los accesorios de montaje incluidos en el precio."),
-    ]:
-        _docx_heading(doc, titulo_s, 3, COBRE)
-        _docx_parrafo(doc, texto_s)
+    _docx_heading(doc, "25. Seguridad en los trabajos eléctricos", 3, COBRE)
+    _docx_parrafo(doc, "Siempre que se intervenga en una instalación eléctrica, en su ejecución o "
+                  "mantenimiento, los trabajos se realizarán sin tensión, verificando su ausencia mediante los "
+                  "aparatos de medición correspondientes (las 'cinco reglas de oro'). Se utilizarán guantes y "
+                  "herramientas aislantes; las herramientas y aparatos eléctricos portátiles dispondrán de "
+                  "aislamiento de clase II o se alimentarán a tensión de seguridad. Los aparatos de "
+                  "protección, seccionamiento y maniobra se bloquearán en posición de apertura durante la "
+                  "intervención, y no se restablecerá el servicio sin haber comprobado que no existe peligro "
+                  "alguno. Se cumplirá, en lo que corresponda, la Ley 31/1995 de Prevención de Riesgos "
+                  "Laborales y su normativa de desarrollo.")
 
-    _docx_parrafo(doc, "Este pliego es un documento de apoyo estándar; adáptalo a las particularidades de "
-                  "cada proyecto y a las ordenanzas municipales o autonómicas que puedan resultar de "
-                  "aplicación.", cursiva=True)
+    _docx_heading(doc, "26. Limpieza y mantenimiento", 3, COBRE)
+    _docx_parrafo(doc, "Antes de la recepción, los cuadros y demás elementos se limpiarán de polvo, pintura "
+                  "y cualquier material acumulado durante la ejecución de los trabajos. El titular velará por "
+                  "el correcto mantenimiento de la instalación, revisando periódicamente el estado de "
+                  "conductores, protecciones y puesta a tierra (accionamiento del botón de test del "
+                  "diferencial al menos una vez al mes), y encargando las inspecciones periódicas que, en su "
+                  "caso, sean obligatorias según la potencia y el uso de la instalación (ITC-BT-05). Cuando "
+                  "sea necesario intervenir nuevamente en la instalación, por avería o modificación, se "
+                  "aplicarán las mismas condiciones de ejecución, control y seguridad que si se tratase de una "
+                  "instalación nueva.")
+
+    _docx_heading(doc, "27. Criterios de medición", 3, COBRE)
+    _docx_parrafo(doc, "Los cables, bandejas y tubos se medirán por unidad de longitud (metro), según tipo "
+                  "y sección o diámetro; en la medición se entienden incluidos los accesorios necesarios para "
+                  "el montaje (grapas, terminales, bornes, prensaestopas, cajas de derivación) y la mano de "
+                  "obra de transporte interior, montaje y pruebas de recepción. Los cuadros y receptores "
+                  "eléctricos se medirán por unidad montada y conexionada. A las unidades medidas se "
+                  "aplicarán los precios del Presupuesto, en los que se consideran incluidos los gastos "
+                  "generales del instalador; si fuese necesaria alguna unidad no contemplada, se formalizará "
+                  "el correspondiente precio contradictorio conforme al apartado 12.")
+
+    _docx_parrafo(doc, "Este pliego es un documento de apoyo estándar, redactado a partir de la práctica "
+                  "habitual en instalaciones de baja tensión; adáptalo a las particularidades de cada "
+                  "proyecto, al contrato suscrito entre las partes y a las ordenanzas municipales o "
+                  "autonómicas que puedan resultar de aplicación.", cursiva=True)
 
     return _docx_bytes(doc)
 
