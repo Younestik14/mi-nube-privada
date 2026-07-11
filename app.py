@@ -3905,10 +3905,26 @@ def item_desde_calculo_cable(inp: dict, res: dict) -> list:
         "unidades": "ud", "cantidad": 1,
         "precio_base": PRECIOS_MAGNETOTERMICO_DEFECTO.get(res["calibre_magnetotermico"], 30.0),
     })
+    tubo_est = round(inp["longitud"] * (1 + 0.15), 1)
     items.append({
-        "designacion": "Mano de obra de instalación (oficial 1ª electricista)",
-        "unidades": "horas", "cantidad": round(max(inp["longitud"] / 10.0, 1.0), 1),
-        "precio_base": 33.0,
+        "designacion": f"Tubo corrugado Ø20mm — {inp.get('tipo_circuito', 'circuito')} (estimado)",
+        "unidades": "m", "cantidad": tubo_est,
+        "precio_base": PRECIOS_CANALIZACION_DEFECTO.get(inp["metodo"], 1.10),
+    })
+    items.append({
+        "designacion": "Mano de obra tendido de cable (oficial 1ª electricista)",
+        "unidades": "h", "cantidad": round(max(inp["longitud"] / 10.0, 1.0), 1),
+        "precio_base": 22.00,
+    })
+    items.append({
+        "designacion": "Mano de obra montaje e instalación (oficial 2ª electricista)",
+        "unidades": "h", "cantidad": round(max(inp["longitud"] / 15.0, 0.5), 1),
+        "precio_base": 19.00,
+    })
+    items.append({
+        "designacion": "Puesta en servicio y comprobaciones",
+        "unidades": "ud", "cantidad": 1,
+        "precio_base": 120.00,
     })
     return items
 
@@ -3943,8 +3959,17 @@ def items_desde_calculo_fv(inp: dict, res: dict) -> list:
         {"designacion": "Mano de obra instalador FV", "unidades": "kWp",
          "cantidad": round(res["p_pico_kwp"], 2),
          "precio_base": PRECIOS_FV_DEFECTO["Mano de obra instalador FV (por kWp)"][1]},
+        {"designacion": "Tendido de cable bajo tubo — tramo CC/CA (estimado)", "unidades": "m",
+         "cantidad": round(inp["longitud_cc"] + inp["longitud_ca"], 1),
+         "precio_base": 1.10},
+        {"designacion": "Montaje de cuadro de protecciones FV (estimado)", "unidades": "h",
+         "cantidad": 3.0, "precio_base": 22.00},
+        {"designacion": "Ejecución de puesta a tierra de estructura (estimado)", "unidades": "ud",
+         "cantidad": 1, "precio_base": 85.00},
         {"designacion": "Legalización y tramitación (notificación/certificado)", "unidades": "ud",
          "cantidad": 1, "precio_base": PRECIOS_FV_DEFECTO["Legalización y tramitación (notificación/certificado)"][1]},
+        {"designacion": "Puesta en servicio y pruebas reglamentarias", "unidades": "ud",
+         "cantidad": 1, "precio_base": 120.00},
     ]
     if res.get("calibre_fusible_string"):
         items.append({"designacion": f"Fusible de string {res['calibre_fusible_string']} A / "
@@ -5407,6 +5432,28 @@ def _render_presupuesto(inputs_cable: dict, resultado_cable: dict, inputs_fv: di
     catalogo = st.session_state["catalogo_precios"]
     partidas_compuestas = st.session_state["partidas_compuestas"]
 
+    if not capitulos:
+        st.markdown("**Plantilla de presupuesto (opcional)**")
+        plantilla_sel = st.selectbox("Empezar con una plantilla predefinida",
+                                     ["(vacío)"] + list(PLANTILLAS_PRESUPUESTO.keys()),
+                                     key="plantilla_presupuesto_sel")
+        if plantilla_sel != "(vacío)":
+            if st.button("Aplicar plantilla", type="primary", key="btn_aplicar_plantilla_presu"):
+                nombres_cap = PLANTILLAS_PRESUPUESTO[plantilla_sel]
+                for nombre_cap in nombres_cap:
+                    capitulos.append({"nombre": nombre_cap, "items": []})
+                if plantilla_sel in PLANTILLAS_PRESUPUESTO_MO:
+                    cap_mo = capitulos[-1]
+                    mo_items = PLANTILLAS_PRESUPUESTO_MO[plantilla_sel]
+                    for i, (desig, unidad, cant, precio) in enumerate(mo_items):
+                        cap_mo["items"].append({
+                            "partida": f"{len(capitulos)}.{i + 1}",
+                            "designacion": desig, "unidades": unidad,
+                            "cantidad": cant, "precio_base": precio,
+                        })
+                _registrar_actividad("📋", f"Plantilla de presupuesto aplicada: {plantilla_sel}")
+                st.rerun()
+
     with st.expander("⚙️ Configuración general", expanded=not capitulos):
         cf1, cf2, cf3, cf4 = st.columns(4)
         with cf1:
@@ -5627,6 +5674,7 @@ def _render_presupuesto(inputs_cable: dict, resultado_cable: dict, inputs_fv: di
 
         filas_resumen, items_por_subparte = [], {}
         total_tubo = total_cable = total_cajas = 0.0
+        total_manos_obra = 0.0
         for sp, incluido, n_val, long_val in datos_subpartes:
             if not incluido or n_val <= 0:
                 continue
@@ -5649,6 +5697,16 @@ def _render_presupuesto(inputs_cable: dict, resultado_cable: dict, inputs_fv: di
                 items_sp.append({"designacion": f"Caja de derivación — {sp['nombre']} (estimado)",
                                  "unidades": "ud", "cantidad": cajas,
                                  "precio_base": catalogo["Cajas y mecanismos"]["Caja de derivación empotrar 100x100"]})
+                h_tendido = round(max(tubo / 10.0, 0.5), 1)
+                items_sp.append({"designacion": f"Tendido de cable bajo tubo — {sp['nombre']} (estimado)",
+                                 "unidades": "h", "cantidad": h_tendido,
+                                 "precio_base": catalogo["Mano de obra"]["Tendido de cable bajo tubo (por metro)"]})
+                total_manos_obra += h_tendido
+                h_montaje = n_val
+                items_sp.append({"designacion": f"Montaje de puntos — {sp['nombre']} (estimado)",
+                                 "unidades": "h", "cantidad": h_montaje,
+                                 "precio_base": catalogo["Mano de obra"]["Oficial 2ª electricista (hora)"]})
+                total_manos_obra += h_montaje
             elif sp["tipo"] == "tierra":
                 conductor = long_val * (1 + est_holgura / 100)
                 filas_resumen.append({"Subparte": sp["nombre"], "Tubo (m)": "—", "Cable (m)": "—",
@@ -5659,19 +5717,30 @@ def _render_presupuesto(inputs_cable: dict, resultado_cable: dict, inputs_fv: di
                 items_sp.append({"designacion": f"Cable desnudo Cu 16mm² — {sp['nombre']} (estimado)",
                                  "unidades": "m", "cantidad": round(conductor, 1),
                                  "precio_base": catalogo["Puesta a tierra"]["Cable desnudo Cu 16mm² (tierra)"]})
+                h_tierra = round(n_val * 0.5 + conductor / 20.0, 1)
+                items_sp.append({"designacion": f"Ejecución de puesta a tierra — {sp['nombre']} (estimado)",
+                                 "unidades": "h", "cantidad": h_tierra,
+                                 "precio_base": catalogo["Mano de obra"]["Oficial 1ª electricista (hora)"]})
+                total_manos_obra += h_tierra
             else:  # elemento
                 filas_resumen.append({"Subparte": sp["nombre"], "Tubo (m)": "—", "Cable (m)": "—",
                                       "Cajas/uds": f"{n_val} ud"})
                 items_sp.append({"designacion": f"{sp['nombre']} (estimado)", "unidades": "ud",
                                  "cantidad": n_val, "precio_base": sp["precio_estimado"]})
+                h_elemento = n_val * 2.0
+                items_sp.append({"designacion": f"Montaje de {sp['nombre'].lower()} (estimado)",
+                                 "unidades": "h", "cantidad": h_elemento,
+                                 "precio_base": catalogo["Mano de obra"]["Encargado / jefe de equipo (hora)"]})
+                total_manos_obra += h_elemento
 
         if filas_resumen:
             st.markdown("**Resumen por subparte**")
             st.dataframe(pd.DataFrame(filas_resumen), hide_index=True, width='stretch')
-            rt1, rt2, rt3 = st.columns(3)
+            rt1, rt2, rt3, rt4 = st.columns(4)
             rt1.metric("Total tubo", f"{total_tubo:.0f} m")
             rt2.metric("Total cable", f"{total_cable:.0f} m")
-            rt3.metric("Total cajas de derivación", f"{total_cajas:.0f}")
+            rt3.metric("Cajas / ud", f"{total_cajas:.0f}")
+            rt4.metric("Mano de obra", f"{total_manos_obra:.1f} h")
 
             st.caption(f"Al exportar, cada subparte crea (o usa, si ya existe) **su propio capítulo** — "
                        f"se crearán/rellenarán {len(items_por_subparte)} capítulos, uno por subparte, en vez "
@@ -6891,12 +6960,49 @@ PLANTILLAS_PRESUPUESTO = {
     "🏠 Vivienda unifamiliar": ["CAPÍTULO I: DERIVACIÓN INDIVIDUAL", "CAPÍTULO II: CUADRO DE PROTECCIÓN",
                                 "CAPÍTULO III: CIRCUITO DE ALUMBRADO",
                                 "CAPÍTULO IV: CIRCUITO DE TOMAS DE USO GENERAL",
-                                "CAPÍTULO V: CIRCUITO DE COCINA Y HORNO", "CAPÍTULO VI: PUESTA A TIERRA"],
+                                "CAPÍTULO V: CIRCUITO DE COCINA Y HORNO", "CAPÍTULO VI: PUESTA A TIERRA",
+                                "CAPÍTULO VII: MANO DE OBRA"],
     "🏭 Nave industrial": ["CAPÍTULO I: ACOMETIDA Y CGP", "CAPÍTULO II: CUADRO GENERAL DE DISTRIBUCIÓN",
                            "CAPÍTULO III: FUERZA MOTRIZ", "CAPÍTULO IV: ILUMINACIÓN INDUSTRIAL",
-                           "CAPÍTULO V: PUESTA A TIERRA"],
+                           "CAPÍTULO V: PUESTA A TIERRA", "CAPÍTULO VI: MANO DE OBRA"],
     "☀️ Instalación fotovoltaica": ["CAPÍTULO I: GENERADOR FOTOVOLTAICO",
-                                    "CAPÍTULO II: PROTECCIONES E INTERCONEXIÓN"],
+                                    "CAPÍTULO II: PROTECCIONES E INTERCONEXIÓN",
+                                    "CAPÍTULO III: MANO DE OBRA"],
+}
+
+PLANTILLAS_PRESUPUESTO_MO = {
+    "🏠 Vivienda unifamiliar": [
+        ("Oficial 1ª electricista (hora)", "h", 24.0, 22.00),
+        ("Oficial 2ª electricista (hora)", "h", 16.0, 19.00),
+        ("Montaje e instalación de punto de luz (unidad)", "ud", 10.0, 12.00),
+        ("Montaje e instalación de toma de corriente (unidad)", "ud", 12.0, 10.00),
+        ("Montaje e instalación de mecanismo de mando (unidad)", "ud", 2.0, 9.00),
+        ("Tendido de cable bajo tubo (por metro)", "m", 80.0, 1.10),
+        ("Montaje de cuadro eléctrico (según nº módulos, unidad)", "ud", 1.0, 65.00),
+        ("Ejecución de puesta a tierra (electrodo + conexionado, unidad)", "ud", 1.0, 85.00),
+        ("Puesta en servicio y pruebas reglamentarias (unidad)", "ud", 1.0, 120.00),
+    ],
+    "🏭 Nave industrial": [
+        ("Encargado / jefe de equipo (hora)", "h", 8.0, 26.00),
+        ("Oficial 1ª electricista (hora)", "h", 40.0, 22.00),
+        ("Oficial 2ª electricista (hora)", "h", 24.0, 19.00),
+        ("Ayudante electricista (hora)", "h", 16.0, 16.50),
+        ("Montaje e instalación de punto de luz (unidad)", "ud", 20.0, 12.00),
+        ("Montaje e instalación de toma de corriente (unidad)", "ud", 8.0, 10.00),
+        ("Tendido de cable bajo tubo (por metro)", "m", 250.0, 1.10),
+        ("Montaje de cuadro eléctrico (según nº módulos, unidad)", "ud", 2.0, 65.00),
+        ("Conexionado y etiquetado de cuadro (unidad)", "ud", 2.0, 45.00),
+        ("Ejecución de puesta a tierra (electrodo + conexionado, unidad)", "ud", 3.0, 85.00),
+        ("Puesta en servicio y pruebas reglamentarias (unidad)", "ud", 1.0, 120.00),
+    ],
+    "☀️ Instalación fotovoltaica": [
+        ("Oficial 1ª electricista (hora)", "h", 16.0, 22.00),
+        ("Oficial 2ª electricista (hora)", "h", 12.0, 19.00),
+        ("Tendido de cable bajo tubo (por metro)", "m", 40.0, 1.10),
+        ("Montaje de cuadro eléctrico (según nº módulos, unidad)", "ud", 1.0, 65.00),
+        ("Ejecución de puesta a tierra (electrodo + conexionado, unidad)", "ud", 1.0, 85.00),
+        ("Puesta en servicio y pruebas reglamentarias (unidad)", "ud", 1.0, 120.00),
+    ],
 }
 
 
