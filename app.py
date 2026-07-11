@@ -1258,6 +1258,75 @@ div[data-baseweb="tooltip"] {{
     padding: 0 0.3rem;
 }}
 
+/* ============ Toast notifications ============ */
+.toast-container {{
+    position: fixed; top: 1rem; right: 1rem; z-index: 9999;
+    display: flex; flex-direction: column; gap: 0.5rem; pointer-events: none;
+}}
+.toast {{
+    padding: 0.75rem 1.2rem; border-radius: var(--radius-sm); font-size: 0.85rem;
+    font-weight: 500; box-shadow: var(--shadow-md); pointer-events: auto;
+    animation: toast-in 0.3s ease-out; min-width: 200px; max-width: 380px;
+}}
+.toast.success {{ background: #10b981; color: #fff; border-left: 4px solid #059669; }}
+.toast.warning {{ background: #f59e0b; color: #1a1a1a; border-left: 4px solid #d97706; }}
+.toast.error   {{ background: #ef4444; color: #fff; border-left: 4px solid #dc2626; }}
+.toast.info    {{ background: var(--accent-primary); color: #fff; border-left: 4px solid var(--accent-copper); }}
+@keyframes toast-in {{
+    from {{ transform: translateX(100%); opacity: 0; }}
+    to {{ transform: translateX(0); opacity: 1; }}
+}}
+
+/* ============ Inline validation ============ */
+.field-error {{
+    font-size: 0.75rem; color: #ef4444; margin-top: 0.2rem; padding-left: 0.2rem;
+}}
+.field-ok {{
+    font-size: 0.75rem; color: #10b981; margin-top: 0.2rem; padding-left: 0.2rem;
+}}
+
+/* ============ Progress section ============ */
+.progress-section {{
+    background: var(--bg-panel); border: 1px solid var(--border-subtle);
+    border-radius: var(--radius); padding: 1rem 1.2rem; margin-bottom: 1rem;
+}}
+.progress-section .ps-title {{ font-weight: 600; font-size: 0.9rem; margin-bottom: 0.5rem; }}
+.progress-items {{ display: flex; flex-wrap: wrap; gap: 0.4rem; }}
+.progress-item {{
+    display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.78rem;
+    padding: 0.25rem 0.6rem; border-radius: 999px;
+    border: 1px solid var(--border-subtle); background: var(--bg-base);
+}}
+.progress-item.done {{ border-color: #10b981; color: #10b981; }}
+.progress-item.pending {{ color: var(--text-secondary); }}
+
+/* ============ Glossary ============ */
+.glossary-search {{
+    width: 100%; padding: 0.6rem 1rem; border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm); background: var(--bg-base); color: var(--text-primary);
+    font-size: 0.9rem; margin-bottom: 1rem;
+}}
+.glossary-entry {{
+    background: var(--bg-panel); border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm); padding: 0.8rem 1rem; margin-bottom: 0.5rem;
+}}
+.glossary-entry:hover {{ border-color: var(--accent-primary); }}
+.glossary-entry .ge-code {{ font-weight: 700; color: var(--accent-primary); font-size: 0.85rem; }}
+.glossary-entry .ge-desc {{ font-size: 0.82rem; color: var(--text-secondary); margin-top: 0.2rem; }}
+.glossary-entry .ge-ref {{ font-size: 0.72rem; color: var(--text-muted); margin-top: 0.15rem; }}
+
+/* ============ Checklist cards ============ */
+.check-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }}
+.check-item {{
+    display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.7rem;
+    border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);
+    background: var(--bg-panel); font-size: 0.82rem;
+}}
+.check-item.pass {{ border-left: 3px solid #10b981; }}
+.check-item.fail {{ border-left: 3px solid #ef4444; }}
+.check-item.warn {{ border-left: 3px solid #f59e0b; }}
+.check-item .ci-icon {{ font-size: 1rem; flex-shrink: 0; }}
+
 /* ============ Accessibility ============ */
 a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {{
     outline: 2px solid var(--accent-primary) !important;
@@ -1325,12 +1394,28 @@ def _ayuda(texto: str, titulo: str = "Ayuda"):
 
 
 def _campo_con_ayuda(etiqueta: str, texto_ayuda: str, titulo: str = "Ayuda"):
-    """Muestra una etiqueta con un botón (?) al lado, en una fila compacta."""
-    c1, c2 = st.columns([8, 1])
+    """Etiqueta con botón de ayuda (?) al lado."""
+    c1, c2 = st.columns([5, 1])
     with c1:
         st.markdown(f"**{etiqueta}**")
     with c2:
         _ayuda(texto_ayuda, titulo)
+
+
+def _toast(mensaje: str, tipo: str = "info"):
+    """Muestra una notificación toast temporal en la esquina superior derecha."""
+    iconos = {"success": "✅", "warning": "⚠️", "error": "❌", "info": "ℹ️"}
+    icono = iconos.get(tipo, "ℹ️")
+    st.markdown(f"""
+    <div class="toast-container">
+        <div class="toast {tipo}">{icono} {mensaje}</div>
+    </div>""", unsafe_allow_html=True)
+
+
+def _checklist_card(icono: str, texto: str, estado: str):
+    """Tarjeta de checklist: estado puede ser 'pass', 'fail', 'warn'."""
+    iconos_estado = {"pass": "✅", "fail": "❌", "warn": "⚠️"}
+    return f'<div class="check-item {estado}"><span class="ci-icon">{iconos_estado.get(estado, "•")}</span>{icono} {texto}</div>'
 
 
 def _estado_vacio(mensaje: str, pagina_destino: str, texto_boton: str, icono: str = "👋"):
@@ -4684,6 +4769,129 @@ def generar_excel_presupuesto_capitulos(capitulos: list, pct_beneficio: float, p
     return buffer.getvalue()
 
 
+def generar_excel_proyecto_completo(datos: dict, inputs_cable: dict, res_cable: dict,
+                                     inputs_fv: dict, res_fv: dict,
+                                     capitulos: list, pct_beneficio: float, pct_amortizacion: float,
+                                     pct_iva: float) -> bytes:
+    """Genera un Excel completo del proyecto con todas las hojas: Datos, Cable, FV, Presupuesto."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Border, Side
+
+    azul = "122340"
+    cobre = "E8A33D"
+    gris_claro = "F4F6FB"
+    thin = Side(style="thin", color="C9CCD1")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    def _estilo_input(cell):
+        cell.fill = PatternFill("solid", fgColor=gris_claro)
+        cell.font = Font(color="8A5A1F", italic=True)
+
+    wb = Workbook()
+
+    # Hoja 1: Datos del proyecto
+    ws = wb.active
+    ws.title = "Datos del proyecto"
+    ws.append(["DATOS DEL PROYECTO"])
+    ws["A1"].font = Font(bold=True, size=14, color=azul)
+    ws.append([])
+    campos = [("Titular", "titular"), ("NIF/CIF", "nif_titular"), ("Emplazamiento", "emplazamiento"),
+              ("Referencia catastral", "referencia_catastral"), ("Uso", "uso"), ("Superficie (m²)", "superficie"),
+              ("Tipo de instalación", "tipo_instalacion"), ("Instalador", "instalador"),
+              ("NIF instalador", "nif_instalador"), ("Nº autorización", "n_autorizacion"),
+              ("Categoría", "categoria_instalador")]
+    for etiqueta, clave in campos:
+        ws.cell(row=ws.max_row + 1, column=1, value=etiqueta).font = Font(bold=True)
+        ws.cell(row=ws.max_row, column=2, value=datos.get(clave, ""))
+    ws.column_dimensions["A"].width = 30
+    ws.column_dimensions["B"].width = 45
+
+    # Hoja 2: Cálculo de cable
+    ws_cable = wb.create_sheet("Cable")
+    ws_cable.append(["CÁLCULO DE SECCIÓN DE CABLE"])
+    ws_cable["A1"].font = Font(bold=True, size=14, color=azul)
+    ws_cable.append([])
+    if res_cable.get("seccion_final"):
+        campos_cable = [
+            ("Tipo de circuito", inputs_cable.get("tipo_circuito", "")),
+            ("Sistema", inputs_cable.get("sistema", "")),
+            ("Tensión (V)", inputs_cable.get("tension", "")),
+            ("Potencia (kW)", inputs_cable.get("potencia_kw", "")),
+            ("cos φ", inputs_cable.get("cos_phi", "")),
+            ("Material", inputs_cable.get("conductor", "")),
+            ("Método", inputs_cable.get("metodo", "")),
+            ("Aislamiento", inputs_cable.get("aislamiento", "")),
+            ("Longitud (m)", inputs_cable.get("longitud", "")),
+            ("", ""),
+            ("Sección adoptada (mm²)", res_cable.get("seccion_final", "")),
+            ("Ib (A)", round(res_cable.get("ib_calculo", 0), 2)),
+            ("Iz (A)", round(res_cable.get("iz_termica", 0), 1)),
+            ("ΔU (%)", round(res_cable.get("e_final_pct", 0), 2)),
+            ("ΔU máx (%)", inputs_cable.get("delta_u_max", "")),
+            ("Cumple ΔU", "SÍ" if res_cable.get("e_final_pct", 100) <= inputs_cable.get("delta_u_max", 0) else "NO"),
+            ("Magnetotermico (A)", res_cable.get("calibre_magnetotermico", "")),
+            ("Neutro (mm²)", res_cable.get("seccion_neutro", "")),
+            ("PE (mm²)", res_cable.get("seccion_proteccion", "")),
+        ]
+    else:
+        campos_cable = [("Resultado", "No calculado")]
+    for etiqueta, valor in campos_cable:
+        ws_cable.cell(row=ws_cable.max_row + 1, column=1, value=etiqueta).font = Font(bold=True)
+        ws_cable.cell(row=ws_cable.max_row, column=2, value=valor)
+    ws_cable.column_dimensions["A"].width = 28
+    ws_cable.column_dimensions["B"].width = 35
+
+    # Hoja 3: FV
+    ws_fv = wb.create_sheet("Fotovoltaica")
+    ws_fv.append(["CÁLCULO FOTOVOLTAICO"])
+    ws_fv["A1"].font = Font(bold=True, size=14, color=azul)
+    ws_fv.append([])
+    if res_fv.get("p_pico_kwp"):
+        campos_fv = [
+            ("Potencia pico (kWp)", round(res_fv.get("p_pico_kwp", 0), 2)),
+            ("Nº de paneles", res_fv.get("n_paneles_configurados", "")),
+            ("Configuración", f"{res_fv.get('n_serie', '')}S {res_fv.get('n_paralelo', '')}P"),
+            ("Producción anual (kWh)", round(res_fv.get("produccion_anual_kwh", 0), 0)),
+            ("PR estimado", f"{res_fv.get('pr_estimado', 0):.0%}" if res_fv.get("pr_estimado") else ""),
+            ("Ahorro anual (€)", round(res_fv.get("ahorro_anual_eur", 0), 2)),
+            ("Payback (años)", round(res_fv.get("payback_anios", 0), 1) if res_fv.get("payback_anios") else ""),
+        ]
+    else:
+        campos_fv = [("Resultado", "No calculado")]
+    for etiqueta, valor in campos_fv:
+        ws_fv.cell(row=ws_fv.max_row + 1, column=1, value=etiqueta).font = Font(bold=True)
+        ws_fv.cell(row=ws_fv.max_row, column=2, value=valor)
+    ws_fv.column_dimensions["A"].width = 28
+    ws_fv.column_dimensions["B"].width = 35
+
+    # Hoja 4: Resumen presupuesto
+    ws_r = wb.create_sheet("Resumen")
+    ws_r.append(["RESUMEN DEL PRESUPUESTO"])
+    ws_r["A1"].font = Font(bold=True, size=14, color=azul)
+    ws_r.append([])
+    subtotal = 0
+    for cap in capitulos:
+        total_cap = calcular_totales_capitulo(cap["items"], pct_beneficio, pct_amortizacion)
+        ws_r.cell(row=ws_r.max_row + 1, column=1, value=cap["nombre"]).font = Font(bold=True)
+        ws_r.cell(row=ws_r.max_row, column=2, value=round(total_cap, 2))
+        subtotal += total_cap
+    ws_r.append([])
+    ws_r.cell(row=ws_r.max_row + 1, column=1, value="Subtotal").font = Font(bold=True)
+    ws_r.cell(row=ws_r.max_row, column=2, value=round(subtotal, 2))
+    iva = subtotal * pct_iva / 100
+    ws_r.cell(row=ws_r.max_row + 1, column=1, value=f"IVA ({pct_iva:.0f}%)").font = Font(bold=True)
+    ws_r.cell(row=ws_r.max_row, column=2, value=round(iva, 2))
+    total = subtotal + iva
+    ws_r.cell(row=ws_r.max_row + 1, column=1, value="TOTAL").font = Font(bold=True, size=12, color=azul)
+    ws_r.cell(row=ws_r.max_row, column=2, value=round(total, 2)).font = Font(bold=True, size=12, color=cobre)
+    ws_r.column_dimensions["A"].width = 40
+    ws_r.column_dimensions["B"].width = 18
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    return buffer.getvalue()
+
+
 # ==============================================================================
 # 7B. CÁLCULOS BT — calculadoras sueltas de referencia rápida (independientes
 # entre sí), inspiradas en el catálogo de calculadoras de circuitoelectrico.com:
@@ -5324,6 +5532,9 @@ def _render_resultados(inp: dict, res: dict):
 
     for aviso in res["avisos"]:
         st.info(aviso)
+
+    with st.expander("🔍 Verificación REBT automática", expanded=False):
+        _render_checklist_implicito(inp, res)
 
     with st.expander("📋 Ver detalle del cálculo, sección por sección"):
         filas = []
@@ -6422,6 +6633,17 @@ def _render_presupuesto(inputs_cable: dict, resultado_cable: dict, inputs_fv: di
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"):
         _registrar_actividad("💰", "Presupuesto descargado (Excel)")
 
+    with st.spinner("Generando Excel completo del proyecto..."):
+        excel_completo = generar_excel_proyecto_completo(
+            st.session_state.get("datos_proyecto", {}),
+            st.session_state.get("inputs_cable", {}), st.session_state.get("resultado_cable", {}),
+            st.session_state.get("inputs_fv", {}), st.session_state.get("resultado_fv", {}),
+            capitulos, cfg["pct_beneficio"], cfg["pct_amortizacion"], cfg["pct_iva"])
+    if st.download_button("⬇️ Descargar proyecto completo (Excel)", data=excel_completo,
+                        file_name="proyecto_completo.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"):
+        _registrar_actividad("📊", "Proyecto completo descargado (Excel)")
+
 
 def _render_documentacion(inputs_cable: dict, resultado_cable: dict, inputs_fv: dict, resultado_fv: dict):
     st.markdown('<p class="section-label">Documentación</p>', unsafe_allow_html=True)
@@ -6485,6 +6707,8 @@ def _render_documentacion(inputs_cable: dict, resultado_cable: dict, inputs_fv: 
     e1.metric("Cálculo de cable", "Sí" if hay_cable else "No calculado")
     e2.metric("Cálculo fotovoltaico", "Sí" if hay_fv else "No calculado")
     e3.metric("Capítulos de presupuesto", f"{len(capitulos)}")
+
+    _render_progreso_documentacion(hay_cable, hay_fv, len(capitulos), datos)
 
     subtotal_presupuesto = sum(
         calcular_totales_capitulo(cap["items"], cfg_presu["pct_beneficio"], cfg_presu["pct_amortizacion"])
@@ -7340,6 +7564,7 @@ def _render_sidebar():
             "Documentación": "Genera la MTD, el Anexo de Cálculos y el Pliego de Condiciones en PDF.",
             "Tablas normativas": "Consulta las tablas de intensidades y factores de la Guía-BT-19.",
             "Metodología": "Qué criterios y normativa aplica cada cálculo de la app.",
+            "Glosario": "Definiciones de siglas, términos y normativa REBT (ITC, MCB, cosφ, etc.).",
             "Configuración": "Tu nombre, logo y firma (para los PDF) y el tema de la app.",
             "Acerca de": "Qué es esta aplicación y sus limitaciones conocidas.",
         }
@@ -7367,6 +7592,9 @@ def _render_sidebar():
             nav_button("💰", "Presupuesto", AYUDA_NAV["Presupuesto"])
             nav_button("📄", "Documentación", AYUDA_NAV["Documentación"])
 
+            st.markdown('<p class="nav-group-label">Referencia</p>', unsafe_allow_html=True)
+            nav_button("📝", "Glosario", AYUDA_NAV["Glosario"])
+
         elif modo == "calculos":
             st.markdown('<p class="nav-group-label">Cálculos</p>', unsafe_allow_html=True)
             nav_button("🔌", "Calculadora", AYUDA_NAV["Calculadora"])
@@ -7377,6 +7605,7 @@ def _render_sidebar():
             st.markdown('<p class="nav-group-label">Referencia</p>', unsafe_allow_html=True)
             nav_button("📚", "Tablas normativas", AYUDA_NAV["Tablas normativas"])
             nav_button("📖", "Metodología", AYUDA_NAV["Metodología"])
+            nav_button("📝", "Glosario", AYUDA_NAV["Glosario"])
 
         else:
             nav_button("🏠", "Inicio", AYUDA_NAV["Inicio"])
@@ -7513,6 +7742,94 @@ PLANTILLAS_PRESUPUESTO_MO = {
     ],
 }
 
+GLOSARIO_REBT = [
+    ("REBT", "Reglamento Electrotécnico para Baja Tensión", "RD 842/2002 — norma española de obligado cumplimiento para instalaciones eléctricas de ≤1000V CA / 1500V CC."),
+    ("ITC", "Instrucción Técnica Complementaria", "Normas complementarias al REBT (ITC-BT-01 a ITC-BT-57). Cada una regula un aspecto concreto: cables, protecciones, motores, etc."),
+    ("ITC-BT-04", "Condiciones generales de los proyectos", "Define el contenido mínimo de la memoria técnica de diseño (MTD), el proyecto técnico y la documentación a presentar."),
+    ("ITC-BT-05", "Instalaciones interiores — Condiciones generales", "Requisitos de instalación interior: materiales, protecciones, puesta a tierra, canalizaciones, verificaciones."),
+    ("ITC-BT-07", "Conductores — Sección mínima", "Sección mínima de conductores: 1,5 mm² (alumbrado), 2,5 mm² (tomas), 4 mm² (fuerza). Aluminio ≥16 mm² en instalación fija."),
+    ("ITC-BT-14", "Líneas generales de distribución", "Caída de tensión máxima en la derivación individual: ≤1% (o 1,5% según normativa autonómica)."),
+    ("ITC-BT-15", "Líneas generales — Conductores", "Criterios de caída de tensión y sección en líneas de distribución y subdistribución."),
+    ("ITC-BT-18", "Conductores de protección", "Sección del conductor de protección (PE): ≤16 mm² → mismo calibre que fase; >35 mm² → mitad. Conductor de neutro según cargas."),
+    ("ITC-BT-19", "Selección de conductores — Cálculo de secciones", "Procedimiento de dimensionado: criterio térmico (Ib≤In≤Iz), caída de tensión, cortocircuito. Tabla A (aire) y D (enterrado)."),
+    ("ITC-BT-44", "Alumbrado", "Instalaciones de alumbrado: potencia instalada, iluminancia (lux), factor de carga, alumbrado de emergencia."),
+    ("ITC-BT-47", "Motores", "Circuitos de motor: factores de servicio (125% motor único, varios motores), protección, arranque, estrella-triángulo."),
+    ("ITC-BT-52", "Puntos de recarga para vehículos eléctricos", "Circuitos de recarga EV: potencia, protección, cable, ITC-BT-52."),
+    ("Guía-BT-19", "Guía técnica de referencia para el dimensionado", "Tablas de intensidades (Tabla A, D), factores de corrección (Tabla E), constantes k. Base documental de la ITC-BT-19."),
+    ("Tabla A", "Intensidades admisibles — aire, cobre, XLPE/PVC", "Tabla de la Guía-BT-19: Iz según sección, método de instalación y aislamiento. Referencia a 40°C, 2-3 cargados."),
+    ("Tabla D", "Intensidades admisibles — enterrado", "Tabla de la Guía-BT-19: Iz para instalaciones enterradas, XLPE/EPR."),
+    ("Tabla E", "Factores de corrección por agrupamiento", "Factores k₂ para circuitos agrupados: depende del nº de circuitos y disposición."),
+    ("Ib", "Intensidad de empleo / diseño", "Intensidad que circula por el conductor en condiciones normales de servicio. Ib = P / (√3·U·cosφ) en trifásico."),
+    ("In", "Intensidad nominal del dispositivo de protección", "Corriente del cortacircuitos / magnetotermico. Debe cumplir Ib ≤ In ≤ Iz."),
+    ("Iz", "Intensidad admisible del conductor", "Corriente máxima que el cable puede soportar sin deteriorarse. Obtenida de la Tabla A/D, corregida por factores."),
+    ("ΔU", "Caída de tensión", "Diferencia de tensión entre origen y fin del circuito. Máx admisible: 1% (DI), 3% (interior), 5% (fuerza) según tramo."),
+    ("Icc", "Corriente de cortocircuito", "Corriente máxima que puede circular por un punto en caso de fallo. Usada para verificar criterio térmico del conductor."),
+    ("PE", "Conductor de protección (tierra)", "Conductor que conecta partes conductoras expuestas al conductor de tierra. Sección según ITC-BT-18."),
+    ("PEN", "Conductor de protección y neutro combinado", "Conductor único que cumple funciones de PE y N simultáneamente (solo TT/TN-C)."),
+    ("MCB", "Miniature Circuit Breaker (Interruptor magnetotermico)", "Protección contra sobreintensidad y cortocircuito. Curvas: B (3-5×In), C (5-10×In), D (10-20×In)."),
+    ("RCD", "Residual Current Device (Interruptor diferencial)", "Protección contra contactos indirectos y fugas a tierra. Sensibilidades: 30 mA (personal), 300 mA (incendio)."),
+    ("TNS / TNC-S / TT", "Sistemas de puesta a tierra", "TNS: PE y N separados. TNC-S: PEN se separa en el cuadro. TT: tierra de protección independiente de la red."),
+    ("XLPE", "Cross-linked Polyethylene (Polietileno reticulado)", "Aislamiento de cables: soporta 90°C continuos, mejor que PVC (70°C) para alta temperatura y cortocircuito."),
+    ("PVC", "Polyvinyl Chloride (Cloruro de polivinilo)", "Aislamiento de cables: 70°C máx, más económica que XLPE. Métodos A1, B1, B2, C/E."),
+    ("EPR", "Ethylene Propylene Rubber (Caucho EPR)", "Aislamiento elastomérico para cables de gran sección y enterrado."),
+    ("kWp", "Kilovatio pico (potencia máxima de un panel FV)", "Potencia nominal del panel en condiciones STC (1000 W/m², 25°C, AM 1,5)."),
+    ("MPPT", "Maximum Power Point Tracking", "Función del inversor FV que optimiza la tensión/corriente de los paneles para extraer la máxima potencia."),
+    ("STC", "Standard Test Conditions (condiciones estándar de prueba)", "1000 W/m², 25°C, AM 1,5 — condiciones de laboratorio para la potencia de un panel."),
+    ("PR", "Performance Ratio (ratio de rendimiento)", "Relación entre energía real producida y la teórica. Un buen sistema FV tiene PR 75-85%."),
+    ("PVGIS", "Photovoltaic Geographical Information System", "Herramienta de la UE para estimar la producción FV por ubicación. Datos de irradiación y temperatura."),
+    ("THD₃", "Distorsión armónica total (3er armónico)", "Indicador de cargas no lineales. Si THD₃>15%, el neutro debe tener sección plena (no mitad)."),
+    ("cos φ", "Factor de potencia", "Relación entre potencia activa (kW) y aparente (kVA). Indica la eficiencia del uso de la potencia."),
+    ("f.d.p.", "factor de potencia", "Sinónimo de cos φ. Se usa indistintamente en la normativa española."),
+    ("HSP", "Horas Solares Pico (irradiación)", "Horas equivalentes de radiación solar a 1000 W/m². Determina la producción anual de un sistema FV."),
+    ("AWG", "American Wire Gauge", "Sistema americano de calibración de cables. Ej: AWG 12 ≈ 3,31 mm², AWG 14 ≈ 2,08 mm²."),
+    ("CIE", "Certificado de Instalación Eléctrica", "Documento que certifica que la instalación cumple el REBT. Lo emite el instalador autorizado."),
+    ("MTD", "Memoria Técnica de Diseño", "Documento técnico que justifica el diseño de la instalación (ITC-BT-04)."),
+    ("Pliego", "Pliego de Condiciones Técnicas", "Documento que describe materiales, ejecución y pruebas de la instalación."),
+    ("Anexo", "Anexo de Cálculos y Mediciones", "Justificación técnica de los cálculos y mediciones por capítulo del presupuesto."),
+    ("selectividad", "Selectividad de protecciones", "Propiedad de que solo se abra la protección más cercana al punto de fallo. Amperimétrica y dinámica."),
+    ("escenario FV", "Escenario fotovoltaico", "Combinación de parámetros FV (potencia, ubicación, tipo de autoconsumo) que se puede guardar y comparar."),
+]
+
+# Ejemplos prellenados de proyectos reales
+EJEMPLOS_PROYECTO = {
+    "Casa unifamiliar (vivienda habitual)": {
+        "datos_proyecto": {
+            "titular": "Familia García López", "nif_titular": "12345678A",
+            "emplazamiento": "C/ Mayor 15, Cartagena (Murcia)", "uso": "Vivienda unifamiliar",
+            "superficie": "135", "tipo_instalacion": "Nueva instalación",
+            "instalador": "Instalador Autorizado Ejemplo", "nif_instalador": "87654321B",
+            "n_autorizacion": "IA-30000", "categoria_instalador": "Especialista",
+        },
+        "plantilla_cable": "🏠 Vivienda — circuito de alumbrado",
+        "plantilla_fv": None,
+        "descripcion": "Vivienda de 135 m², 230V monofásica, 6 kW contratados. Circuitos: alumbrado, tomas, cocina, baño.",
+    },
+    "Nave industrial (polígono)": {
+        "datos_proyecto": {
+            "titular": "Industrias Metalúrgicas S.L.", "nif_titular": "B12345678",
+            "emplazamiento": "C/ Industrial 42, Polígono Espinardo, Murcia", "uso": "Nave industrial — taller metalúrgico",
+            "superficie": "450", "tipo_instalacion": "Nueva instalación",
+            "instalador": "Instalador Autorizado Ejemplo", "nif_instalador": "87654321B",
+            "n_autorizacion": "IA-30000", "categoria_instalador": "Técnico titulado competente",
+        },
+        "plantilla_cable": "🏭 Nave industrial — línea de fuerza",
+        "plantilla_fv": None,
+        "descripcion": "Nave de 450 m², 400V trifásica, 30 kW contratados. Motores, compresores, iluminación industrial.",
+    },
+    "Vivienda con autoconsumo FV": {
+        "datos_proyecto": {
+            "titular": "María Fernández Ruiz", "nif_titular": "87654321C",
+            "emplazamiento": "Avda. del Mar 7, Pilar de la Horadada (Alicante)", "uso": "Vivienda unifamiliar con autoconsumo FV",
+            "superficie": "110", "tipo_instalacion": "Nueva instalación",
+            "instalador": "Instalador Autorizado Ejemplo", "nif_instalador": "87654321B",
+            "n_autorizacion": "IA-30000", "categoria_instalador": "Especialista",
+        },
+        "plantilla_cable": "🏠 Vivienda — tomas de uso general",
+        "plantilla_fv": "🏠 Vivienda unifamiliar — 5 kWp",
+        "descripcion": "Vivienda de 110 m² con 5 kWp de autoconsumo con excedentes. Compensación simplificada.",
+    },
+}
+
 
 def _render_flujo_recomendado(hay_cable: bool, hay_fv: bool, n_capitulos: int, doc_generada: bool):
     """Indicador de progreso: guía al usuario sobre el flujo de trabajo."""
@@ -7588,6 +7905,24 @@ def _render_landing():
         if st.button("Entrar en Cálculos", key="btn_modo_calculos", type="primary", width='stretch'):
             st.session_state["modo_app"] = "calculos"
             st.session_state["pagina_actual"] = "Calculadora"
+            st.rerun()
+
+    st.markdown("")
+    st.markdown('<p class="section-label">Ejemplos prellenados</p>', unsafe_allow_html=True)
+    st.caption("Carga un ejemplo completo con datos reales para ver cómo funciona la app sin rellenar nada.")
+    for nombre_ejemplo, datos_ejemplo in EJEMPLOS_PROYECTO.items():
+        ec1, ec2 = st.columns([4, 1])
+        ec1.markdown(f"**{nombre_ejemplo}**  \n"
+                     f"<span style='color:var(--text-secondary); font-size:0.8rem;'>{datos_ejemplo['descripcion']}</span>",
+                     unsafe_allow_html=True)
+        if ec2.button("Cargar", key=f"ejemplo_{nombre_ejemplo}", width='stretch'):
+            st.session_state["datos_proyecto"] = dict(datos_ejemplo["datos_proyecto"])
+            if datos_ejemplo.get("plantilla_cable"):
+                st.session_state["plantilla_activa"] = PLANTILLAS_CIRCUITO.get(datos_ejemplo["plantilla_cable"], {})
+            if datos_ejemplo.get("plantilla_fv"):
+                st.session_state["plantilla_activa_fv"] = PLANTILLAS_FV.get(datos_ejemplo["plantilla_fv"], {})
+            st.session_state["nombre_proyecto_actual"] = nombre_ejemplo
+            _registrar_actividad("📋", f"Ejemplo cargado: {nombre_ejemplo}")
             st.rerun()
 
     if st.session_state["historial_proyectos"]:
@@ -8194,6 +8529,147 @@ normativa aplicable antes de firmar un proyecto.
 # 9. PUNTO DE ENTRADA
 # ==============================================================================
 
+def _render_glosario():
+    st.markdown('<p class="section-label">Glosario REBT</p>', unsafe_allow_html=True)
+    st.caption("Definiciones de los términos, siglas y normativa más usados en instalaciones eléctricas de baja tensión.")
+
+    busqueda = st.text_input("🔍 Buscar término...", "", placeholder="Escribe: ITC, cosφ, kWp, MCB...",
+                             key="busqueda_glosario")
+    filtro = busqueda.lower().strip()
+
+    if filtro:
+        resultados = [(c, d, r) for c, d, r in GLOSARIO_REBT
+                      if filtro in c.lower() or filtro in d.lower() or filtro in r.lower()]
+        if not resultados:
+            st.info(f"No se encontraron resultados para «{busqueda}». Prueba con otro término.")
+            return
+        st.caption(f"{len(resultados)} resultado(s) para «{busqueda}»")
+    else:
+        resultados = GLOSARIO_REBT
+
+    for codigo, descripcion, referencia in resultados:
+        st.markdown(f'''<div class="glossary-entry">
+            <div class="ge-code">{codigo}</div>
+            <div class="ge-desc">{descripcion}</div>
+            <div class="ge-ref">{referencia}</div>
+        </div>''', unsafe_allow_html=True)
+
+
+def _render_checklist_implicito(inp: dict, res: dict):
+    """Muestra un checklist automático de verificación REBT tras un cálculo de cable."""
+    if res.get("seccion_final") is None:
+        return
+
+    items = []
+
+    # 1. Sección mínima
+    s = res["seccion_final"]
+    cond = inp.get("conductor", "Cobre")
+    if cond == "Cobre":
+        s_min = 1.5 if "Alumbrado" in inp.get("tipo_circuito", "") else 2.5
+    else:
+        s_min = 16
+    items.append(("Sección mínima REBT", f"{s:g} mm² ≥ {s_min} mm²", "pass" if s >= s_min else "fail"))
+
+    # 2. Criterio térmico
+    items.append(("Criterio térmico (Ib ≤ In ≤ Iz)",
+                  f"Ib={res['ib_calculo']:.1f}A ≤ In={res['calibre_magnetotermico']}A ≤ Iz={res['iz_termica']:.1f}A",
+                  "pass" if res['ib_calculo'] <= res['calibre_magnetotermico'] <= res['iz_termica'] else "fail"))
+
+    # 3. Caída de tensión
+    cumple_du = res["e_final_pct"] <= inp["delta_u_max"]
+    items.append(("Caída de tensión",
+                  f"{res['e_final_pct']:.2f}% ≤ {inp['delta_u_max']:.1f}%",
+                  "pass" if cumple_du else "fail"))
+
+    # 4. Cortocircuito (si verificado)
+    if inp.get("verificar_cc") and res.get("cumple_cc") is not None:
+        items.append(("Verificación cortocircuito",
+                      f"S={s:g} mm² ≥ Smin={res['s_min_cc']:.2f} mm²",
+                      "pass" if res["cumple_cc"] else "fail"))
+
+    # 5. Neutro
+    if res.get("seccion_neutro"):
+        items.append(("Conductor neutro",
+                      f"Sn={res['seccion_neutro']:g} mm²", "pass"))
+    else:
+        items.append(("Conductor neutro", "No requiere reducción o no aplica", "warn"))
+
+    # 6. Protección (PE)
+    if res.get("seccion_proteccion"):
+        items.append(("Conductor de protección (PE)",
+                      f"Sp={res['seccion_proteccion']:g} mm²", "pass"))
+    else:
+        items.append(("Conductor de protección (PE)", "Sección ≤16 mm² → mismo que fase", "pass"))
+
+    # 7. Conductores en paralelo
+    if res.get("necesita_paralelo"):
+        items.append(("Conductores en paralelo",
+                      f"Se necesitan {res['n_paralelo']} conductores por fase", "warn"))
+
+    # 8. Temperatura ambiente
+    t = inp.get("temp_ambiente", 25)
+    items.append(("Temperatura ambiente",
+                  f"{t:.0f}°C — {'normal' if t <= 40 else 'por encima de 40°C, corregido'}",
+                  "pass" if t <= 40 else "warn"))
+
+    # 9. Materiales REBT
+    if cond == "Aluminio" and s < 16:
+        items.append(("Material aluminio", f"Aluminio requiere ≥16 mm² (ITC-BT-07)", "fail"))
+    else:
+        items.append(("Material REBT", f"{cond} — cumple ITC-BT-07", "pass"))
+
+    html = '<div class="check-grid">'
+    for texto, detalle, estado in items:
+        iconos = {"pass": "✅", "fail": "❌", "warn": "⚠️"}
+        html += f'''<div class="check-item {estado}">
+            <span class="ci-icon">{iconos.get(estado, "•")}</span>
+            <div><b>{texto}</b><br><span style="font-size:0.75rem;color:var(--text-secondary);">{detalle}</span></div>
+        </div>'''
+    html += '</div>'
+
+    n_pass = sum(1 for _, _, e in items if e == "pass")
+    n_fail = sum(1 for _, _, e in items if e == "fail")
+    n_warn = sum(1 for _, _, e in items if e == "warn")
+
+    st.markdown(f"**Verificación REBT automática** ({n_pass} ✅ / {n_fail} ❌ / {n_warn} ⚠️)")
+    st.markdown(html, unsafe_allow_html=True)
+
+
+def _render_progreso_documentacion(hay_cable: bool, hay_fv: bool, n_capitulos: int, datos: dict):
+    """Muestra una barra de progreso de completitud de la documentación."""
+    checks = []
+
+    # Datos del proyecto
+    campos_llenos = sum(1 for v in datos.values() if v and str(v).strip())
+    total_campos = len(datos)
+    pct_datos = campos_llenos / max(total_campos, 1)
+    checks.append(("Datos del proyecto", pct_datos >= 0.8))
+
+    # Cálculo de cable
+    checks.append(("Cálculo de cable", hay_cable))
+
+    # Cálculo FV
+    checks.append(("Cálculo fotovoltaico", hay_fv))
+
+    # Presupuesto
+    checks.append(("Presupuesto con capítulos", n_capitulos > 0))
+
+    n_hechos = sum(1 for _, ok in checks if ok)
+    total = len(checks)
+
+    html = f'<div class="progress-section"><div class="ps-title">📄 Completitud de documentación</div>'
+    html += '<div class="progress-items">'
+    for texto, ok in checks:
+        clase = "done" if ok else "pending"
+        icono = "✅" if ok else "⏳"
+        html += f'<span class="progress-item {clase}">{icono} {texto}</span>'
+    html += '</div></div>'
+    st.markdown(html, unsafe_allow_html=True)
+    st.progress(n_hechos / max(total, 1),
+                text=f"Documentación: {n_hechos}/{total} secciones completadas")
+
+
 def main():
     st.set_page_config(page_title="REBT Suite · Instalaciones Eléctricas", page_icon="⚡", layout="wide",
                        initial_sidebar_state="expanded")
@@ -8241,6 +8717,9 @@ def main():
             st.rerun()
         _render_metodologia()
         return
+    if pagina == "Glosario":
+        _render_glosario()
+        return
 
     if pagina == "Fórmulas" and modo != "calculos":
         st.session_state["pagina_actual"] = "Inicio"
@@ -8258,7 +8737,8 @@ def main():
     # --- Páginas de herramientas: cajetín de cabecera ---
     eyebrow = {"Calculadora": "Cálculo de secciones · Baja tensión", "Fórmulas": "Justificación de cálculo",
                "Fotovoltaica": "Dimensionado de instalaciones solares", "Cálculos BT": "Calculadoras de referencia rápida",
-               "Presupuesto": "Mediciones y precios", "Documentación": "MTD · Anexo · Pliego"}.get(pagina, "")
+               "Presupuesto": "Mediciones y precios", "Documentación": "MTD · Anexo · Pliego",
+               "Glosario": "Definiciones y normativa REBT"}.get(pagina, "")
 
     st.markdown(f"""
         <div class="titleblock">
@@ -8272,6 +8752,20 @@ def main():
 
     if pagina == "Calculadora":
         inputs_cable = _render_inputs()
+
+        # --- Validación inline de parámetros ---
+        _avisos_val = []
+        if inputs_cable.get("longitud", 0) > 100:
+            _avisos_val.append(("⚠️", f"Longitud {inputs_cable['longitud']:.0f} m — circuits muy largos pueden tener caída de tensión excesiva."))
+        if inputs_cable.get("potencia_kw", 0) and inputs_cable["potencia_kw"] > 50:
+            _avisos_val.append(("⚠️", f"Potencia {inputs_cable['potencia_kw']:.1f} kW — verifica que no sea trifásica."))
+        if inputs_cable.get("temp_ambiente", 25) > 50:
+            _avisos_val.append(("🌡️", f"Temperatura {inputs_cable['temp_ambiente']:.0f}°C — la intensidad admisible se reduce significativamente."))
+        if inputs_cable.get("n_circuitos", 1) > 9:
+            _avisos_val.append(("📦", f"{inputs_cable['n_circuitos']} circuitos agrupados — el factor de agrupamiento reduce mucho la Iz."))
+        for icono, msg in _avisos_val:
+            st.warning(f"{icono} {msg}")
+
         resultado_cable = calcular(inputs_cable)
         st.session_state["inputs_cable"] = inputs_cable
         st.session_state["resultado_cable"] = resultado_cable
@@ -8292,6 +8786,18 @@ def main():
 
     elif pagina == "Fotovoltaica":
         inputs_fv = _render_inputs_fv()
+
+        # --- Validación inline FV ---
+        _avisos_fv = []
+        if inputs_fv.get("potencia_inversor_kw", 0) and inputs_fv.get("potencia_pico_deseada"):
+            ratio = inputs_fv["potencia_pico_deseada"] / inputs_fv["potencia_inversor_kw"]
+            if ratio > 1.3:
+                _avisos_fv.append(("⚠️", f"Ratio panel/inversor = {ratio:.1f}x — excede el habitual 1,0-1,2x."))
+        if inputs_fv.get("con_bateria") and inputs_fv.get("tipo_autoconsumo", "") == "Sin excedentes":
+            _avisos_fv.append(("💡", "Batería con sin excedentes — comprueba que el inversor soporte batería."))
+        for icono, msg in _avisos_fv:
+            st.warning(f"{icono} {msg}")
+
         resultado_fv = calcular_fv(inputs_fv)
         st.session_state["inputs_fv"] = inputs_fv
         st.session_state["resultado_fv"] = resultado_fv
