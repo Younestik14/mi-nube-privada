@@ -1567,9 +1567,13 @@ def calcular(inp: dict) -> dict:
 
 _PDF_REPLACEMENTS = {
     "Δ": "Delta ", "≤": "<=", "≥": ">=", "√": "raiz", "÷": "/",
-    "²": "2", "³": "3", "°": "gr.", "·": "-", "×": "x",
+    "²": "2", "³": "3", "·": "-", "×": "x",
     "—": "-", "–": "-", "✅": "[OK]", "❌": "[NO]", "⚠️": "[AVISO]", "☐": "[ ]",
     "⬇️": "", "🔌": "", "📊": "", "📖": "", "⚙️": "", "🌡️": "", "⚡": "",
+    # Letras griegas sin glifo en Helvetica (WinAnsi) → su representación ASCII
+    "φ": "fi", "κ": "k", "Ω": "Ohm", "α": "a", "β": "b", "η": "n",
+    "µ": "u", "−": "-",
+    "°": "gr.",
 }
 
 # Caracteres Unicode de super/subíndice que Helvetica NO tiene como glifo
@@ -1594,22 +1598,53 @@ def _pdf_safe_markup(texto: str) -> str:
     """Como _pdf_safe, pero para texto que SÍ va dentro de un Paragraph (o
     de una celda de _tabla_pdf, que también usa Paragraph): además de los
     reemplazos habituales, convierte super/subíndices Unicode sin glifo en
-    <super>/<sub> con dígitos normales, que sí se ven."""
+    <super>/<sub> con dígitos normales, que sí se ven. Escapa <, >, & para
+    que no rompan el parser XML de ReportLab."""
     texto = str(texto)
+    # 1. Escapar caracteres XML especiales (ANTES de añadir ningún tag)
+    texto = texto.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    # 2. Convertir super/subíndices Unicode sin glifo → tags ReportLab
     for k, v in _PDF_SUPERSCRIPT_SAFE.items():
         texto = texto.replace(k, v)
     for k, v in _PDF_SUBSCRIPT_SAFE.items():
         texto = texto.replace(k, v)
+    # 3. Reemplazar caracteres sin glifo por representación legible
     for k, v in _PDF_REPLACEMENTS.items():
-        if k in ("²", "³", "·", "×"):  # estos SÍ tienen glifo real, no hace falta sustituirlos aquí
+        if k in ("²", "³", "·", "×"):  # estos SÍ tienen glifo real en WinAnsi
             continue
         texto = texto.replace(k, v)
     return texto
 
 
 def _pdf_safe(texto: str) -> str:
+    """Versión sin XML markup: reemplaza caracteres problemáticos para
+    texto plano (fuera de Paragraph)."""
     texto = str(texto)
     for k, v in _PDF_REPLACEMENTS.items():
+        texto = texto.replace(k, v)
+    return texto
+
+
+def _pdf_safe_formula(texto: str) -> str:
+    """Para fórmulas tipográficas que SÍ contienen tags <b>/<sub>/<sup>
+    intencionales pero TAMBIÉN caracteres Unicode sin glifo (φ, κ, Ω, etc.):
+    protege los tags, reemplaza los caracteres problemáticos, restaura los tags."""
+    texto = str(texto)
+    # 1. Escapar XML en todo el texto
+    texto = texto.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    # 2. Restaurar tags intencionales
+    for tag in ("b", "sub", "sup"):
+        texto = texto.replace(f"&lt;{tag}&gt;", f"<{tag}>")
+        texto = texto.replace(f"&lt;/{tag}&gt;", f"</{tag}>")
+    # 3. Reemplazar caracteres sin glifo
+    for k, v in _PDF_REPLACEMENTS.items():
+        if k in ("²", "³", "·", "×"):
+            continue
+        texto = texto.replace(k, v)
+    # 4. Convertir super/subíndices Unicode restantes
+    for k, v in _PDF_SUPERSCRIPT_SAFE.items():
+        texto = texto.replace(k, v)
+    for k, v in _PDF_SUBSCRIPT_SAFE.items():
         texto = texto.replace(k, v)
     return texto
 
@@ -2184,7 +2219,7 @@ def _docx_rich_parrafo(doc, html: str, justificar: bool = True, tamano: float = 
     elif justificar:
         p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
-    tokens = re.split(r'(<[bi]/>|<sub>|</sub>|<sup>|</sup>)', html)
+    tokens = re.split(r'(<b>|</b>|<i>|</i>|<sub>|</sub>|<sup>|</sup>)', html)
     sub_sup = False
     for tok in tokens:
         if tok == '<b>':
@@ -2825,7 +2860,7 @@ def generar_pdf_mtd(datos_proyecto: dict, inputs_cable: dict, resultado_cable: d
 
     story.append(Paragraph("H. Declaración y firma", h2))
     story.append(Paragraph(
-        f"D./Dña. {d.get('instalador') or '_______________________'}, en calidad de "
+        _pdf_safe_markup(f"D./Dña. {d.get('instalador') or '_______________________'}, en calidad de "
         f"{(d.get('categoria_instalador') or 'instalador autorizado').lower()}, declara que la instalación "
         "descrita en la presente Memoria Técnica de Diseño se ajusta a las prescripciones del Reglamento "
         "Electrotécnico para Baja Tensión y sus Instrucciones Técnicas Complementarias.", normal))
@@ -2849,6 +2884,7 @@ def _parrafos_calculo_cable_pdf(inp: dict, res: dict, normal, formula) -> list:
     sustitución numérica), en vez de líneas sueltas tipo calculadora."""
     from reportlab.platypus import Paragraph
     P = []
+    _S = _pdf_safe_formula  # alias corto: aplica XML escaping + reemplazo Unicode
     sistema = inp["sistema"]
     cosphi = inp["cos_phi"]
 
@@ -2858,19 +2894,19 @@ def _parrafos_calculo_cable_pdf(inp: dict, res: dict, normal, formula) -> list:
         if sistema == SISTEMA_MONO:
             P.append(Paragraph("La intensidad de empleo del circuito, para un sistema monofásico, se "
                                 "determina mediante la expresión:", normal))
-            P.append(Paragraph("I<sub>b</sub> = P / (V · cos φ)", formula))
-            P.append(Paragraph(f"Sustituyendo los valores de la instalación (P = {p_w_txt} W, "
-                                f"V = {inp['tension']:g} V, cos φ = {cosphi:.2f}), resulta:", normal))
-            P.append(Paragraph(f"I<sub>b</sub> = {p_w_txt} / ({inp['tension']:g} × {cosphi:.2f}) = "
-                                f"<b>{res['ib']:.2f} A</b>", formula))
+            P.append(Paragraph(_S("I<sub>b</sub> = P / (V · cos φ)"), formula))
+            P.append(Paragraph(_S(f"Sustituyendo los valores de la instalación (P = {p_w_txt} W, "
+                                f"V = {inp['tension']:g} V, cos φ = {cosphi:.2f}), resulta:"), normal))
+            P.append(Paragraph(_S(f"I<sub>b</sub> = {p_w_txt} / ({inp['tension']:g} × {cosphi:.2f}) = "
+                                f"<b>{res['ib']:.2f} A</b>"), formula))
         else:
             P.append(Paragraph("La intensidad de empleo del circuito, para un sistema trifásico "
                                 "equilibrado, se determina mediante la expresión:", normal))
-            P.append(Paragraph("I<sub>b</sub> = P / (√3 · V · cos φ)", formula))
-            P.append(Paragraph(f"Sustituyendo los valores de la instalación (P = {p_w_txt} W, "
-                                f"V = {inp['tension']:g} V, cos φ = {cosphi:.2f}), resulta:", normal))
-            P.append(Paragraph(f"I<sub>b</sub> = {p_w_txt} / (√3 × {inp['tension']:g} × {cosphi:.2f}) = "
-                                f"<b>{res['ib']:.2f} A</b>", formula))
+            P.append(Paragraph(_S("I<sub>b</sub> = P / (√3 · V · cos φ)"), formula))
+            P.append(Paragraph(_S(f"Sustituyendo los valores de la instalación (P = {p_w_txt} W, "
+                                f"V = {inp['tension']:g} V, cos φ = {cosphi:.2f}), resulta:"), normal))
+            P.append(Paragraph(_S(f"I<sub>b</sub> = {p_w_txt} / (√3 × {inp['tension']:g} × {cosphi:.2f}) = "
+                                f"<b>{res['ib']:.2f} A</b>"), formula))
     else:
         P.append(Paragraph(f"La intensidad de empleo se ha introducido de forma directa: "
                             f"I<sub>b</sub> = <b>{res['ib']:.2f} A</b>.", normal))
@@ -2902,9 +2938,9 @@ def _parrafos_calculo_cable_pdf(inp: dict, res: dict, normal, formula) -> list:
     P.append(Paragraph("El criterio térmico del artículo 19.2 de la ITC-BT-19 exige que la intensidad "
                         "admisible del cable, corregida por las condiciones reales de la instalación, no "
                         "sea inferior a la intensidad de empleo:", normal))
-    P.append(Paragraph("I<sub>b</sub> ≤ I<sub>n</sub> ≤ I<sub>z</sub> ,  con  I<sub>z</sub> = "
+    P.append(Paragraph(_S("I<sub>b</sub> ≤ I<sub>n</sub> ≤ I<sub>z</sub> ,  con  I<sub>z</sub> = "
                         "I<sub>z,tabla</sub> · f<sub>temp</sub> · f<sub>agrup</sub> · f<sub>capas</sub> · "
-                        "f<sub>resist</sub>", formula))
+                        "f<sub>resist</sub>"), formula))
     factor_base = res["iz_termica"] / max(res["factor_total"], 1e-9)
     P.append(Paragraph(f"Para la sección adoptada, la Guía-BT-19 establece una intensidad admisible de "
                         f"base de {factor_base:.1f} A que, corregida por los factores de temperatura "
@@ -2923,20 +2959,20 @@ def _parrafos_calculo_cable_pdf(inp: dict, res: dict, normal, formula) -> list:
 
     P.append(Paragraph("Para el criterio de caída de tensión, la conductividad del conductor se toma a su "
                         "temperatura de servicio (más conservadora que a 20°C):", normal))
-    P.append(Paragraph("κ(T) = κ<sub>20°C</sub> / [1 + α · (T<sub>servicio</sub> − 20)]", formula))
+    P.append(Paragraph(_S("κ(T) = κ<sub>20°C</sub> / [1 + α · (T<sub>servicio</sub> − 20)]"), formula))
     kappa = res["kappa"]
-    P.append(Paragraph(f"κ = {CONDUCTIVIDAD_20C[inp['conductor']]:g} / [1 + "
+    P.append(Paragraph(_S(f"κ = {CONDUCTIVIDAD_20C[inp['conductor']]:g} / [1 + "
                         f"{COEF_TEMP_RESIST[inp['conductor']]:g} × "
-                        f"({TEMP_SERVICIO[inp['aislamiento']]:g} − 20)] = <b>{kappa:.2f} m/(Ω·mm²)</b>", formula))
+                        f"({TEMP_SERVICIO[inp['aislamiento']]:g} − 20)] = <b>{kappa:.2f} m/(Ω·mm²)</b>"), formula))
     S = res["seccion_final"]
     r_metro = 1.0 / (kappa * S)
     k_sist_txt = "2" if sistema == SISTEMA_MONO else "√3"
     P.append(Paragraph("La caída de tensión se calcula, con resistencia R = 1/(κ·S), mediante:", normal))
-    P.append(Paragraph(f"ΔU = {k_sist_txt} · L · I<sub>b</sub> · (R·cos φ + X·sen φ)", formula))
-    P.append(Paragraph(f"Para L = {inp['longitud']:g} m y S = {S:g} mm², R = 1/({kappa:.2f}×{S:g}) = "
-                        f"{r_metro:.5f} Ω/m, resultando:", normal))
-    P.append(Paragraph(f"ΔU = {res['e_final']:.2f} V = <b>{res['e_final_pct']:.2f} %</b> de "
-                        f"{inp['tension']:g} V", formula))
+    P.append(Paragraph(_S(f"ΔU = {k_sist_txt} · L · I<sub>b</sub> · (R·cos φ + X·sen φ)"), formula))
+    P.append(Paragraph(_S(f"Para L = {inp['longitud']:g} m y S = {S:g} mm², R = 1/({kappa:.2f}×{S:g}) = "
+                        f"{r_metro:.5f} Ω/m, resultando:"), normal))
+    P.append(Paragraph(_S(f"ΔU = {res['e_final']:.2f} V = <b>{res['e_final_pct']:.2f} %</b> de "
+                        f"{inp['tension']:g} V"), formula))
     cumple_du = res["e_final_pct"] <= inp["delta_u_max"]
     P.append(Paragraph(f"Como {res['e_final_pct']:.2f} % es {'inferior' if cumple_du else 'superior'} al "
                         f"máximo admisible del {inp['delta_u_max']:g} % para este tramo, la sección "
@@ -2959,10 +2995,10 @@ def _parrafos_calculo_cable_pdf(inp: dict, res: dict, normal, formula) -> list:
         k_cc = K_CORTOCIRCUITO[(inp["conductor"], inp["aislamiento"])]
         P.append(Paragraph("Por último, se verifica el criterio térmico de cortocircuito (IEC 60364-5-54):",
                             normal))
-        P.append(Paragraph("S<sub>mín</sub> = I<sub>cc</sub> · √t / k", formula))
-        P.append(Paragraph(f"S<sub>mín</sub> = ({inp['icc_ka']:g}×1000 × √{inp['tiempo_s']:g}) / {k_cc} = "
+        P.append(Paragraph(_S("S<sub>mín</sub> = I<sub>cc</sub> · √t / k"), formula))
+        P.append(Paragraph(_S(f"S<sub>mín</sub> = ({inp['icc_ka']:g}×1000 × √{inp['tiempo_s']:g}) / {k_cc} = "
                             f"<b>{res['s_min_cc']:g} mm²</b>, frente a los {S:g} mm² adoptados: "
-                            f"{'cumple' if res['cumple_cc'] else 'NO cumple'}.", normal))
+                            f"{'cumple' if res['cumple_cc'] else 'NO cumple'}."), normal))
     return P
 
 
@@ -2971,6 +3007,7 @@ def _parrafos_calculo_fv_pdf(inp: dict, res: dict, normal, formula) -> list:
     como memoria de cálculo (mismo espíritu que la función de cable)."""
     from reportlab.platypus import Paragraph
     P = []
+    _S = _pdf_safe_formula
 
     P.append(Paragraph(f"El generador fotovoltaico se dimensiona para una potencia pico de "
                         f"<b>{res['p_pico_kwp']:.2f} kWp</b>, equivalente a {res['n_paneles']} paneles de "
@@ -2979,22 +3016,22 @@ def _parrafos_calculo_fv_pdf(inp: dict, res: dict, normal, formula) -> list:
 
     P.append(Paragraph("Las pérdidas por orientación e inclinación no óptimas se calculan según la "
                         "expresión del Documento Básico HE5 del Código Técnico de la Edificación:", normal))
-    P.append(Paragraph("Pérdidas (%) = 100 · [1,2·10<super>-4</super>·(β − φ + 10)² + "
-                        "3,5·10<super>-5</super>·α²]", formula))
-    P.append(Paragraph(f"con inclinación β = {inp['inclinacion']:g}°, latitud φ = {inp['latitud']:g}° y "
+    P.append(Paragraph(_S("Pérdidas (%) = 100 · [1,2·10<super>-4</super>·(β − φ + 10)² + "
+                        "3,5·10<super>-5</super>·α²]"), formula))
+    P.append(Paragraph(_S(f"con inclinación β = {inp['inclinacion']:g}°, latitud φ = {inp['latitud']:g}° y "
                         f"azimut α = {inp['azimut']:g}°, lo que da unas pérdidas de "
-                        f"<b>{res['perdidas_orient_pct']:.2f} %</b>.", normal))
+                        f"<b>{res['perdidas_orient_pct']:.2f} %</b>."), normal))
     P.append(Paragraph("El rendimiento efectivo (Performance Ratio) incorpora además las pérdidas por "
                         "sombras/suciedad y la eficiencia del inversor:", normal))
-    P.append(Paragraph(f"PR<sub>efectivo</sub> = PR<sub>base</sub> · (1 − p<sub>orient</sub>) · "
+    P.append(Paragraph(_S(f"PR<sub>efectivo</sub> = PR<sub>base</sub> · (1 − p<sub>orient</sub>) · "
                         f"(1 − p<sub>sombras</sub>) · η<sub>inversor</sub> = {inp['pr']:.2f} × "
                         f"(1 − {res['perdidas_orient_pct']/100:.3f}) × "
                         f"(1 − {inp['perdidas_sombras']/100:.2f}) × {inp['eficiencia_inversor']/100:.3f} = "
-                        f"<b>{res['pr_efectivo']:.3f}</b>", formula))
+                        f"<b>{res['pr_efectivo']:.3f}</b>"), formula))
     P.append(Paragraph("La producción anual estimada resulta de aplicar la fórmula del IDAE:", normal))
-    P.append(Paragraph("E<sub>anual</sub> = P<sub>pico</sub> · HSP · 365 · PR<sub>efectivo</sub>", formula))
-    P.append(Paragraph(f"E<sub>anual</sub> = {res['p_pico_kwp']:.2f} × {inp['hsp']:g} × 365 × "
-                        f"{res['pr_efectivo']:.3f} = <b>{_miles(res['produccion_anual_kwh'])} kWh/año</b>",
+    P.append(Paragraph(_S("E<sub>anual</sub> = P<sub>pico</sub> · HSP · 365 · PR<sub>efectivo</sub>"), formula))
+    P.append(Paragraph(_S(f"E<sub>anual</sub> = {res['p_pico_kwp']:.2f} × {inp['hsp']:g} × 365 × "
+                        f"{res['pr_efectivo']:.3f} = <b>{_miles(res['produccion_anual_kwh'])} kWh/año</b>"),
                         formula))
     P.append(Paragraph(f"Considerando una degradación anual del panel del {inp['degradacion_anual']:g}%, la "
                         f"producción estimada será de {_miles(res['produccion_ano10'])} kWh/año en el año "
@@ -3006,11 +3043,11 @@ def _parrafos_calculo_fv_pdf(inp: dict, res: dict, normal, formula) -> list:
     P.append(Paragraph(f"El generador se configura con {res['n_serie']} paneles en serie por string y "
                         f"{res['n_paralelo']} strings en paralelo. La tensión de circuito abierto del "
                         "string en la condición más desfavorable (frío) se calcula como:", normal))
-    P.append(Paragraph("V<sub>string,frío</sub> = N<sub>serie</sub> · V<sub>oc</sub> · "
-                        "[1 + α<sub>V</sub> · (25 − T<sub>mín</sub>)]", formula))
-    P.append(Paragraph(f"V<sub>string,frío</sub> = {res['n_serie']} × {inp['voc']:g} × "
+    P.append(Paragraph(_S("V<sub>string,frío</sub> = N<sub>serie</sub> · V<sub>oc</sub> · "
+                        "[1 + α<sub>V</sub> · (25 − T<sub>mín</sub>)]"), formula))
+    P.append(Paragraph(_S(f"V<sub>string,frío</sub> = {res['n_serie']} × {inp['voc']:g} × "
                         f"[1 + {inp['coef_temp_voc']/100:.4f} × (25 − {inp['temp_min']:g})] = "
-                        f"<b>{res['v_string_frio']:.1f} V</b>", formula))
+                        f"<b>{res['v_string_frio']:.1f} V</b>"), formula))
     cumple_v = res["cumple_vmax"] and res["cumple_vmpp_min"] and res["cumple_vmpp_max"]
     P.append(Paragraph(f"Este valor {'se mantiene dentro' if cumple_v else 'NO se mantiene dentro'} de la "
                         f"ventana de tensión admisible del inversor "
@@ -3021,12 +3058,12 @@ def _parrafos_calculo_fv_pdf(inp: dict, res: dict, normal, formula) -> list:
                         "se dimensionan para una intensidad no inferior al 125% de la intensidad máxima del "
                         "generador, con una caída de tensión conjunta (continua + alterna) no superior al "
                         "1,5% entre el generador y el punto de interconexión:", normal))
-    P.append(Paragraph(f"I<sub>diseño,CC</sub> = 1,25 · I<sub>sc</sub> = 1,25 × {inp['isc']:g} = "
+    P.append(Paragraph(_S(f"I<sub>diseño,CC</sub> = 1,25 · I<sub>sc</sub> = 1,25 × {inp['isc']:g} = "
                         f"<b>{res['i_diseno_cc']:.2f} A</b>  →  sección adoptada "
-                        f"<b>{res['s_cc_final']:g} mm²</b> (ΔU = {res['du_cc_pct']:.2f} %)", formula))
-    P.append(Paragraph(f"I<sub>diseño,CA</sub> = 1,25 · I<sub>b</sub> = <b>{res['i_diseno_ca']:.2f} A</b>  →  "
+                        f"<b>{res['s_cc_final']:g} mm²</b> (ΔU = {res['du_cc_pct']:.2f} %)"), formula))
+    P.append(Paragraph(_S(f"I<sub>diseño,CA</sub> = 1,25 · I<sub>b</sub> = <b>{res['i_diseno_ca']:.2f} A</b>  →  "
                         f"sección adoptada <b>{res['s_ca_final']:g} mm²</b> "
-                        f"(ΔU = {res['e_ca_pct']:.2f} %)", formula))
+                        f"(ΔU = {res['e_ca_pct']:.2f} %)"), formula))
     cumple_total = res["du_total_pct"] <= 1.5
     P.append(Paragraph(f"La caída de tensión conjunta resulta ΔU = {res['du_total_pct']:.2f} %, que "
                         f"{'cumple' if cumple_total else 'NO cumple'} el límite del 1,5% establecido por "
@@ -3041,11 +3078,11 @@ def _parrafos_calculo_fv_pdf(inp: dict, res: dict, normal, formula) -> list:
         P.append(Paragraph("La capacidad de la batería de acumulación se determina a partir del consumo "
                             "diario a cubrir, la autonomía deseada y la profundidad de descarga admisible:",
                             normal))
-        P.append(Paragraph("C<sub>batería</sub> = (Consumo<sub>diario</sub> · Días<sub>autonomía</sub>) / "
-                            "Profundidad<sub>descarga</sub>", formula))
-        P.append(Paragraph(f"C<sub>batería</sub> = ({inp.get('consumo_diario_bateria_kwh',0):.2f} × "
+        P.append(Paragraph(_S("C<sub>batería</sub> = (Consumo<sub>diario</sub> · Días<sub>autonomía</sub>) / "
+                            "Profundidad<sub>descarga</sub>"), formula))
+        P.append(Paragraph(_S(f"C<sub>batería</sub> = ({inp.get('consumo_diario_bateria_kwh',0):.2f} × "
                             f"{inp.get('autonomia_dias',0):g}) / {inp.get('profundidad_descarga',80)/100:.2f} "
-                            f"= <b>{res['capacidad_bateria_kwh']:.1f} kWh</b>", formula))
+                            f"= <b>{res['capacidad_bateria_kwh']:.1f} kWh</b>"), formula))
 
     if res.get("ahorro_anual"):
         texto_ahorro = (f"Del total producido, se estima que un {inp['pct_autoconsumo']:g}% se "
@@ -4285,10 +4322,10 @@ def generar_pdf_cie(datos_proyecto: dict, inputs_cable: dict, resultado_cable: d
     fecha_pruebas = firma.get("fecha")
     fecha_pruebas_txt = fecha_pruebas.strftime("%d/%m/%Y") if hasattr(fecha_pruebas, "strftime") else str(fecha_pruebas or "-")
     story.append(Paragraph(
-        f"D./Dña. <b>{firma.get('instalador') or '_______________________'}</b>, en calidad de "
+        _pdf_safe_formula(f"D./Dña. <b>{firma.get('instalador') or '_______________________'}</b>, en calidad de "
         f"{(d.get('categoria_instalador') or 'básica').lower()}, certifica que la instalación descrita "
         f"reúne las condiciones y garantías reglamentarias exigidas por el REBT, habiéndose realizado las "
-        f"comprobaciones anteriores el día <b>{fecha_pruebas_txt}</b>.", normal))
+        f"comprobaciones anteriores el día <b>{fecha_pruebas_txt}</b>."), normal))
     story.append(Spacer(1, 40))
     story.append(Paragraph("Firma: _______________________________________", normal))
     story.append(Spacer(1, 10))
