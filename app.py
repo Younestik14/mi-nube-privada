@@ -1307,6 +1307,7 @@ MAX_HISTORIAL_PROYECTOS = 25  # evita que la sesión acumule memoria sin límite
 def _inicializar_estado():
     defaults = {
         "pagina_actual": "Inicio",
+        "modo_app": None,
         "tema": "Oscuro",
         "config_profesional": {"nombre": "", "empresa": "", "logo_b64": "", "firma": ""},
         "historial_proyectos": [],
@@ -7356,31 +7357,50 @@ def _render_sidebar():
             "Acerca de": "Qué es esta aplicación y sus limitaciones conocidas.",
         }
 
-        st.markdown('<p class="nav-group-label">Proyecto</p>', unsafe_allow_html=True)
-        nav_button("🏠", "Inicio", AYUDA_NAV["Inicio"])
-        nav_button("📁", "Proyectos", AYUDA_NAV["Proyectos"])
-        nav_button("📊", "Estadísticas", AYUDA_NAV["Estadísticas"])
+        modo = st.session_state.get("modo_app")
 
-        st.markdown('<p class="nav-group-label">Cálculos</p>', unsafe_allow_html=True)
-        nav_button("🔌", "Calculadora", AYUDA_NAV["Calculadora"])
-        nav_button("🧮", "Fórmulas", AYUDA_NAV["Fórmulas"])
-        nav_button("☀️", "Fotovoltaica", AYUDA_NAV["Fotovoltaica"])
-        nav_button("📐", "Cálculos BT", AYUDA_NAV["Cálculos BT"])
+        if modo:
+            if st.button("↩ Volver al selector", key="btn_volver_landing", width='stretch'):
+                st.session_state["modo_app"] = None
+                st.session_state["pagina_actual"] = "Inicio"
+                st.rerun()
+            st.markdown("<div style='margin-top:0.3rem;border-top:1px solid var(--border-subtle);padding-top:0.6rem;'>", unsafe_allow_html=True)
 
-        st.markdown('<p class="nav-group-label">Documentos</p>', unsafe_allow_html=True)
-        nav_button("💰", "Presupuesto", AYUDA_NAV["Presupuesto"])
-        nav_button("📄", "Documentación", AYUDA_NAV["Documentación"])
+        if modo == "proyecto":
+            st.markdown('<p class="nav-group-label">Proyecto</p>', unsafe_allow_html=True)
+            nav_button("🏠", "Inicio", AYUDA_NAV["Inicio"])
+            nav_button("📁", "Proyectos", AYUDA_NAV["Proyectos"])
+            nav_button("📊", "Estadísticas", AYUDA_NAV["Estadísticas"])
 
-        st.markdown('<p class="nav-group-label">Referencia</p>', unsafe_allow_html=True)
-        nav_button("📚", "Tablas normativas", AYUDA_NAV["Tablas normativas"])
-        nav_button("📖", "Metodología", AYUDA_NAV["Metodología"])
+            st.markdown('<p class="nav-group-label">Cálculos del proyecto</p>', unsafe_allow_html=True)
+            nav_button("🔌", "Calculadora", AYUDA_NAV["Calculadora"])
+            nav_button("☀️", "Fotovoltaica", AYUDA_NAV["Fotovoltaica"])
+
+            st.markdown('<p class="nav-group-label">Documentos</p>', unsafe_allow_html=True)
+            nav_button("💰", "Presupuesto", AYUDA_NAV["Presupuesto"])
+            nav_button("📄", "Documentación", AYUDA_NAV["Documentación"])
+
+        elif modo == "calculos":
+            st.markdown('<p class="nav-group-label">Cálculos</p>', unsafe_allow_html=True)
+            nav_button("🔌", "Calculadora", AYUDA_NAV["Calculadora"])
+            nav_button("🧮", "Fórmulas", AYUDA_NAV["Fórmulas"])
+            nav_button("☀️", "Fotovoltaica", AYUDA_NAV["Fotovoltaica"])
+            nav_button("📐", "Cálculos BT", AYUDA_NAV["Cálculos BT"])
+
+            st.markdown('<p class="nav-group-label">Referencia</p>', unsafe_allow_html=True)
+            nav_button("📚", "Tablas normativas", AYUDA_NAV["Tablas normativas"])
+            nav_button("📖", "Metodología", AYUDA_NAV["Metodología"])
+
+        else:
+            nav_button("🏠", "Inicio", AYUDA_NAV["Inicio"])
 
         st.markdown('<p class="nav-group-label">Sistema</p>', unsafe_allow_html=True)
         nav_button("⚙️", "Configuración", AYUDA_NAV["Configuración"])
         nav_button("ℹ️", "Acerca de", AYUDA_NAV["Acerca de"])
 
-        st.markdown("<div style='margin-top:1.4rem;'></div>", unsafe_allow_html=True)
-        st.caption(f"📌 {st.session_state['nombre_proyecto_actual']}")
+        if modo:
+            st.markdown("<div style='margin-top:1.4rem;'></div>", unsafe_allow_html=True)
+            st.caption(f"📌 {st.session_state['nombre_proyecto_actual']}")
 
         st.markdown("<div style='margin-top:0.6rem;border-top:1px solid var(--border-subtle);padding-top:0.6rem;'>", unsafe_allow_html=True)
         if st.button("🗑️ Limpiar sesión", key="btn_clear_session", width='stretch'):
@@ -7510,12 +7530,20 @@ PLANTILLAS_PRESUPUESTO_MO = {
 def _render_flujo_recomendado(hay_cable: bool, hay_fv: bool, n_capitulos: int, doc_generada: bool):
     """Indicador de progreso: guía al usuario sobre el flujo de trabajo."""
     hay_algo = hay_cable or hay_fv
+    modo = st.session_state.get("modo_app")
     st.markdown('<p class="section-label">Flujo de trabajo</p>', unsafe_allow_html=True)
-    pasos = [
-        ("1", "Calcular", hay_algo, "Calculadora"),
-        ("2", "Presupuestar", n_capitulos > 0, "Presupuesto"),
-        ("3", "Documentar", doc_generada, "Documentación"),
-    ]
+    if modo == "calculos":
+        pasos = [
+            ("1", "Calcular cable", hay_cable, "Calculadora"),
+            ("2", "Ver fórmulas", hay_algo, "Fórmulas"),
+            ("3", "Calcular FV", hay_fv, "Fotovoltaica"),
+        ]
+    else:
+        pasos = [
+            ("1", "Calcular", hay_algo, "Calculadora"),
+            ("2", "Presupuestar", n_capitulos > 0, "Presupuesto"),
+            ("3", "Documentar", doc_generada, "Documentación"),
+        ]
     cols = st.columns(3)
     for col, (num, titulo, hecho, destino) in zip(cols, pasos):
         with col:
@@ -7536,6 +7564,60 @@ def _render_flujo_recomendado(hay_cable: bool, hay_fv: bool, n_capitulos: int, d
                 st.rerun()
 
 
+def _render_landing():
+    """Página de bienvenida con dos modos: Proyecto de instalación y Cálculos eléctricos."""
+    nombre = st.session_state["config_profesional"].get("nombre") or "técnicos"
+    st.markdown(f"### Hola, {nombre}")
+    st.markdown('<p style="color:var(--text-secondary);font-size:0.95rem;margin-top:-0.3rem;">'
+                '¿Qué quieres hacer hoy?</p>', unsafe_allow_html=True)
+
+    col1, col2 = st.columns(2, gap="large")
+
+    with col1:
+        st.markdown('''<div style="background:var(--bg-panel); border:2px solid var(--accent);
+            border-radius:var(--radius); padding:2rem 1.5rem; text-align:center; margin-bottom:0.5rem;">
+            <div style="font-size:2.5rem; margin-bottom:0.6rem;">📋</div>
+            <div style="font-size:1.15rem; font-weight:700; margin-bottom:0.4rem;">Proyecto de instalación</div>
+            <div style="font-size:0.82rem; color:var(--text-secondary); line-height:1.5;">
+                Todo lo necesario para diseñar, documentar y entregar un proyecto eléctrico completo:<br>
+                cálculos, presupuesto, documentación técnica y gestión de proyectos.
+            </div>
+        </div>''', unsafe_allow_html=True)
+        if st.button("Entrar en Proyecto", key="btn_modo_proyecto", type="primary", width='stretch'):
+            st.session_state["modo_app"] = "proyecto"
+            st.session_state["pagina_actual"] = "Inicio"
+            st.rerun()
+
+    with col2:
+        st.markdown('''<div style="background:var(--bg-panel); border:2px solid var(--accent);
+            border-radius:var(--radius); padding:2rem 1.5rem; text-align:center; margin-bottom:0.5rem;">
+            <div style="font-size:2.5rem; margin-bottom:0.6rem;">🧮</div>
+            <div style="font-size:1.15rem; font-weight:700; margin-bottom:0.4rem;">Cálculos eléctricos</div>
+            <div style="font-size:0.82rem; color:var(--text-secondary); line-height:1.5;">
+                Calculadoras independientes de electricidad:<br>
+                sección de cables, fotovoltaica, tierras, cortocircuitos, tablas normativas y más.
+            </div>
+        </div>''', unsafe_allow_html=True)
+        if st.button("Entrar en Cálculos", key="btn_modo_calculos", type="primary", width='stretch'):
+            st.session_state["modo_app"] = "calculos"
+            st.session_state["pagina_actual"] = "Calculadora"
+            st.rerun()
+
+    if st.session_state["historial_proyectos"]:
+        st.markdown("")
+        st.markdown(f'<p class="section-label">Actividad reciente</p>', unsafe_allow_html=True)
+        col_hist, col_act = st.columns([1, 1.2])
+        with col_hist:
+            st.markdown(f"**{len(st.session_state['historial_proyectos'])} proyecto(s) guardado(s)**")
+            for p in st.session_state["historial_proyectos"][:4]:
+                st.caption(f"• {p.get('nombre', '(sin nombre)')} — {p.get('fecha', '')}")
+        with col_act:
+            if st.session_state.get("actividad"):
+                st.markdown("**Última actividad**")
+                for a in st.session_state["actividad"][:4]:
+                    st.caption(f"{a['icono']} {a['texto']} · {a['hora']}")
+
+
 def _render_dashboard():
     nombre_usuario = st.session_state["config_profesional"].get("nombre") or "técnicos"
     st.session_state.setdefault("guia_bienvenida_oculta", False)
@@ -7550,15 +7632,26 @@ def _render_dashboard():
     st.caption(f"Proyecto: **{st.session_state['nombre_proyecto_actual']}**")
 
     if es_usuario_nuevo and not st.session_state["guia_bienvenida_oculta"]:
-        st.markdown('''<div style="background:var(--bg-panel); border:1px solid var(--border-subtle);
-            border-radius:var(--radius); padding:1.5rem 1.7rem; margin:0.5rem 0 1.5rem 0;">
-            <div style="font-size:1.1rem; font-weight:700; margin-bottom:0.5rem;">Como funciona en 3 pasos</div>
-            <div style="color:var(--text-secondary); font-size:0.88rem; line-height:1.6;">
-                <b>1. Calcula</b> — Rellena el formulario de la Calculadora (o usa una plantilla).<br>
-                <b>2. Presupuesta</b> — Importa los cálculos a un presupuesto con precios editables.<br>
-                <b>3. Documenta</b> — Descarga la memoria técnica y el anexo en PDF.
-            </div>
-        </div>''', unsafe_allow_html=True)
+        if modo == "calculos":
+            st.markdown('''<div style="background:var(--bg-panel); border:1px solid var(--border-subtle);
+                border-radius:var(--radius); padding:1.5rem 1.7rem; margin:0.5rem 0 1.5rem 0;">
+                <div style="font-size:1.1rem; font-weight:700; margin-bottom:0.5rem;">Cálculos eléctricos</div>
+                <div style="color:var(--text-secondary); font-size:0.88rem; line-height:1.6;">
+                    <b>1. Calculadora</b> — Calcula la sección de un cable y sus protecciones.<br>
+                    <b>2. Fórmulas</b> — Consulta la justificación paso a paso del cálculo.<br>
+                    <b>3. Referencia</b> — Tablas normativas, fotovoltaica y cálculos BT sueltos.
+                </div>
+            </div>''', unsafe_allow_html=True)
+        else:
+            st.markdown('''<div style="background:var(--bg-panel); border:1px solid var(--border-subtle);
+                border-radius:var(--radius); padding:1.5rem 1.7rem; margin:0.5rem 0 1.5rem 0;">
+                <div style="font-size:1.1rem; font-weight:700; margin-bottom:0.5rem;">Como funciona en 3 pasos</div>
+                <div style="color:var(--text-secondary); font-size:0.88rem; line-height:1.6;">
+                    <b>1. Calcula</b> — Rellena el formulario de la Calculadora (o usa una plantilla).<br>
+                    <b>2. Presupuesta</b> — Importa los cálculos a un presupuesto con precios editables.<br>
+                    <b>3. Documenta</b> — Descarga la memoria técnica y el anexo en PDF.
+                </div>
+            </div>''', unsafe_allow_html=True)
         if st.button("Comenzar en la Calculadora", type="primary", width='stretch'):
             st.session_state["pagina_actual"] = "Calculadora"
             st.rerun()
@@ -7570,10 +7663,17 @@ def _render_dashboard():
 
     st.markdown("")
     st.markdown('<p class="section-label">Herramientas</p>', unsafe_allow_html=True)
-    q1, q2, q3 = st.columns(3)
-    _tarjeta_acceso_rapido(q1, "🔌", "Calculadora", "Sección de cable y protecciones", "Calculadora")
-    _tarjeta_acceso_rapido(q2, "☀️", "Fotovoltaica", "Instalación solar de autoconsumo", "Fotovoltaica")
-    _tarjeta_acceso_rapido(q3, "📐", "Cálculos BT", "Calculadoras de referencia rápida", "Cálculos BT")
+    modo = st.session_state.get("modo_app")
+    if modo == "calculos":
+        q1, q2, q3 = st.columns(3)
+        _tarjeta_acceso_rapido(q1, "🔌", "Calculadora", "Sección de cable y protecciones", "Calculadora")
+        _tarjeta_acceso_rapido(q2, "☀️", "Fotovoltaica", "Instalación solar de autoconsumo", "Fotovoltaica")
+        _tarjeta_acceso_rapido(q3, "📐", "Cálculos BT", "Calculadoras de referencia rápida", "Cálculos BT")
+    else:
+        q1, q2, q3 = st.columns(3)
+        _tarjeta_acceso_rapido(q1, "🔌", "Calculadora", "Sección de cable y protecciones", "Calculadora")
+        _tarjeta_acceso_rapido(q2, "☀️", "Fotovoltaica", "Instalación solar de autoconsumo", "Fotovoltaica")
+        _tarjeta_acceso_rapido(q3, "💰", "Presupuesto", "Mediciones y precios", "Presupuesto")
 
     st.markdown("")
     col_izq, col_der = st.columns([1.3, 1])
@@ -8115,14 +8215,24 @@ def main():
     _render_sidebar()
 
     pagina = st.session_state["pagina_actual"]
+    modo = st.session_state.get("modo_app")
 
     if pagina == "Inicio":
-        _render_dashboard()
+        if modo:
+            _render_dashboard()
+        else:
+            _render_landing()
         return
     if pagina == "Proyectos":
+        if modo != "proyecto":
+            st.session_state["pagina_actual"] = "Inicio"
+            st.rerun()
         _render_proyectos()
         return
     if pagina == "Estadísticas":
+        if modo != "proyecto":
+            st.session_state["pagina_actual"] = "Inicio"
+            st.rerun()
         _render_estadisticas()
         return
     if pagina == "Configuración":
@@ -8132,16 +8242,36 @@ def main():
         _render_acerca_de()
         return
     if pagina == "Tablas normativas":
+        if modo != "calculos":
+            st.session_state["pagina_actual"] = "Inicio"
+            st.rerun()
         _render_tablas()
         return
     if pagina == "Metodología":
+        if modo != "calculos":
+            st.session_state["pagina_actual"] = "Inicio"
+            st.rerun()
         _render_metodologia()
         return
 
-    # --- Páginas de herramientas: mismo cajetín de cabecera que antes ---
+    if pagina == "Fórmulas" and modo != "calculos":
+        st.session_state["pagina_actual"] = "Inicio"
+        st.rerun()
+    if pagina == "Cálculos BT" and modo != "calculos":
+        st.session_state["pagina_actual"] = "Inicio"
+        st.rerun()
+    if pagina == "Presupuesto" and modo != "proyecto":
+        st.session_state["pagina_actual"] = "Inicio"
+        st.rerun()
+    if pagina == "Documentación" and modo != "proyecto":
+        st.session_state["pagina_actual"] = "Inicio"
+        st.rerun()
+
+    # --- Páginas de herramientas: cajetín de cabecera ---
     eyebrow = {"Calculadora": "Cálculo de secciones · Baja tensión", "Fórmulas": "Justificación de cálculo",
                "Fotovoltaica": "Dimensionado de instalaciones solares", "Cálculos BT": "Calculadoras de referencia rápida",
                "Presupuesto": "Mediciones y precios", "Documentación": "MTD · Anexo · Pliego"}.get(pagina, "")
+
     st.markdown(f"""
         <div class="titleblock">
             <div class="titleblock-main">
