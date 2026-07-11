@@ -831,37 +831,36 @@ def calibre_magnetotermico_sugerido(ib_calculo: float) -> int:
 # ==============================================================================
 
 def generar_css(tema: str = "Oscuro") -> str:
-    """Genera el CSS de la app según el tema. Mantiene TODAS las clases ya
-    usadas en el resto del código (titleblock, section-label, result-card,
-    result-value, badge-ok/fail, regla-chip...) y añade el sistema nuevo
-    (sidebar, dashboard, tarjetas de estado, badges, ayuda contextual)."""
+    """Genera el CSS de la app según el tema."""
     if tema == "Claro":
         v = dict(
-            bg_primary="#f4f6fb", bg_panel="#ffffff", bg_panel_alt="#eef1f8", bg_sidebar="#111827",
-            border_subtle="rgba(37, 99, 235, 0.14)", border_strong="rgba(37, 99, 235, 0.35)",
-            text_primary="#0f172a", text_secondary="#5b6577", text_on_dark="#e5e9f5",
-            accent="#2563eb", accent_hover="#1d4ed8", accent_soft="rgba(37, 99, 235, 0.10)",
-            copper="#b3711f", success="#16a34a", success_soft="rgba(22,163,74,0.10)",
-            warning="#d97706", warning_soft="rgba(217,119,6,0.10)",
-            error="#dc2626", error_soft="rgba(220,38,38,0.10)",
-            grid_line="rgba(15, 23, 42, 0.035)", shadow_sm="0 1px 2px rgba(15,23,42,0.06)",
-            shadow_md="0 6px 16px rgba(15,23,42,0.08)", shadow_lg="0 16px 40px rgba(15,23,42,0.14)",
+            bg_primary="#f8f9fc", bg_panel="#ffffff", bg_panel_alt="#f1f3f9", bg_sidebar="#0f172a",
+            border_subtle="rgba(0, 0, 0, 0.07)", border_strong="rgba(0, 0, 0, 0.12)",
+            text_primary="#111827", text_secondary="#6b7280", text_on_dark="#f1f5f9",
+            accent="#2563eb", accent_hover="#1d4ed8", accent_soft="rgba(37, 99, 235, 0.08)",
+            copper="#b45309", success="#059669", success_soft="rgba(5,150,105,0.08)",
+            warning="#d97706", warning_soft="rgba(217,119,6,0.08)",
+            error="#dc2626", error_soft="rgba(220,38,38,0.08)",
+            shadow_sm="0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03)",
+            shadow_md="0 4px 12px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.04)",
+            shadow_lg="0 12px 32px rgba(0,0,0,0.08), 0 4px 8px rgba(0,0,0,0.04)",
         )
     else:
         v = dict(
-            bg_primary="#0b1220", bg_panel="#121b2e", bg_panel_alt="#16213a", bg_sidebar="#0a0f1a",
-            border_subtle="rgba(59, 130, 246, 0.16)", border_strong="rgba(59, 130, 246, 0.40)",
-            text_primary="#e8edf4", text_secondary="#8b96a8", text_on_dark="#e8edf4",
-            accent="#3b82f6", accent_hover="#60a5fa", accent_soft="rgba(59, 130, 246, 0.14)",
-            copper="#e8a33d", success="#22c55e", success_soft="rgba(34,197,94,0.14)",
-            warning="#f59e0b", warning_soft="rgba(245,158,11,0.14)",
-            error="#ef4444", error_soft="rgba(239,68,68,0.14)",
-            grid_line="rgba(232, 237, 244, 0.035)", shadow_sm="0 1px 2px rgba(0,0,0,0.3)",
-            shadow_md="0 6px 16px rgba(0,0,0,0.35)", shadow_lg="0 16px 40px rgba(0,0,0,0.45)",
+            bg_primary="#0c111d", bg_panel="#151d2e", bg_panel_alt="#1a2438", bg_sidebar="#080d16",
+            border_subtle="rgba(255, 255, 255, 0.06)", border_strong="rgba(255, 255, 255, 0.10)",
+            text_primary="#e2e8f0", text_secondary="#7a8599", text_on_dark="#e2e8f0",
+            accent="#3b82f6", accent_hover="#60a5fa", accent_soft="rgba(59, 130, 246, 0.12)",
+            copper="#f59e0b", success="#10b981", success_soft="rgba(16,185,129,0.12)",
+            warning="#f59e0b", warning_soft="rgba(245,158,11,0.12)",
+            error="#ef4444", error_soft="rgba(239,68,68,0.12)",
+            shadow_sm="0 1px 3px rgba(0,0,0,0.20), 0 1px 2px rgba(0,0,0,0.15)",
+            shadow_md="0 4px 12px rgba(0,0,0,0.25), 0 2px 4px rgba(0,0,0,0.15)",
+            shadow_lg="0 12px 32px rgba(0,0,0,0.35), 0 4px 8px rgba(0,0,0,0.20)",
         )
     return f"""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 :root {{
     --bg-primary: {v['bg_primary']}; --bg-panel: {v['bg_panel']}; --bg-panel-alt: {v['bg_panel_alt']};
@@ -874,242 +873,211 @@ def generar_css(tema: str = "Oscuro") -> str:
     --accent-ok: {v['success']}; --success-soft: {v['success_soft']};
     --accent-warning: {v['warning']}; --warning-soft: {v['warning_soft']};
     --accent-fail: {v['error']}; --error-soft: {v['error_soft']};
-    --grid-line: {v['grid_line']};
     --shadow-sm: {v['shadow_sm']}; --shadow-md: {v['shadow_md']}; --shadow-lg: {v['shadow_lg']};
-    --radius: 14px; --radius-sm: 8px;
+    --radius: 12px; --radius-sm: 8px;
 }}
 
 .stApp {{
     background-color: var(--bg-primary);
-    background-image:
-        linear-gradient(var(--grid-line) 1px, transparent 1px),
-        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-    background-size: 26px 26px;
 }}
 
 html, body, [class*="css"], .stMarkdown, p, span, label, div {{
-    font-family: 'Inter', 'IBM Plex Sans', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     color: var(--text-primary);
 }}
-h1, h2, h3, h4 {{ font-family: 'Inter', sans-serif; letter-spacing: -0.02em; font-weight: 700; }}
-code, .stCode, [data-testid="stMetricValue"] {{ font-family: 'JetBrains Mono', monospace; }}
+h1, h2, h3, h4 {{ font-family: 'Inter', sans-serif; letter-spacing: -0.025em; font-weight: 700; line-height: 1.2; }}
 
-/* ============ Sidebar (navegación SaaS) ============ */
+/* ============ Sidebar ============ */
 section[data-testid="stSidebar"] {{
     background: var(--bg-sidebar);
-    border-right: 1px solid var(--border-subtle);
 }}
 section[data-testid="stSidebar"] * {{ color: var(--text-on-dark) !important; }}
 .sidebar-brand {{
-    display: flex; align-items: center; gap: 0.55rem;
-    padding: 0.9rem 0.2rem 1.1rem 0.2rem;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-    margin-bottom: 0.8rem;
+    display: flex; align-items: center; gap: 0.65rem;
+    padding: 1rem 0.3rem 1.2rem 0.3rem;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    margin-bottom: 1rem;
 }}
 .sidebar-brand .logo {{
-    width: 34px; height: 34px; border-radius: 9px;
+    width: 36px; height: 36px; border-radius: 10px;
     background: linear-gradient(135deg, var(--accent-primary), var(--accent-copper));
     display: flex; align-items: center; justify-content: center;
-    font-size: 1.15rem; box-shadow: var(--shadow-sm); flex-shrink: 0;
+    font-size: 1.1rem; flex-shrink: 0;
 }}
-.sidebar-brand .name {{ font-weight: 800; font-size: 1.02rem; line-height: 1.15; }}
-.sidebar-brand .sub {{ font-size: 0.68rem; color: #93a0b8 !important; letter-spacing: 0.04em; }}
+.sidebar-brand .name {{ font-weight: 700; font-size: 0.95rem; line-height: 1.2; }}
+.sidebar-brand .sub {{ font-size: 0.65rem; color: #64748b !important; }}
 .nav-group-label {{
-    font-size: 0.66rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
-    color: #6b7690 !important; margin: 1.0rem 0 0.3rem 0.15rem;
+    font-size: 0.62rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+    color: #475569 !important; margin: 1.2rem 0 0.35rem 0.1rem;
 }}
 section[data-testid="stSidebar"] .stButton button {{
     background: transparent; border: 1px solid transparent; text-align: left; justify-content: flex-start;
-    font-weight: 500; border-radius: var(--radius-sm); padding: 0.45rem 0.7rem;
-    transition: background 0.15s ease, border-color 0.15s ease; box-shadow: none;
+    font-weight: 500; border-radius: var(--radius-sm); padding: 0.4rem 0.65rem;
+    transition: all 0.12s ease; box-shadow: none; font-size: 0.88rem;
 }}
 section[data-testid="stSidebar"] .stButton button:hover {{
-    background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.05);
 }}
 section[data-testid="stSidebar"] .stButton button[kind="primary"] {{
-    background: var(--accent-soft); border: 1px solid var(--accent-primary);
-    color: var(--accent-primary-hover) !important; font-weight: 700;
+    background: var(--accent-soft); border: 1px solid rgba(255,255,255,0.08);
+    color: #fff !important; font-weight: 600;
 }}
-section[data-testid="stSidebar"] .stButton button[kind="primary"] * {{ color: var(--accent-primary-hover) !important; }}
+section[data-testid="stSidebar"] .stButton button[kind="primary"] * {{ color: #fff !important; }}
 
 .sidebar-credit {{
-    margin-top: 1rem; padding-top: 0.8rem; border-top: 1px solid rgba(255,255,255,0.08);
+    margin-top: 1.2rem; padding-top: 0.8rem; border-top: 1px solid rgba(255,255,255,0.06);
     text-align: center;
 }}
-.sidebar-credit-name {{
-    font-size: 0.66rem; color: #6b7690 !important; letter-spacing: 0.02em; margin-bottom: 0.35rem;
-}}
-.sidebar-credit-links {{ display: flex; justify-content: center; gap: 0.7rem; }}
-.sidebar-credit-links a {{
-    font-size: 1.0rem; text-decoration: none; opacity: 0.7; transition: opacity 0.15s ease, transform 0.15s ease;
-}}
-.sidebar-credit-links a:hover {{ opacity: 1; transform: translateY(-1px); }}
+.sidebar-credit-name {{ font-size: 0.62rem; color: #475569 !important; margin-bottom: 0.3rem; }}
+.sidebar-credit-links {{ display: flex; justify-content: center; gap: 0.8rem; }}
+.sidebar-credit-links a {{ font-size: 0.95rem; text-decoration: none; opacity: 0.5; transition: opacity 0.15s; }}
+.sidebar-credit-links a:hover {{ opacity: 1; }}
 
-/* ============ Cabecera tipo cajetín (documentos) ============ */
+/* ============ Titleblock ============ */
 .titleblock {{
     display: flex; justify-content: space-between; align-items: stretch;
-    border: 1px solid var(--border-strong);
-    background: linear-gradient(180deg, var(--bg-panel), var(--bg-panel-alt));
-    border-radius: var(--radius); margin-bottom: 1.6rem; overflow: hidden; box-shadow: var(--shadow-sm);
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-panel);
+    border-radius: var(--radius); margin-bottom: 1.8rem; overflow: hidden;
 }}
-.titleblock-main {{ padding: 1.1rem 1.4rem; flex: 1; }}
+.titleblock-main {{ padding: 1.2rem 1.5rem; flex: 1; }}
 .titleblock-eyebrow {{
-    font-family: 'JetBrains Mono', monospace; color: var(--accent-primary);
-    font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase;
+    font-size: 0.65rem; color: var(--accent-primary);
+    letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600;
 }}
-.titleblock-main h1 {{ color: var(--text-primary); font-size: 1.55rem; margin: 0.15rem 0 0 0; font-weight: 800; }}
+.titleblock-main h1 {{ font-size: 1.4rem; margin: 0.2rem 0 0 0; font-weight: 700; }}
 .titleblock-meta {{ display: flex; }}
 .titleblock-meta > div {{
-    border-left: 1px solid var(--border-subtle); padding: 0.9rem 1.1rem; min-width: 118px;
+    border-left: 1px solid var(--border-subtle); padding: 0.8rem 1rem; min-width: 110px;
     display: flex; flex-direction: column; justify-content: center;
 }}
 .titleblock-meta span {{
-    font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; color: var(--text-secondary);
-    letter-spacing: 0.12em; text-transform: uppercase;
+    font-size: 0.6rem; color: var(--text-secondary); letter-spacing: 0.08em; text-transform: uppercase;
 }}
-.titleblock-meta strong {{ font-family: 'JetBrains Mono', monospace; color: var(--text-primary); font-size: 0.82rem; margin-top: 0.15rem; }}
+.titleblock-meta strong {{ color: var(--text-primary); font-size: 0.8rem; margin-top: 0.1rem; }}
 
 .section-label {{
-    font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;
-    color: var(--accent-primary); border-bottom: 1px solid var(--border-subtle);
-    padding-bottom: 0.35rem; margin: 0.4rem 0 0.9rem 0;
+    font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--text-secondary); font-weight: 600;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 0.4rem; margin: 0.5rem 0 1rem 0;
 }}
 
-/* ============ Tarjetas de resultado (ya usadas en toda la app) ============ */
+/* ============ Result cards ============ */
 .result-card {{
     background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: var(--radius);
-    padding: 0.9rem 1.1rem; margin-bottom: 0.6rem; box-shadow: var(--shadow-sm);
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    padding: 0.9rem 1.1rem; margin-bottom: 0.6rem;
 }}
-.result-card:hover {{ box-shadow: var(--shadow-md); transform: translateY(-1px); }}
 .result-card.hero {{
     border: 1px solid var(--border-strong);
     background: linear-gradient(135deg, var(--accent-soft), var(--bg-panel));
 }}
 .result-label {{
-    font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; letter-spacing: 0.08em;
-    text-transform: uppercase; color: var(--text-secondary);
+    font-size: 0.65rem; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--text-secondary); font-weight: 600;
 }}
-.result-value {{ font-family: 'JetBrains Mono', monospace; font-size: 1.7rem; font-weight: 700; color: var(--accent-primary); line-height: 1.3; }}
-.result-value.small {{ font-size: 1.15rem; color: var(--text-primary); }}
-.result-sub {{ font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.15rem; }}
+.result-value {{ font-size: 1.6rem; font-weight: 700; color: var(--accent-primary); line-height: 1.3; }}
+.result-value.small {{ font-size: 1.1rem; color: var(--text-primary); }}
+.result-sub {{ font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.15rem; }}
 .badge-ok {{ color: var(--accent-ok); font-weight: 600; }}
 .badge-fail {{ color: var(--accent-fail); font-weight: 600; }}
 
 .regla-wrap {{ display: flex; gap: 4px; margin: 0.6rem 0 1rem 0; flex-wrap: wrap; }}
 .regla-chip {{
-    font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; padding: 0.28rem 0.5rem; border-radius: 999px;
+    font-size: 0.7rem; padding: 0.25rem 0.55rem; border-radius: 999px;
     border: 1px solid var(--border-subtle); color: var(--text-secondary); background: var(--bg-panel);
 }}
-.regla-chip.activa {{ border-color: var(--accent-primary); color: #fff; background: var(--accent-primary); font-weight: 700; }}
+.regla-chip.activa {{ border-color: var(--accent-primary); color: #fff; background: var(--accent-primary); font-weight: 600; }}
 
-/* ============ Dashboard: tarjetas KPI, accesos rápidos, timeline ============ */
+/* ============ Dashboard ============ */
 .kpi-card {{
     background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: var(--radius);
-    padding: 1.1rem 1.3rem; box-shadow: var(--shadow-sm); height: 100%;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    padding: 1rem 1.2rem; height: 100%;
 }}
-.kpi-card:hover {{ transform: translateY(-2px); box-shadow: var(--shadow-md); }}
 .kpi-icon {{
-    width: 40px; height: 40px; border-radius: 11px; display: flex; align-items: center; justify-content: center;
-    font-size: 1.2rem; margin-bottom: 0.6rem;
+    width: 36px; height: 36px; border-radius: 9px; display: flex; align-items: center; justify-content: center;
+    font-size: 1.05rem; margin-bottom: 0.5rem;
 }}
 .kpi-icon.blue {{ background: var(--accent-soft); }}
 .kpi-icon.green {{ background: var(--success-soft); }}
 .kpi-icon.orange {{ background: var(--warning-soft); }}
 .kpi-icon.red {{ background: var(--error-soft); }}
-.kpi-value {{ font-size: 1.7rem; font-weight: 800; color: var(--text-primary); line-height: 1.15; }}
-.kpi-label {{ font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.15rem; }}
+.kpi-value {{ font-size: 1.4rem; font-weight: 700; color: var(--text-primary); line-height: 1.2; }}
+.kpi-label {{ font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.15rem; }}
 
 .quick-card {{
     display: block; background: var(--bg-panel); border: 1px solid var(--border-subtle);
-    border-radius: var(--radius); padding: 1rem 1.1rem; text-decoration: none !important;
-    transition: all 0.15s ease; height: 100%; box-shadow: var(--shadow-sm);
+    border-radius: var(--radius); padding: 0.9rem 1rem; text-decoration: none !important;
+    height: 100%;
 }}
-.quick-card:hover {{ border-color: var(--accent-primary); box-shadow: var(--shadow-md); transform: translateY(-2px); }}
-.quick-card .qc-icon {{ font-size: 1.4rem; margin-bottom: 0.4rem; }}
-.quick-card .qc-title {{ font-weight: 700; color: var(--text-primary) !important; font-size: 0.92rem; }}
-.quick-card .qc-sub {{ font-size: 0.76rem; color: var(--text-secondary) !important; margin-top: 0.15rem; }}
+.quick-card:hover {{ border-color: var(--accent-primary); }}
+.quick-card .qc-icon {{ font-size: 1.3rem; margin-bottom: 0.3rem; }}
+.quick-card .qc-title {{ font-weight: 600; color: var(--text-primary) !important; font-size: 0.88rem; }}
+.quick-card .qc-sub {{ font-size: 0.72rem; color: var(--text-secondary) !important; margin-top: 0.1rem; }}
 
 .timeline-item {{
-    display: flex; gap: 0.7rem; padding: 0.55rem 0; border-bottom: 1px solid var(--border-subtle);
-    font-size: 0.85rem;
+    display: flex; gap: 0.6rem; padding: 0.45rem 0; border-bottom: 1px solid var(--border-subtle);
+    font-size: 0.82rem;
 }}
 .timeline-item:last-child {{ border-bottom: none; }}
-.timeline-dot {{ width: 7px; height: 7px; border-radius: 50%; background: var(--accent-primary); margin-top: 0.4rem; flex-shrink: 0; }}
-.timeline-time {{ color: var(--text-secondary); font-size: 0.72rem; font-family: 'JetBrains Mono', monospace; }}
+.timeline-dot {{ width: 6px; height: 6px; border-radius: 50%; background: var(--accent-primary); margin-top: 0.4rem; flex-shrink: 0; }}
+.timeline-time {{ color: var(--text-secondary); font-size: 0.68rem; }}
 
-/* ============ Badges de estado (éxito/aviso/error/info) ============ */
+/* ============ Badges ============ */
 .badge {{
-    display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.6rem; border-radius: 999px;
-    font-size: 0.72rem; font-weight: 700; letter-spacing: 0.02em;
+    display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.15rem 0.55rem; border-radius: 999px;
+    font-size: 0.68rem; font-weight: 600;
 }}
 .badge.success {{ background: var(--success-soft); color: var(--accent-ok); }}
 .badge.warning {{ background: var(--warning-soft); color: var(--accent-warning); }}
 .badge.error {{ background: var(--error-soft); color: var(--accent-fail); }}
 .badge.info {{ background: var(--accent-soft); color: var(--accent-primary); }}
 
-/* ============ Botones y widgets nativos ============ */
+/* ============ Buttons & widgets ============ */
 .stButton button {{
-    border-radius: var(--radius-sm); font-weight: 600; transition: all 0.15s ease; box-shadow: var(--shadow-sm);
+    border-radius: var(--radius-sm); font-weight: 600; transition: all 0.12s ease;
 }}
-.stButton button:hover {{ transform: translateY(-1px); box-shadow: var(--shadow-md); }}
+.stButton button:hover {{ box-shadow: var(--shadow-sm); }}
 .stButton button[kind="primary"] {{ background: var(--accent-primary); border-color: var(--accent-primary); }}
 .stButton button[kind="primary"]:hover {{ background: var(--accent-primary-hover); }}
-.stDownloadButton button {{ border-radius: var(--radius-sm); font-weight: 600; box-shadow: var(--shadow-sm); }}
+.stDownloadButton button {{ border-radius: var(--radius-sm); font-weight: 600; }}
 
-[data-testid="stMetricValue"] {{ color: var(--accent-primary); }}
+[data-testid="stMetricValue"] {{ color: var(--accent-primary); font-weight: 700; }}
 [data-testid="stExpander"] {{
-    border: 1px solid var(--border-subtle); border-radius: var(--radius); box-shadow: var(--shadow-sm);
-    overflow: hidden;
+    border: 1px solid var(--border-subtle); border-radius: var(--radius);
 }}
 [data-testid="stVerticalBlockBorderWrapper"] {{ border-radius: var(--radius) !important; }}
 hr {{ border-color: var(--border-subtle); }}
-.stTabs [data-baseweb="tab-list"] {{ gap: 4px; }}
+.stTabs [data-baseweb="tab-list"] {{ gap: 2px; }}
 .stTabs [data-baseweb="tab"] {{ border-radius: var(--radius-sm) var(--radius-sm) 0 0; }}
 
-/* ============ Ayuda contextual ============ */
-.ayuda-texto {{ font-size: 0.82rem; line-height: 1.5; color: var(--text-secondary); }}
-.ayuda-texto b {{ color: var(--text-primary); }}
-
-/* ============ Guía de bienvenida ============ */
+/* ============ Welcome banner ============ */
 .welcome-banner {{
-    background: linear-gradient(135deg, var(--accent-soft), var(--bg-panel));
-    border: 1px solid var(--border-strong);
+    background: var(--bg-panel);
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius);
-    padding: 1.5rem 1.7rem 1rem 1.7rem;
-    margin: 0.8rem 0 1.4rem 0;
-    box-shadow: var(--shadow-md);
+    padding: 1.5rem 1.7rem 1.2rem 1.7rem;
+    margin: 0.5rem 0 1.5rem 0;
 }}
 .welcome-banner h4 {{ margin-top: 0; }}
 
-/* ============ Accesibilidad ============ */
-/* Foco visible y consistente para navegación por teclado (no solo :hover) */
-a:focus-visible, button:focus-visible, [role="button"]:focus-visible,
-input:focus-visible, select:focus-visible, textarea:focus-visible,
-.stButton button:focus-visible, .stDownloadButton button:focus-visible {{
+/* ============ Ayuda ============ */
+.ayuda-texto {{ font-size: 0.82rem; line-height: 1.5; color: var(--text-secondary); }}
+.ayuda-texto b {{ color: var(--text-primary); }}
+
+/* ============ Accessibility ============ */
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {{
     outline: 2px solid var(--accent-primary) !important;
     outline-offset: 2px !important;
 }}
-/* Tamaño mínimo de objetivo táctil/clic recomendado (WCAG 2.5.5, ~44px) */
 .stButton button, .stDownloadButton button {{ min-height: 2.5rem; }}
-/* Respeta la preferencia del sistema de reducir animaciones */
 @media (prefers-reduced-motion: reduce) {{
-    *, *::before, *::after {{
-        animation-duration: 0.001ms !important;
-        transition-duration: 0.001ms !important;
-    }}
-    .result-card:hover, .kpi-card:hover, .quick-card:hover, .stButton button:hover {{
-        transform: none !important;
-    }}
+    * {{ animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }}
 }}
-
-/* ============ Responsive ============ */
 @media (max-width: 900px) {{
     .titleblock {{ flex-direction: column; }}
     .titleblock-meta {{ border-top: 1px solid var(--border-subtle); }}
-    .kpi-value {{ font-size: 1.35rem; }}
-    .welcome-banner {{ padding: 1.1rem 1.2rem 0.6rem 1.2rem; }}
+    .kpi-value {{ font-size: 1.2rem; }}
 }}
 </style>
 """
@@ -6727,28 +6695,28 @@ PLANTILLAS_PRESUPUESTO = {
 
 
 def _render_flujo_recomendado(hay_cable: bool, hay_fv: bool, n_capitulos: int, doc_generada: bool):
-    """Indicador de progreso permanente: no es solo para la primera visita,
-    orienta en cada visita sobre dónde va cada cosa y qué falta."""
-    st.markdown('<p class="section-label">Flujo recomendado</p>', unsafe_allow_html=True)
+    """Indicador de progreso: guía al usuario sobre el flujo de trabajo."""
+    hay_algo = hay_cable or hay_fv
+    st.markdown('<p class="section-label">Flujo de trabajo</p>', unsafe_allow_html=True)
     pasos = [
-        ("1", "Calcular", "Cable o fotovoltaica", hay_cable or hay_fv, "Calculadora"),
-        ("2", "Presupuestar", "Capítulos y mediciones", n_capitulos > 0, "Presupuesto"),
-        ("3", "Documentar", "MTD, Anexo, Pliego (PDF)", doc_generada, "Documentación"),
+        ("1", "Calcular", hay_algo, "Calculadora"),
+        ("2", "Presupuestar", n_capitulos > 0, "Presupuesto"),
+        ("3", "Documentar", doc_generada, "Documentación"),
     ]
     cols = st.columns(3)
-    for col, (num, titulo, sub, hecho, destino) in zip(cols, pasos):
+    for col, (num, titulo, hecho, destino) in zip(cols, pasos):
         with col:
-            estado_icono = "✅" if hecho else "⬜"
-            estado_txt = "Hecho" if hecho else "Pendiente"
-            clase = "success" if hecho else "info"
-            st.markdown(f'''<div class="result-card">
-                <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.3rem;">
-                    <span style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:1.1rem;
-                        color:var(--accent-primary);">{num}</span>
-                    <span style="font-weight:700;">{titulo}</span>
-                </div>
-                <div class="result-sub">{sub}</div>
-                <span class="badge {clase}" style="margin-top:0.5rem;">{estado_icono} {estado_txt}</span>
+            color = "var(--accent-ok)" if hecho else "var(--text-secondary)"
+            icono = "✓" if hecho else num
+            st.markdown(f'''<div style="background:var(--bg-panel); border:1px solid var(--border-subtle);
+                border-radius:var(--radius); padding:0.9rem 1rem; text-align:center;">
+                <div style="width:32px; height:32px; border-radius:50%; margin:0 auto 0.5rem auto;
+                    background:{'var(--success-soft)' if hecho else 'var(--accent-soft)'};
+                    color:{color}; display:flex; align-items:center; justify-content:center;
+                    font-weight:700; font-size:0.85rem;">{icono}</div>
+                <div style="font-weight:600; font-size:0.88rem;">{titulo}</div>
+                <div style="font-size:0.72rem; color:var(--text-secondary); margin-top:0.15rem;">
+                    {'Hecho' if hecho else 'Pendiente'}</div>
             </div>''', unsafe_allow_html=True)
             if st.button("Ir →" if not hecho else "Revisar →", key=f"flujo_{destino}", width='stretch'):
                 st.session_state["pagina_actual"] = destino
@@ -6756,7 +6724,7 @@ def _render_flujo_recomendado(hay_cable: bool, hay_fv: bool, n_capitulos: int, d
 
 
 def _render_dashboard():
-    nombre_usuario = st.session_state["config_profesional"].get("nombre") or "ingeniero/a"
+    nombre_usuario = st.session_state["config_profesional"].get("nombre") or "técnicos"
     st.session_state.setdefault("guia_bienvenida_oculta", False)
 
     hay_cable = st.session_state["resultado_cable"].get("seccion_final") is not None
@@ -6765,76 +6733,47 @@ def _render_dashboard():
     doc_generada = any("descargad" in a["texto"].lower() for a in st.session_state.get("actividad", []))
     es_usuario_nuevo = not hay_cable and not hay_fv and n_capitulos == 0 and not st.session_state["historial_proyectos"]
 
-    st.markdown(f"### 👋 Hola, {nombre_usuario}")
-    st.caption(f"Proyecto actual: **{st.session_state['nombre_proyecto_actual']}** · "
-               f"{datetime.now().strftime('%A, %d de %B de %Y')}")
+    st.markdown(f"### Hola, {nombre_usuario}")
+    st.caption(f"Proyecto: **{st.session_state['nombre_proyecto_actual']}**")
 
-    # ---------------------------------------------------------------- Guía de bienvenida
     if es_usuario_nuevo and not st.session_state["guia_bienvenida_oculta"]:
-        st.markdown('<div class="welcome-banner">', unsafe_allow_html=True)
-        st.markdown("#### 🚀 ¿Primera vez por aquí? Así funciona en 3 pasos")
-        st.markdown(
-            "Esta aplicación calcula instalaciones eléctricas de baja tensión (REBT) y genera "
-            "automáticamente el presupuesto y la documentación técnica en PDF. No hace falta que uses "
-            "todo — con el paso 1 ya tienes un resultado útil."
-        )
-        b1, b2, b3 = st.columns(3)
-        with b1:
-            st.markdown("**① Calcula**  \nRellena un formulario simple: potencia, longitud, tipo de "
-                        "instalación. O usa una plantilla ya rellena, más abajo.")
-            if st.button("🔌 Empezar por aquí", key="bienvenida_ir_calc", type="primary", width='stretch'):
-                st.session_state["pagina_actual"] = "Calculadora"
-                st.rerun()
-        with b2:
-            st.markdown("**② Presupuesta**  \nCon un clic importas lo calculado a un capítulo de "
-                        "presupuesto, con precios editables.")
-        with b3:
-            st.markdown("**③ Documenta**  \nDescarga la memoria técnica, el anexo de cálculos y el "
-                        "pliego de condiciones, ya con portada y paginación.")
-        if st.button("Entendido, no volver a mostrar esto", key="ocultar_bienvenida"):
+        st.markdown('''<div style="background:var(--bg-panel); border:1px solid var(--border-subtle);
+            border-radius:var(--radius); padding:1.5rem 1.7rem; margin:0.5rem 0 1.5rem 0;">
+            <div style="font-size:1.1rem; font-weight:700; margin-bottom:0.5rem;">Como funciona en 3 pasos</div>
+            <div style="color:var(--text-secondary); font-size:0.88rem; line-height:1.6;">
+                <b>1. Calcula</b> — Rellena el formulario de la Calculadora (o usa una plantilla).<br>
+                <b>2. Presupuesta</b> — Importa los cálculos a un presupuesto con precios editables.<br>
+                <b>3. Documenta</b> — Descarga la memoria técnica y el anexo en PDF.
+            </div>
+        </div>''', unsafe_allow_html=True)
+        if st.button("Comenzar en la Calculadora", type="primary", width='stretch'):
+            st.session_state["pagina_actual"] = "Calculadora"
+            st.rerun()
+        if st.button("Ocultar esta guía", key="ocultar_bienvenida"):
             st.session_state["guia_bienvenida_oculta"] = True
             st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
     else:
         _render_flujo_recomendado(hay_cable, hay_fv, n_capitulos, doc_generada)
 
-    cfg_p = st.session_state.get("presupuesto_config", {"pct_beneficio": PORCENTAJE_BENEFICIO_DEFECTO,
-                                                          "pct_amortizacion": PORCENTAJE_AMORTIZACION_DEFECTO})
-    total_presu = sum(calcular_totales_capitulo(c["items"], cfg_p["pct_beneficio"], cfg_p["pct_amortizacion"])
-                       for c in st.session_state.get("presupuesto_capitulos", []))
+    st.markdown("")
+    st.markdown('<p class="section-label">Herramientas</p>', unsafe_allow_html=True)
+    q1, q2, q3 = st.columns(3)
+    _tarjeta_acceso_rapido(q1, "🔌", "Calculadora", "Sección de cable y protecciones", "Calculadora")
+    _tarjeta_acceso_rapido(q2, "☀️", "Fotovoltaica", "Instalación solar de autoconsumo", "Fotovoltaica")
+    _tarjeta_acceso_rapido(q3, "📐", "Cálculos BT", "Calculadoras de referencia rápida", "Cálculos BT")
 
-    st.markdown('<p class="section-label">Resumen del proyecto</p>', unsafe_allow_html=True)
-    k1, k2, k3, k4 = st.columns(4)
-    _tarjeta_kpi(k1, "🔌", "blue",
-                 f"{st.session_state['resultado_cable'].get('seccion_final', '—')} mm²" if hay_cable else "Sin calcular",
-                 "Sección de cable calculada")
-    _tarjeta_kpi(k2, "☀️", "orange",
-                 f"{st.session_state['resultado_fv'].get('p_pico_kwp', 0):.1f} kWp" if hay_fv else "Sin calcular",
-                 "Potencia fotovoltaica")
-    _tarjeta_kpi(k3, "💰", "green", _fmt_eur(total_presu) if n_capitulos else "Sin capítulos",
-                 f"Presupuesto ({n_capitulos} capítulos)")
-    _tarjeta_kpi(k4, "📁", "blue", f"{len(st.session_state.get('historial_proyectos', []))}",
-                 "Proyectos en el historial")
-
-    st.markdown('<p class="section-label">Accesos rápidos</p>', unsafe_allow_html=True)
-    q1, q2, q3, q4 = st.columns(4)
-    _tarjeta_acceso_rapido(q1, "🔌", "Calculadora de cables", "Sección, protecciones, ΔU", "Calculadora")
-    _tarjeta_acceso_rapido(q2, "☀️", "Fotovoltaica", "Dimensionado completo FV", "Fotovoltaica")
-    _tarjeta_acceso_rapido(q3, "💰", "Presupuesto", "Capítulos y mediciones", "Presupuesto")
-    _tarjeta_acceso_rapido(q4, "📄", "Documentación", "MTD, Anexo, Condiciones", "Documentación")
-
+    st.markdown("")
     col_izq, col_der = st.columns([1.3, 1])
     with col_izq:
-        st.markdown('<p class="section-label">Plantillas</p>', unsafe_allow_html=True)
-        st.caption("Aplican valores de partida habituales — luego puedes ajustarlos en cada pestaña.")
-        tab_pc, tab_pfv, tab_pp = st.tabs(["🔌 Cable", "☀️ Fotovoltaica", "💰 Presupuesto"])
+        st.markdown('<p class="section-label">Plantillas rápidas</p>', unsafe_allow_html=True)
+        tab_pc, tab_pfv = st.tabs(["🔌 Cable", "☀️ Fotovoltaica"])
 
         with tab_pc:
             for nombre_plantilla, valores in PLANTILLAS_CIRCUITO.items():
                 pc1, pc2 = st.columns([4, 1])
                 pc1.markdown(f"**{nombre_plantilla}**  \n"
                              f"<span style='color:var(--text-secondary); font-size:0.8rem;'>"
-                             f"{valores['potencia_kw']:g} kW · {valores['sistema']} · {valores['metodo'][:28]}...</span>",
+                             f"{valores['potencia_kw']:g} kW · {valores['sistema']}</span>",
                              unsafe_allow_html=True)
                 if pc2.button("Usar", key=f"plantilla_cable_{nombre_plantilla}"):
                     st.session_state["plantilla_activa"] = valores
@@ -6847,27 +6786,12 @@ def _render_dashboard():
                 pc1, pc2 = st.columns([4, 1])
                 pc1.markdown(f"**{nombre_plantilla}**  \n"
                              f"<span style='color:var(--text-secondary); font-size:0.8rem;'>"
-                             f"{valores['potencia_pico_deseada']:g} kWp · {valores['sistema_ca']} · "
-                             f"{valores['tipo_autoconsumo'][:28]}...</span>", unsafe_allow_html=True)
+                             f"{valores['potencia_pico_deseada']:g} kWp · {valores['sistema_ca']}</span>",
+                             unsafe_allow_html=True)
                 if pc2.button("Usar", key=f"plantilla_fv_{nombre_plantilla}"):
                     st.session_state["plantilla_activa_fv"] = valores
                     st.session_state["pagina_actual"] = "Fotovoltaica"
                     _registrar_actividad("📋", f"Plantilla FV aplicada: {nombre_plantilla}")
-                    st.rerun()
-
-        with tab_pp:
-            st.caption("Crea la estructura de capítulos típica — se añaden vacíos, listos para rellenar.")
-            for nombre_plantilla, capitulos_nombres in PLANTILLAS_PRESUPUESTO.items():
-                pc1, pc2 = st.columns([4, 1])
-                pc1.markdown(f"**{nombre_plantilla}**  \n"
-                             f"<span style='color:var(--text-secondary); font-size:0.8rem;'>"
-                             f"{len(capitulos_nombres)} capítulos</span>", unsafe_allow_html=True)
-                if pc2.button("Usar", key=f"plantilla_presu_{nombre_plantilla}"):
-                    st.session_state.setdefault("presupuesto_capitulos", [])
-                    for nombre_cap in capitulos_nombres:
-                        st.session_state["presupuesto_capitulos"].append({"nombre": nombre_cap, "items": []})
-                    st.session_state["pagina_actual"] = "Presupuesto"
-                    _registrar_actividad("📋", f"Plantilla de presupuesto aplicada: {nombre_plantilla}")
                     st.rerun()
 
     with col_der:
@@ -7379,26 +7303,31 @@ normativa aplicable antes de firmar un proyecto.
 def _render_login():
     st.markdown("""
     <style>
-    .login-container {
+    .login-wrap {
         display: flex; justify-content: center; align-items: center;
-        min-height: 80vh;
+        min-height: 85vh; padding: 2rem;
     }
-    .login-box {
+    .login-card {
         background: var(--bg-panel); border: 1px solid var(--border-subtle);
-        border-radius: var(--radius); padding: 2.5rem 2rem; max-width: 380px;
-        width: 100%; box-shadow: var(--shadow-lg); text-align: center;
+        border-radius: var(--radius); padding: 3rem 2.5rem; max-width: 360px;
+        width: 100%; text-align: center;
     }
-    .login-box h2 { margin-bottom: 0.3rem; }
-    .login-box p { color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1.5rem; }
+    .login-card .login-icon {
+        width: 56px; height: 56px; border-radius: 14px; margin: 0 auto 1.2rem auto;
+        background: linear-gradient(135deg, var(--accent-primary), var(--accent-copper));
+        display: flex; align-items: center; justify-content: center; font-size: 1.5rem;
+    }
+    .login-card h2 { margin: 0 0 0.3rem 0; font-size: 1.3rem; }
+    .login-card p { color: var(--text-secondary); font-size: 0.82rem; margin: 0 0 1.8rem 0; }
     </style>
     """, unsafe_allow_html=True)
 
     st.markdown("""
-    <div class="login-container">
-        <div class="login-box">
-            <div style="font-size:2.5rem; margin-bottom:0.8rem;">⚡</div>
+    <div class="login-wrap">
+        <div class="login-card">
+            <div class="login-icon">⚡</div>
             <h2>REBT Suite</h2>
-            <p>Instalaciones eléctricas — Acceso restringido</p>
+            <p>Instalaciones eléctricas</p>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -7406,7 +7335,7 @@ def _render_login():
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
         with st.form("login_form", clear_on_submit=False):
-            clave = st.text_input("Contraseña", type="password", placeholder="Introduce la contraseña", label_visibility="collapsed")
+            clave = st.text_input("Contraseña", type="password", placeholder="Contraseña", label_visibility="collapsed")
             enviado = st.form_submit_button("Entrar", type="primary", width='stretch')
             if enviado:
                 if clave == "1868628":
@@ -7464,9 +7393,7 @@ def main():
                 <h1>{pagina}</h1>
             </div>
             <div class="titleblock-meta">
-                <div><span>Norma</span><strong>REBT · ITC-BT</strong></div>
                 <div><span>Proyecto</span><strong>{st.session_state['nombre_proyecto_actual'][:16]}</strong></div>
-                <div><span>Rev.</span><strong>4.0</strong></div>
             </div>
         </div>
         """, unsafe_allow_html=True)
