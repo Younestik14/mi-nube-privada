@@ -44,7 +44,6 @@ Autor: Younes — IDEA TSG
 from __future__ import annotations
 
 import base64
-import hashlib
 import io
 import json
 import math
@@ -6883,9 +6882,10 @@ def _render_sidebar():
         st.caption(f"📌 {st.session_state['nombre_proyecto_actual']}")
 
         st.markdown("<div style='margin-top:0.6rem;border-top:1px solid var(--border-subtle);padding-top:0.6rem;'>", unsafe_allow_html=True)
-        if st.button("🔒 Cerrar sesión", key="btn_logout", width='stretch'):
+        if st.button("🗑️ Limpiar sesión", key="btn_clear_session", width='stretch'):
             for k in list(st.session_state.keys()):
                 del st.session_state[k]
+            _inicializar_estado()
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -7605,64 +7605,10 @@ normativa aplicable antes de firmar un proyecto.
 # 9. PUNTO DE ENTRADA
 # ==============================================================================
 
-def _render_login():
-    st.markdown("""
-    <style>
-    .login-wrap {
-        display: flex; justify-content: center; align-items: center;
-        min-height: 85vh; padding: 2rem;
-    }
-    .login-card {
-        background: var(--bg-panel); border: 1px solid var(--border-subtle);
-        border-radius: var(--radius); padding: 3rem 2.5rem; max-width: 360px;
-        width: 100%; text-align: center;
-    }
-    .login-card .login-icon {
-        width: 56px; height: 56px; border-radius: 14px; margin: 0 auto 1.2rem auto;
-        background: linear-gradient(135deg, var(--accent-primary), var(--accent-copper));
-        display: flex; align-items: center; justify-content: center; font-size: 1.5rem;
-    }
-    .login-card h2 { margin: 0 0 0.3rem 0; font-size: 1.3rem; }
-    .login-card p { color: var(--text-secondary); font-size: 0.82rem; margin: 0 0 1.8rem 0; }
-    </style>
-    """, unsafe_allow_html=True)
-
-    st.markdown("""
-    <div class="login-wrap">
-        <div class="login-card">
-            <div class="login-icon">⚡</div>
-            <h2>REBT Suite</h2>
-            <p>Instalaciones eléctricas</p>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    c1, c2, c3 = st.columns([1, 2, 1])
-    with c2:
-        with st.form("login_form", clear_on_submit=False):
-            clave = st.text_input("Contraseña", type="password", placeholder="Introduce la contraseña", label_visibility="collapsed")
-            enviado = st.form_submit_button("Entrar", type="primary", width='stretch')
-            if enviado:
-                hash_clave = hashlib.sha256(clave.encode()).hexdigest()
-                hash_esperado = hashlib.sha256("1868628".encode()).hexdigest()
-                if hash_clave == hash_esperado:
-                    st.session_state["autenticado"] = True
-                    st.rerun()
-                else:
-                    st.error("Contraseña incorrecta.")
-        st.caption("<div style='text-align:center;color:var(--text-secondary);font-size:0.7rem;margin-top:1rem;'>"
-                   "REBT Suite v4.0 · REBT / ITC-BT</div>", unsafe_allow_html=True)
-
-
 def main():
     st.set_page_config(page_title="REBT Suite · Instalaciones Eléctricas", page_icon="⚡", layout="wide",
                        initial_sidebar_state="expanded")
     _inicializar_estado()
-
-    if not st.session_state.get("autenticado", False):
-        st.markdown(generar_css(st.session_state["tema"]), unsafe_allow_html=True)
-        _render_login()
-        return
 
     st.markdown(generar_css(st.session_state["tema"]), unsafe_allow_html=True)
     _render_sidebar()
