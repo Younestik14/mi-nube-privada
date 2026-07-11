@@ -3554,71 +3554,6 @@ def generar_pdf_cie(datos_proyecto: dict, inputs_cable: dict, resultado_cable: d
     return buffer.getvalue()
 
 
-def generar_pdf_presentacion_cliente(datos_proyecto: dict, inputs_cable: dict, resultado_cable: dict,
-                                      inputs_fv: dict, resultado_fv: dict, total_presupuesto: float,
-                                      config_prof: dict = None) -> bytes:
-    """Ficha para el cliente final: mismo contenido que la vista de
-    Presentación cliente, en lenguaje llano y sin siglas técnicas."""
-    from reportlab.platypus import Paragraph, Spacer
-
-    buffer, doc, cajetin, AZUL, colors, h2, h3, normal, h1, COBRE, lista_item = _preparar_doc_pdf(
-        "RESUMEN DE TU PROYECTO", "Preparado para ti", datos_proyecto, config_prof)
-    hay_cable = resultado_cable.get("seccion_final") is not None
-    hay_fv = bool(resultado_fv) and resultado_fv.get("p_pico_kwp") is not None
-    nombre_cliente = datos_proyecto.get("titular") or "tu proyecto"
-
-    story = [Paragraph(f"Esto es lo que hemos preparado para {nombre_cliente}", h1), Spacer(1, 10)]
-
-    if hay_cable:
-        story.append(Paragraph("La instalación eléctrica", h2))
-        grosor_mm = resultado_cable["seccion_final"]
-        comparacion = ("un cable fino, como el de un cargador de móvil" if grosor_mm <= 2.5 else
-                      "un cable de grosor medio, como el de un electrodoméstico grande" if grosor_mm <= 10 else
-                      "un cable considerablemente grueso, pensado para mover mucha potencia con seguridad")
-        story.append(Paragraph(
-            f"Para esta parte de la instalación hace falta un cable de <b>{grosor_mm:g} mm²</b> de grosor "
-            f"— a modo de referencia, es {comparacion}.", normal))
-        story.append(Paragraph(
-            f"Se instala además una protección automática de <b>{resultado_cable['calibre_magnetotermico']} A</b> "
-            "que corta la luz sola si algo va mal, antes de que pueda ser peligroso.", normal))
-
-    if hay_fv:
-        story.append(Paragraph("Los paneles solares", h2))
-        p_pico = resultado_fv["p_pico_kwp"]
-        produccion = resultado_fv["produccion_anual_kwh"]
-        n_paneles = resultado_fv["n_paneles_configurados"]
-        story.append(Paragraph(
-            f"Se instalan <b>{n_paneles} paneles solares</b>, con una potencia conjunta de "
-            f"<b>{p_pico:.1f} kW</b> — producen aproximadamente <b>{_miles(produccion)} kWh al año</b>.",
-            normal))
-        if resultado_fv.get("ahorro_anual"):
-            story.append(Paragraph(
-                f"Esto supone un ahorro estimado de <b>{_fmt_eur(resultado_fv['ahorro_anual'])} al año</b> "
-                "en la factura de la luz.", normal))
-        if resultado_fv.get("payback_anos"):
-            story.append(Paragraph(
-                f"Con la inversión indicada, los paneles se pagan solos en unos "
-                f"<b>{resultado_fv['payback_anos']:.0f} años</b>.", normal))
-        co2 = resultado_fv.get("co2_evitado_kg_ano", 0) / 1000
-        if co2:
-            story.append(Paragraph(f"De paso, se evitan unas <b>{co2:.1f} toneladas de CO₂ al año</b>.",
-                                    normal))
-
-    if total_presupuesto:
-        story.append(Paragraph("El coste total", h2))
-        story.append(Paragraph(f"<font size=22 color='#b3711f'>"
-                                f"<b>{_fmt_eur(total_presupuesto)}</b></font>", normal))
-        story.append(Paragraph("Impuestos incluidos.", normal))
-
-    story.append(Spacer(1, 20))
-    story.append(Paragraph(
-        "Los números técnicos completos (secciones exactas, normativa aplicada, desglose de precios) "
-        "están disponibles en la documentación técnica del proyecto.", normal))
-
-    doc.build(story, onFirstPage=cajetin, onLaterPages=cajetin, canvasmaker=doc._numbered_canvas)
-    return buffer.getvalue()
-
-
 def generar_pdf_resumen_una_pagina(datos_proyecto: dict, inputs_cable: dict, resultado_cable: dict,
                                     inputs_fv: dict, resultado_fv: dict, total_presupuesto: float,
                                     config_prof: dict = None) -> bytes:
@@ -6671,7 +6606,6 @@ def _render_sidebar():
 
         AYUDA_NAV = {
             "Inicio": "Panel principal: resumen del proyecto, accesos rápidos y plantillas.",
-            "Presentación cliente": "Vista simplificada del proyecto, sin jerga técnica, para explicarlo a alguien no técnico.",
             "Proyectos": "Guardar, abrir, duplicar y comparar tus proyectos.",
             "Estadísticas": "Gráficos del presupuesto y de la producción fotovoltaica.",
             "Calculadora": "Punto de partida: calcula la sección de un cable de baja tensión.",
@@ -6682,7 +6616,6 @@ def _render_sidebar():
             "Documentación": "Genera la MTD, el Anexo de Cálculos y el Pliego de Condiciones en PDF.",
             "Tablas normativas": "Consulta las tablas de intensidades y factores de la Guía-BT-19.",
             "Metodología": "Qué criterios y normativa aplica cada cálculo de la app.",
-            "Autoevaluación": "Test rápido con preguntas generadas a partir de las tablas normativas de la app.",
             "Configuración": "Tu nombre, logo y firma (para los PDF) y el tema de la app.",
             "Acerca de": "Qué es esta aplicación y sus limitaciones conocidas.",
         }
@@ -6691,7 +6624,6 @@ def _render_sidebar():
         nav_button("🏠", "Inicio", AYUDA_NAV["Inicio"])
         nav_button("📁", "Proyectos", AYUDA_NAV["Proyectos"])
         nav_button("📊", "Estadísticas", AYUDA_NAV["Estadísticas"])
-        nav_button("🗣️", "Presentación cliente", AYUDA_NAV["Presentación cliente"])
 
         st.markdown('<p class="nav-group-label">Cálculos</p>', unsafe_allow_html=True)
         nav_button("🔌", "Calculadora", AYUDA_NAV["Calculadora"])
@@ -6706,7 +6638,6 @@ def _render_sidebar():
         st.markdown('<p class="nav-group-label">Referencia</p>', unsafe_allow_html=True)
         nav_button("📚", "Tablas normativas", AYUDA_NAV["Tablas normativas"])
         nav_button("📖", "Metodología", AYUDA_NAV["Metodología"])
-        nav_button("🎓", "Autoevaluación", AYUDA_NAV["Autoevaluación"])
 
         st.markdown('<p class="nav-group-label">Sistema</p>', unsafe_allow_html=True)
         nav_button("⚙️", "Configuración", AYUDA_NAV["Configuración"])
@@ -7445,320 +7376,56 @@ normativa aplicable antes de firmar un proyecto.
 # 9. PUNTO DE ENTRADA
 # ==============================================================================
 
-def _generar_pregunta_iz():
-    s = random.choice(list(TABLA_A_COBRE.keys()))
-    metodo_col = random.choice(["B1", "CE"])
-    idx_col = random.choice([IDX_3PVC, IDX_2PVC])
-    valor_real = TABLA_A_COBRE[s][metodo_col][idx_col]
-    nombre_metodo = "B1 (tubo empotrado)" if metodo_col == "B1" else "C/E (bandeja o directo)"
-    n_cond = "3 cargados (trifásico)" if idx_col == IDX_3PVC else "2 cargados (monofásico)"
-    distractores = {round(valor_real * f, 1) for f in (0.75, 0.85, 1.15, 1.3) if round(valor_real * f, 1) != valor_real}
-    opciones = list(distractores)[:3] + [valor_real]
-    random.shuffle(opciones)
-    return {
-        "pregunta": f"Según la Guía-BT-19 (Tabla A), ¿cuál es la intensidad admisible (Iz) de un cable de "
-                    f"cobre de {s:g} mm², aislamiento PVC, método {nombre_metodo}, {n_cond}?",
-        "opciones": [f"{v:g} A" for v in opciones],
-        "correcta": opciones.index(valor_real),
-        "explicacion": f"La Tabla A de la Guía-BT-19 da {valor_real:g} A para esa combinación exacta de "
-                       f"sección, método y nº de conductores cargados — antes de aplicar los factores de "
-                       "corrección por temperatura, agrupamiento, etc.",
+def _render_login():
+    st.markdown("""
+    <style>
+    .login-container {
+        display: flex; justify-content: center; align-items: center;
+        min-height: 80vh;
     }
-
-
-def _generar_pregunta_agrupamiento():
-    disposicion = random.choice(list(TABLA_E_AGRUPAMIENTO.keys()))
-    n_circ = random.choice(list(TABLA_E_AGRUPAMIENTO[disposicion].keys()))
-    valor_real = TABLA_E_AGRUPAMIENTO[disposicion][n_circ]
-    distractores = {round(valor_real + d, 2) for d in (-0.15, -0.08, 0.08, 0.15) if 0.2 < round(valor_real + d, 2) <= 1.0}
-    opciones = list(distractores)[:3] + [valor_real]
-    opciones = list(dict.fromkeys(opciones))[:4]
-    if valor_real not in opciones:
-        opciones[0] = valor_real
-    random.shuffle(opciones)
-    return {
-        "pregunta": f"Con {n_circ} circuitos agrupados en disposición «{disposicion}», ¿qué factor de "
-                    "corrección por agrupamiento (Tabla E) se aplica a la Iz de cada circuito?",
-        "opciones": [f"{v:.2f}" for v in opciones],
-        "correcta": opciones.index(valor_real),
-        "explicacion": f"La Tabla E de la Guía-BT-19 fija {valor_real:.2f} para {n_circ} circuitos en esa "
-                       "disposición — cuantos más circuitos agrupados, menor es el factor, porque se "
-                       "calientan entre sí.",
+    .login-box {
+        background: var(--bg-panel); border: 1px solid var(--border-subtle);
+        border-radius: var(--radius); padding: 2.5rem 2rem; max-width: 380px;
+        width: 100%; box-shadow: var(--shadow-lg); text-align: center;
     }
+    .login-box h2 { margin-bottom: 0.3rem; }
+    .login-box p { color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1.5rem; }
+    </style>
+    """, unsafe_allow_html=True)
 
+    st.markdown("""
+    <div class="login-container">
+        <div class="login-box">
+            <div style="font-size:2.5rem; margin-bottom:0.8rem;">⚡</div>
+            <h2>REBT Suite</h2>
+            <p>Instalaciones eléctricas — Acceso restringido</p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-def _generar_pregunta_seccion_proteccion():
-    s_fase = random.choice([4, 10, 16, 25, 35, 50, 70])
-    if s_fase <= 16:
-        correcta = s_fase
-    elif s_fase <= 35:
-        correcta = 16
-    else:
-        correcta = s_fase / 2
-    opciones_posibles = sorted({s_fase, 16, s_fase / 2, s_fase * 2})
-    opciones = [o for o in opciones_posibles if o > 0][:4]
-    while len(opciones) < 4:
-        opciones.append(max(opciones) * 1.5)
-    random.shuffle(opciones)
-    return {
-        "pregunta": f"Según la tabla de la ITC-BT-18, para un conductor de fase de {s_fase:g} mm², ¿qué "
-                    "sección mínima debe tener el conductor de protección?",
-        "opciones": [f"{v:g} mm²" for v in opciones],
-        "correcta": opciones.index(correcta),
-        "explicacion": "ITC-BT-18: Sf≤16 → Sp=Sf; 16<Sf≤35 → Sp=16 mm²; Sf>35 → Sp=Sf/2.",
-    }
-
-
-def _generar_pregunta_curva_magnetotermico():
-    curva = random.choice(list(CURVA_MAGNETOTERMICO_RANGOS.keys()))
-    rango_real = CURVA_MAGNETOTERMICO_RANGOS[curva]
-    otras_curvas = [c for c in CURVA_MAGNETOTERMICO_RANGOS if c != curva]
-    opciones_rangos = [rango_real] + [CURVA_MAGNETOTERMICO_RANGOS[c] for c in otras_curvas]
-    random.shuffle(opciones_rangos)
-    return {
-        "pregunta": f"¿Entre qué múltiplos de In dispara instantáneamente (zona magnética) un interruptor "
-                    f"automático de curva {curva}?",
-        "opciones": [f"{r[0]}-{r[1]}×In" for r in opciones_rangos],
-        "correcta": opciones_rangos.index(rango_real),
-        "explicacion": f"La curva {curva} dispara instantáneamente entre {rango_real[0]} y {rango_real[1]} "
-                       "veces la intensidad nominal (UNE-EN 60898). B es la más sensible (circuitos "
-                       "resistivos/largos), D la menos (motores, transformadores).",
-    }
-
-
-def _generar_pregunta_ratio_motor():
-    pmin, pmax, ratio_real = random.choice(RATIO_IA_IN_MAX_MOTOR)
-    otros_ratios = [r for _, _, r in RATIO_IA_IN_MAX_MOTOR if r != ratio_real]
-    opciones = [ratio_real] + otros_ratios
-    random.shuffle(opciones)
-    rango_txt = f"{pmin:g}-{pmax:g} kW" if pmax != float("inf") else f"más de {pmin:g} kW"
-    return {
-        "pregunta": f"Según la ITC-BT-47, para un motor de potencia en el rango {rango_txt}, ¿cuál es la "
-                    "relación máxima admisible entre la intensidad de arranque directo y la nominal (Ia/In)?",
-        "opciones": [f"{v:g}" for v in opciones],
-        "correcta": opciones.index(ratio_real),
-        "explicacion": f"La ITC-BT-47 limita Ia/In a {ratio_real:g} para motores en ese rango de potencia; "
-                       "por encima, se exige un sistema de arranque que reduzca la corriente (p. ej. "
-                       "estrella-triángulo).",
-    }
-
-
-def _generar_pregunta_resistividad_terreno():
-    terrenos_validos = {k: v for k, v in RESISTIVIDAD_TERRENOS_REF.items() if v is not None}
-    terreno = random.choice(list(terrenos_validos.keys()))
-    valor_real = terrenos_validos[terreno]
-    valores_unicos = list({v for v in terrenos_validos.values() if v != valor_real})
-    otros = random.sample(valores_unicos, min(3, len(valores_unicos)))
-    opciones = [valor_real] + otros
-    random.shuffle(opciones)
-    return {
-        "pregunta": f"¿Cuál es la resistividad orientativa del terreno tipo «{terreno}» (Ω·m), a efectos de "
-                    "cálculo de puesta a tierra (ITC-BT-18)?",
-        "opciones": [f"{v:g} Ω·m" for v in opciones],
-        "correcta": opciones.index(valor_real),
-        "explicacion": f"Valor de referencia: {valor_real:g} Ω·m. La resistividad real del terreno debe "
-                       "medirse in situ siempre que sea posible; estos valores son solo orientativos para "
-                       "un anteproyecto.",
-    }
-
-
-def _generar_pregunta_colores_resistencia():
-    col1 = random.choice([c for c in COLORES_DIGITO if c not in ("Negro",)])
-    col2 = random.choice(list(COLORES_DIGITO.keys()))
-    col3 = random.choice(list(COLORES_MULTIPLICADOR.keys()))
-    valor_real, _ = valor_resistencia_4_bandas(col1, col2, col3, "Oro")
-    distractores = {valor_real * f for f in (10, 0.1, 2) if valor_real * f != valor_real}
-    opciones = list(distractores)[:3] + [valor_real]
-    opciones = list(dict.fromkeys(opciones))
-    random.shuffle(opciones)
-    return {
-        "pregunta": f"Una resistencia con bandas {col1}-{col2}-{col3} (código de 4 bandas), ¿qué valor "
-                    "representa?",
-        "opciones": [f"{v:g} Ω" for v in opciones],
-        "correcta": opciones.index(valor_real),
-        "explicacion": f"Valor = (dígito1×10 + dígito2) × multiplicador = "
-                       f"({COLORES_DIGITO[col1]}×10+{COLORES_DIGITO[col2]})×{COLORES_MULTIPLICADOR[col3]:g} = "
-                       f"{valor_real:g} Ω.",
-    }
-
-
-def _generar_pregunta_du_maxima():
-    caso = random.choice([
-        ("alumbrado, en instalación interior", 3.0),
-        ("otros usos, en instalación interior", 5.0),
-        ("derivación individual, sin línea general de alimentación", 1.5),
-    ])
-    descripcion, valor_real = caso
-    opciones = sorted({1.5, 3.0, 5.0, 6.5})
-    return {
-        "pregunta": f"¿Cuál es la caída de tensión máxima admisible (%) para un circuito de {descripcion}?",
-        "opciones": [f"{v:g} %" for v in opciones],
-        "correcta": opciones.index(valor_real),
-        "explicacion": "ITC-BT-19/14/15: 3% alumbrado y 5% otros usos en instalación interior; 1,5% en "
-                       "derivación individual cuando no existe línea general de alimentación.",
-    }
-
-
-GENERADORES_PREGUNTAS = [
-    _generar_pregunta_iz, _generar_pregunta_agrupamiento, _generar_pregunta_seccion_proteccion,
-    _generar_pregunta_curva_magnetotermico, _generar_pregunta_ratio_motor,
-    _generar_pregunta_resistividad_terreno, _generar_pregunta_colores_resistencia,
-    _generar_pregunta_du_maxima,
-]
-
-
-def _render_autoevaluacion():
-    st.markdown('<p class="section-label">Autoevaluación</p>', unsafe_allow_html=True)
-    st.caption("Preguntas generadas en el momento a partir de las mismas tablas normativas que usa la "
-               "app (Tabla A, Tabla E, ITC-BT-18, ITC-BT-47...) — no son un banco fijo de preguntas, cada "
-               "test es distinto. Pensado para repasar antes de un examen o una prueba de aptitud.")
-
-    n_preguntas = st.slider("Número de preguntas", 4, len(GENERADORES_PREGUNTAS), 8, key="quiz_n")
-    if st.button("🎲 Generar test nuevo", type="primary"):
-        generadores_elegidos = random.sample(GENERADORES_PREGUNTAS, min(n_preguntas, len(GENERADORES_PREGUNTAS)))
-        st.session_state["quiz_preguntas"] = [g() for g in generadores_elegidos]
-        st.session_state["quiz_respuestas"] = [None] * len(generadores_elegidos)
-        st.session_state["quiz_corregido"] = False
-        st.rerun()
-
-    preguntas = st.session_state.get("quiz_preguntas")
-    if not preguntas:
-        st.info("Pulsa «Generar test nuevo» para empezar.")
-        return
-
-    respuestas = st.session_state["quiz_respuestas"]
-    corregido = st.session_state.get("quiz_corregido", False)
-
-    for i_p, preg in enumerate(preguntas):
-        st.markdown(f"**{i_p + 1}. {preg['pregunta']}**")
-        idx_elegido = st.radio("Respuesta", preg["opciones"], index=respuestas[i_p], key=f"quiz_resp_{i_p}",
-                                label_visibility="collapsed")
-        respuestas[i_p] = preg["opciones"].index(idx_elegido) if idx_elegido is not None else None
-        if corregido:
-            if respuestas[i_p] == preg["correcta"]:
-                st.success(f"✅ Correcto — {preg['explicacion']}")
-            else:
-                st.error(f"❌ La respuesta correcta era «{preg['opciones'][preg['correcta']]}» — "
-                         f"{preg['explicacion']}")
-        st.divider()
-
-    if not corregido:
-        if st.button("✔️ Corregir test", type="primary"):
-            if any(r is None for r in respuestas):
-                st.warning("Responde todas las preguntas antes de corregir.")
-            else:
-                st.session_state["quiz_corregido"] = True
-                st.rerun()
-    else:
-        aciertos = sum(1 for i, preg in enumerate(preguntas) if respuestas[i] == preg["correcta"])
-        pct = aciertos / len(preguntas) * 100
-        st.markdown(f"### Resultado: {aciertos}/{len(preguntas)} ({pct:.0f}%)")
-        st.progress(pct / 100)
-        if pct >= 80:
-            st.success("🎉 Muy buen resultado.")
-        elif pct >= 50:
-            st.warning("Vas por buen camino — repasa lo que hayas fallado.")
-        else:
-            st.error("Conviene repasar estos temas antes de un examen o prueba real.")
-
-
-def _render_presentacion_cliente():
-    st.markdown('<p class="section-label">Presentación cliente</p>', unsafe_allow_html=True)
-    st.caption("La misma información del proyecto, sin siglas ni jerga técnica (REBT, ITC-BT, mm²...) — "
-               "pensada para compartir pantalla o imprimir cuando se lo explicas a alguien que no es del "
-               "sector.")
-
-    inputs_cable = st.session_state.get("inputs_cable", {})
-    resultado_cable = st.session_state.get("resultado_cable", {})
-    inputs_fv = st.session_state.get("inputs_fv", {})
-    resultado_fv = st.session_state.get("resultado_fv", {})
-    capitulos = st.session_state.get("presupuesto_capitulos", [])
-    cfg_presu = st.session_state.get("presupuesto_config", {
-        "pct_beneficio": PORCENTAJE_BENEFICIO_DEFECTO, "pct_amortizacion": PORCENTAJE_AMORTIZACION_DEFECTO,
-        "pct_iva": IVA_DEFECTO_PCT,
-    })
-    datos = st.session_state.get("datos_proyecto", {})
-
-    hay_cable = resultado_cable.get("seccion_final") is not None
-    hay_fv = bool(resultado_fv) and resultado_fv.get("p_pico_kwp") is not None
-    subtotal = sum(calcular_totales_capitulo(c["items"], cfg_presu["pct_beneficio"], cfg_presu["pct_amortizacion"])
-                   for c in capitulos)
-    total_presupuesto = subtotal * (1 + cfg_presu["pct_iva"] / 100) if capitulos else 0.0
-
-    if not hay_cable and not hay_fv and not capitulos:
-        st.info("Todavía no hay nada calculado — completa la Calculadora, la Fotovoltaica o el Presupuesto "
-                "para ver aquí el resumen listo para presentar.")
-        return
-
-    nombre_cliente = datos.get("titular") or "tu proyecto"
-    st.markdown(f"## 👋 Esto es lo que hemos preparado para {nombre_cliente}")
-
-    if hay_cable:
-        with st.container(border=True):
-            st.markdown("### 🔌 La instalación eléctrica")
-            grosor_mm = resultado_cable["seccion_final"]
-            comparacion = ("un cable fino, como el de un cargador de móvil" if grosor_mm <= 2.5 else
-                          "un cable de grosor medio, como el de un electrodoméstico grande" if grosor_mm <= 10 else
-                          "un cable considerablemente grueso, pensado para mover mucha potencia con seguridad")
-            st.markdown(f"Para esta parte de la instalación hace falta un cable de **{grosor_mm:g} mm²** de "
-                        f"grosor — a modo de referencia, es {comparacion}.")
-            cumple_du = resultado_cable.get("e_final_pct", 0) <= inputs_cable.get("delta_u_max", 5)
-            if cumple_du:
-                st.success("✅ Con este cable, la corriente llega con la fuerza necesaria de principio a "
-                           "fin sin perder potencia por el camino.")
-            st.markdown(f"Además, se instala una protección automática de **{resultado_cable['calibre_magnetotermico']} A** "
-                        "que corta la luz sola si algo va mal, antes de que pueda ser peligroso.")
-
-    if hay_fv:
-        with st.container(border=True):
-            st.markdown("### ☀️ Los paneles solares")
-            p_pico = resultado_fv["p_pico_kwp"]
-            produccion = resultado_fv["produccion_anual_kwh"]
-            n_paneles = resultado_fv["n_paneles_configurados"]
-            st.markdown(f"Se instalan **{n_paneles} paneles solares**, con una potencia conjunta de "
-                        f"**{p_pico:.1f} kW** — suficiente para producir aproximadamente "
-                        f"**{_miles(produccion)} kWh de electricidad al año**.")
-            equivalente_hogares_dias = produccion / 10  # aprox 10 kWh/dia consumo hogar medio
-            st.caption(f"Para hacerte una idea: es más o menos lo que consumiría una vivienda media durante "
-                       f"{equivalente_hogares_dias:.0f} días.")
-            if resultado_fv.get("ahorro_anual"):
-                st.markdown(f"Esto se traduce en un ahorro estimado de **{_fmt_eur(resultado_fv['ahorro_anual'])} "
-                            "al año** en la factura de la luz.")
-            if resultado_fv.get("payback_anos"):
-                st.markdown(f"Con la inversión que nos has indicado, los paneles se pagan solos en unos "
-                            f"**{resultado_fv['payback_anos']:.0f} años** — a partir de ahí, el ahorro es "
-                            "beneficio neto.")
-            co2 = resultado_fv.get("co2_evitado_kg_ano", 0) / 1000
-            if co2:
-                st.markdown(f"De paso, se evita la emisión de unas **{co2:.1f} toneladas de CO₂ al año** — "
-                            "el equivalente a lo que absorben decenas de árboles.")
-
-    if capitulos:
-        with st.container(border=True):
-            st.markdown("### 💰 El coste total")
-            st.markdown(f"## {_fmt_eur(total_presupuesto)}")
-            st.caption(f"Impuestos incluidos. Repartido en {len(capitulos)} bloques de trabajo "
-                       f"({', '.join(c['nombre'] for c in capitulos[:4])}"
-                       f"{'...' if len(capitulos) > 4 else ''}).")
-
-    st.divider()
-    st.caption("💡 Los números técnicos completos (secciones exactas, normativa aplicada, desglose de "
-               "precios) siguen disponibles en la pestaña Documentación, por si en algún momento hace "
-               "falta el detalle.")
-
-    with st.spinner("Generando ficha para el cliente..."):
-        pdf_cliente = generar_pdf_presentacion_cliente(datos, inputs_cable, resultado_cable, inputs_fv,
-                                                         resultado_fv, total_presupuesto,
-                                                         st.session_state.get("config_profesional", {}))
-    if st.download_button("⬇️ Descargar esta misma vista en PDF", data=pdf_cliente,
-                           file_name="presentacion_cliente.pdf", mime="application/pdf"):
-        _registrar_actividad("🗣️", "Ficha de presentación cliente descargada")
+    c1, c2, c3 = st.columns([1, 2, 1])
+    with c2:
+        with st.form("login_form", clear_on_submit=False):
+            clave = st.text_input("Contraseña", type="password", placeholder="Introduce la contraseña", label_visibility="collapsed")
+            enviado = st.form_submit_button("Entrar", type="primary", width='stretch')
+            if enviado:
+                if clave == "1868628":
+                    st.session_state["autenticado"] = True
+                    st.rerun()
+                else:
+                    st.error("Contraseña incorrecta.")
 
 
 def main():
     st.set_page_config(page_title="REBT Suite · Instalaciones Eléctricas", page_icon="⚡", layout="wide",
                        initial_sidebar_state="expanded")
     _inicializar_estado()
+
+    if not st.session_state.get("autenticado", False):
+        st.markdown(generar_css(st.session_state["tema"]), unsafe_allow_html=True)
+        _render_login()
+        return
+
     st.markdown(generar_css(st.session_state["tema"]), unsafe_allow_html=True)
     _render_sidebar()
 
@@ -7784,12 +7451,6 @@ def main():
         return
     if pagina == "Metodología":
         _render_metodologia()
-        return
-    if pagina == "Autoevaluación":
-        _render_autoevaluacion()
-        return
-    if pagina == "Presentación cliente":
-        _render_presentacion_cliente()
         return
 
     # --- Páginas de herramientas: mismo cajetín de cabecera que antes ---
