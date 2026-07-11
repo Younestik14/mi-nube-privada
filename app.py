@@ -68,6 +68,7 @@ TEMP_REF_TABLA_TERRENO = 25.0
 RESISTIVIDAD_REF_TERRENO = 1.5
 
 REACTANCIA_LINEAL_DEFECTO = 0.08
+FACTOR_CO2_RED_DEFECTO = 0.20
 
 K_CORTOCIRCUITO = {
     ("Cobre", "PVC"): 115,
@@ -1126,7 +1127,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible,
 # sobrevivir entre sesiones (eso sí es 100% fiable, lo guarda el usuario).
 # ==============================================================================
 
-PAGINAS_HERRAMIENTAS = ["Calculadora", "Fórmulas", "Fotovoltaica", "Presupuesto", "Documentación"]
 CLAVES_PROYECTO = ["inputs_cable", "resultado_cable", "inputs_fv", "resultado_fv",
                    "presupuesto_capitulos", "presupuesto_config", "datos_proyecto", "catalogo_precios",
                    "partidas_compuestas", "calculos_guardados", "escenarios_fv_guardados",
@@ -4188,7 +4188,7 @@ TIPO_AUTOCONSUMO_FV = [
 PR_DEFECTO_FV = 0.80
 EFICIENCIA_INVERSOR_DEFECTO = 97.0        # % — típico 95-98% (SunFields, fabricantes)
 DEGRADACION_ANUAL_DEFECTO = 0.5           # %/año — típico 0,3-0,8%/año
-FACTOR_CO2_RED_DEFECTO = 0.20             # kg CO2/kWh — orientativo, mix peninsular reciente (REE, 130-200 gCO2/kWh)
+# (definido en la sección de constantes, al inicio del archivo)
 AREA_PANEL_DEFECTO = 1.95                 # m² — panel estándar ~450Wp (aprox. 1,75x1,13 m)
 PRECIO_COMPENSACION_DEFECTO = 0.08        # €/kWh excedente compensado (orientativo, varía por comercializadora)
 
@@ -6687,22 +6687,23 @@ def _render_sidebar():
             "Acerca de": "Qué es esta aplicación y sus limitaciones conocidas.",
         }
 
-        st.markdown('<p class="nav-group-label">Principal</p>', unsafe_allow_html=True)
+        st.markdown('<p class="nav-group-label">Proyecto</p>', unsafe_allow_html=True)
         nav_button("🏠", "Inicio", AYUDA_NAV["Inicio"])
         nav_button("📁", "Proyectos", AYUDA_NAV["Proyectos"])
         nav_button("📊", "Estadísticas", AYUDA_NAV["Estadísticas"])
         nav_button("🗣️", "Presentación cliente", AYUDA_NAV["Presentación cliente"])
 
-        st.markdown('<p class="nav-group-label">Herramientas</p>', unsafe_allow_html=True)
-        iconos_herr = {"Calculadora": "🔌", "Fórmulas": "🧮", "Fotovoltaica": "☀️",
-                       "Presupuesto": "💰", "Documentación": "📄"}
-        for nombre in PAGINAS_HERRAMIENTAS:
-            nav_button(iconos_herr[nombre], nombre, AYUDA_NAV.get(nombre))
-
-        st.markdown('<p class="nav-group-label">Consulta rápida</p>', unsafe_allow_html=True)
+        st.markdown('<p class="nav-group-label">Cálculos</p>', unsafe_allow_html=True)
+        nav_button("🔌", "Calculadora", AYUDA_NAV["Calculadora"])
+        nav_button("🧮", "Fórmulas", AYUDA_NAV["Fórmulas"])
+        nav_button("☀️", "Fotovoltaica", AYUDA_NAV["Fotovoltaica"])
         nav_button("📐", "Cálculos BT", AYUDA_NAV["Cálculos BT"])
 
-        st.markdown('<p class="nav-group-label">Normativa</p>', unsafe_allow_html=True)
+        st.markdown('<p class="nav-group-label">Documentos</p>', unsafe_allow_html=True)
+        nav_button("💰", "Presupuesto", AYUDA_NAV["Presupuesto"])
+        nav_button("📄", "Documentación", AYUDA_NAV["Documentación"])
+
+        st.markdown('<p class="nav-group-label">Referencia</p>', unsafe_allow_html=True)
         nav_button("📚", "Tablas normativas", AYUDA_NAV["Tablas normativas"])
         nav_button("📖", "Metodología", AYUDA_NAV["Metodología"])
         nav_button("🎓", "Autoevaluación", AYUDA_NAV["Autoevaluación"])
