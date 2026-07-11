@@ -2863,7 +2863,7 @@ def generar_pdf_mtd(datos_proyecto: dict, inputs_cable: dict, resultado_cable: d
         _pdf_safe_markup(f"D./Dña. {d.get('instalador') or '_______________________'}, en calidad de "
         f"{(d.get('categoria_instalador') or 'instalador autorizado').lower()}, declara que la instalación "
         "descrita en la presente Memoria Técnica de Diseño se ajusta a las prescripciones del Reglamento "
-        "Electrotécnico para Baja Tensión y sus Instrucciones Técnicas Complementarias.", normal))
+        "Electrotécnico para Baja Tensión y sus Instrucciones Técnicas Complementarias."), normal))
     story.append(Spacer(1, 24))
     story.append(Paragraph("En ______________________, a ____ de ______________ de 20____", normal))
     story.append(Spacer(1, 24))
