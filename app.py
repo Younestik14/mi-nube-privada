@@ -1711,63 +1711,63 @@ def generar_pdf_memoria(inp: dict, res: dict, config_prof: dict = None) -> bytes
     ]
     story.append(_tabla_pdf(datos, (6.5, 9.5), AZUL, colors))
 
-    story.append(Paragraph("2. Criterio termico (Ib &lt;= In &lt;= Iz) - ITC-BT-19 art. 19", h2))
+    story.append(Paragraph("2. Criterio térmico (I<sub>b</sub> ≤ I<sub>n</sub> ≤ I<sub>z</sub>) — ITC-BT-19 art. 19", h2))
     termico = [
         ["Magnitud", "Valor"],
-        ["Ib (corriente de empleo)", f"{res['ib']:.2f} A"],
-        ["Ib de calculo (tras factores)", f"{res['ib_calculo']:.2f} A"],
-        ["Factor de correccion total", f"{res['factor_total']:.3f}"],
-        ["Seccion por criterio termico", f"{res['s_termica']:g} mm2" if res["s_termica"] else "-"],
-        ["Iz obtenida (tabla x factores)", f"{res['iz_termica']:.1f} A" if res["iz_termica"] else "-"],
+        ["I<sub>b</sub> (corriente de empleo)", f"{res['ib']:.2f} A"],
+        ["I<sub>b</sub> de cálculo (tras factores)", f"{res['ib_calculo']:.2f} A"],
+        ["Factor de corrección total", f"{res['factor_total']:.3f}"],
+        ["Sección por criterio térmico", f"{res['s_termica']:g} mm²" if res["s_termica"] else "-"],
+        ["I<sub>z</sub> obtenida (tabla × factores)", f"{res['iz_termica']:.1f} A" if res["iz_termica"] else "-"],
     ]
     story.append(_tabla_pdf(termico, (6.5, 9.5), AZUL, colors))
 
-    story.append(Paragraph("3. Criterio de caida de tension - ITC-BT-14/15/19/40", h2))
+    story.append(Paragraph("3. Criterio de caída de tensión — ITC-BT-14/15/19/40", h2))
     du = [
         ["Magnitud", "Valor"],
-        ["Delta U maxima admisible", f"{inp['delta_u_max']:g} %"],
-        ["Delta U con la seccion adoptada", f"{res['e_final_pct']:.2f} %"],
-        ["Cumple", "SI" if res["e_final_pct"] <= inp["delta_u_max"] else "NO"],
+        ["ΔU máxima admisible", f"{inp['delta_u_max']:g} %"],
+        ["ΔU con la sección adoptada", f"{res['e_final_pct']:.2f} %"],
+        ["Cumple", "SÍ" if res["e_final_pct"] <= inp["delta_u_max"] else "NO"],
     ]
     story.append(_tabla_pdf(du, (6.5, 9.5), AZUL, colors))
 
-    story.append(Paragraph("4. Seccion final adoptada", h2))
-    final_rows = [["Elemento", "Seccion"]]
+    story.append(Paragraph("4. Sección final adoptada", h2))
+    final_rows = [["Elemento", "Sección"]]
     if res["seccion_final"] is not None:
-        final_rows.append(["Conductor de fase", f"{res['seccion_final']:g} mm2"])
+        final_rows.append(["Conductor de fase", f"{res['seccion_final']:g} mm²"])
     if res.get("seccion_neutro"):
-        final_rows.append(["Conductor de neutro", f"{res['seccion_neutro']:g} mm2"])
+        final_rows.append(["Conductor de neutro", f"{res['seccion_neutro']:g} mm²"])
     if res.get("seccion_proteccion"):
-        final_rows.append(["Conductor de proteccion (PE)", f"{res['seccion_proteccion']:g} mm2"])
+        final_rows.append(["Conductor de protección (PE)", f"{res['seccion_proteccion']:g} mm²"])
     if res.get("necesita_paralelo"):
-        final_rows.append(["Conductores en paralelo", f"{res['n_paralelo']} x {res['seccion_final']:g} mm2 por fase"])
-    final_rows.append(["Interruptor automatico sugerido", f"{res['calibre_magnetotermico']} A"])
+        final_rows.append(["Conductores en paralelo", f"{res['n_paralelo']} × {res['seccion_final']:g} mm² por fase"])
+    final_rows.append(["Interruptor automático sugerido", f"{res['calibre_magnetotermico']} A"])
     story.append(_tabla_pdf(final_rows, (6.5, 9.5), AZUL, colors))
 
     if res.get("cumple_cc") is not None:
-        story.append(Paragraph("5. Verificacion termica de cortocircuito", h2))
+        story.append(Paragraph("5. Verificación térmica de cortocircuito", h2))
         estado = "CUMPLE" if res["cumple_cc"] else "NO CUMPLE"
         cc_rows = [
             ["Magnitud", "Valor"],
             ["Resultado", estado],
-            ["Seccion minima necesaria", f"{res['s_min_cc']:g} mm2"],
+            ["Sección mínima necesaria", f"{res['s_min_cc']:g} mm²"],
         ]
         story.append(_tabla_pdf(cc_rows, (6.5, 9.5), AZUL, colors))
 
-    story.append(Paragraph("6. Formulas aplicadas", h2))
+    story.append(Paragraph("6. Fórmulas aplicadas", h2))
     for linea in _lineas_formulas_texto(inp, res):
-        story.append(Paragraph(_pdf_safe(linea), normal))
+        story.append(Paragraph(_pdf_safe_markup(linea), normal))
 
     if res.get("avisos"):
         story.append(Paragraph("7. Avisos", h2))
         for a in res["avisos"]:
-            story.append(Paragraph("- " + _pdf_safe(a), aviso_style))
+            story.append(Paragraph("- " + _pdf_safe_markup(a), aviso_style))
 
     story.append(Spacer(1, 10))
     story.append(Paragraph(
-        "Herramienta de apoyo al diseno. Los valores de esta memoria deben verificarse contra la edicion "
-        "vigente de la Guia-BT-19 y la normativa UNE aplicable antes de incorporarse a un proyecto o "
-        "memoria tecnica firmada.", normal))
+        "Herramienta de apoyo al diseño. Los valores de esta memoria deben verificarse contra la edición "
+        "vigente de la Guía-BT-19 y la normativa UNE aplicable antes de incorporarse a un proyecto o "
+        "memoria técnica firmada.", normal))
 
     doc.build(story, onFirstPage=cajetin, onLaterPages=cajetin, canvasmaker=doc._numbered_canvas)
     return buffer.getvalue()
@@ -1779,7 +1779,7 @@ def generar_pdf_memoria(inp: dict, res: dict, config_prof: dict = None) -> bytes
 
 def _lineas_formulas_texto(inp: dict, res: dict) -> list:
     """Genera la secuencia de fórmulas con los valores del cálculo actual
-    sustituidos, en texto plano (sin LaTeX), para incluir en el PDF."""
+    sustituidos, con símbolos Unicode y subíndices HTML, para incluir en el PDF."""
     L = []
     sistema = inp["sistema"]
     cos_phi = inp["cos_phi"]
@@ -1787,136 +1787,136 @@ def _lineas_formulas_texto(inp: dict, res: dict) -> list:
     if inp["modo_entrada"] == "Potencia activa":
         p_w = inp["potencia_kw"] * 1000.0
         if sistema == SISTEMA_MONO:
-            L.append(f"Ib = P / (V x cos(phi)) = {p_w:.0f} / ({inp['tension']:g} x {cos_phi:.2f}) "
+            L.append(f"I<sub>b</sub> = P / (V · cos φ) = {p_w:.0f} / ({inp['tension']:g} × {cos_phi:.2f}) "
                       f"= {res['ib']:.2f} A")
         else:
-            L.append(f"Ib = P / (raiz(3) x V x cos(phi)) = {p_w:.0f} / (1,732 x {inp['tension']:g} x "
+            L.append(f"I<sub>b</sub> = P / (√3 · V · cos φ) = {p_w:.0f} / (1,732 × {inp['tension']:g} × "
                       f"{cos_phi:.2f}) = {res['ib']:.2f} A")
     else:
-        L.append(f"Ib = {res['ib']:.2f} A (introducida directamente)")
+        L.append(f"I<sub>b</sub> = {res['ib']:.2f} A (introducida directamente)")
 
     if res.get("ib_motor") is not None:
         if len(inp["corrientes_motores"]) == 1:
-            L.append(f"Motor unico (ITC-BT-47): Ib_calculo = 1,25 x In = 1,25 x "
+            L.append(f"Motor único (ITC-BT-47): I<sub>b,cálculo</sub> = 1,25 · I<sub>n</sub> = 1,25 × "
                       f"{inp['corrientes_motores'][0]:.2f} = {res['ib_motor']:.2f} A")
         else:
             ordenados = sorted(inp["corrientes_motores"], reverse=True)
             resto = " + ".join(f"{x:.1f}" for x in ordenados[1:])
-            L.append(f"Varios motores (ITC-BT-47): Ib_calculo = 1,25 x {ordenados[0]:.2f} + ({resto}) "
+            L.append(f"Varios motores (ITC-BT-47): I<sub>b,cálculo</sub> = 1,25 × {ordenados[0]:.2f} + ({resto}) "
                       f"= {res['ib_motor']:.2f} A")
         if inp["ascensor_grua"]:
-            L.append("Ascensor/grua: factor adicional x1,3 aplicado sobre la intensidad del motor.")
+            L.append("Ascensor/grúa: factor adicional ×1,3 aplicado sobre la intensidad del motor.")
 
     if inp["alumbrado_descarga"]:
-        L.append("Alumbrado de descarga sin corregir factor de potencia (f.d.p.): Ib_calculo se multiplica x1,8 (orientativo).")
+        L.append("Alumbrado de descarga sin corregir factor de potencia (f.d.p.): I<sub>b,cálculo</sub> se multiplica ×1,8 (orientativo).")
 
-    L.append(f"Ib de calculo final = {res['ib_calculo']:.2f} A")
+    L.append(f"I<sub>b</sub> de cálculo final = {res['ib_calculo']:.2f} A")
     L.append("")
-    L.append(f"Factor de correccion = f_temp x f_agrup x f_capas x f_resist = {res['f_temp']:.3f} x "
-              f"{res['f_agrup']:.3f} x {res['f_capas']:.3f} x {res['f_resist']:.3f} = {res['factor_total']:.3f}")
+    L.append(f"Factor de corrección = f<sub>temp</sub> · f<sub>agrup</sub> · f<sub>capas</sub> · f<sub>resist</sub> = {res['f_temp']:.3f} × "
+              f"{res['f_agrup']:.3f} × {res['f_capas']:.3f} × {res['f_resist']:.3f} = {res['factor_total']:.3f}")
     if res["iz_termica"] is not None:
-        L.append(f"Iz = Iz_tabla x factor = {res['iz_termica'] / max(res['factor_total'], 1e-9):.1f} x "
+        L.append(f"I<sub>z</sub> = I<sub>z,tabla</sub> · factor = {res['iz_termica'] / max(res['factor_total'], 1e-9):.1f} × "
                   f"{res['factor_total']:.3f} = {res['iz_termica']:.2f} A")
         cumple_termico = res["iz_termica"] >= (res["ib_calculo"] / (res["n_paralelo"] if res["necesita_paralelo"] else 1))
-        L.append(f"Criterio termico: Iz = {res['iz_termica']:.2f} A >= Ib = {res['ib_calculo']:.2f} A "
-                  f"-> {'Cumple' if cumple_termico else 'No cumple'} con S = {res['s_termica']:g} mm2")
+        L.append(f"Criterio térmico: I<sub>z</sub> = {res['iz_termica']:.2f} A ≥ I<sub>b</sub> = {res['ib_calculo']:.2f} A "
+                  f"→ {'Cumple' if cumple_termico else 'No cumple'} con S = {res['s_termica']:g} mm²")
     L.append("")
 
     kappa = res["kappa"]
-    L.append(f"Conductividad a temperatura de servicio: kappa = {kappa:.2f} m/(ohm x mm2)")
-    k_sist = "2" if sistema == SISTEMA_MONO else "raiz(3)=1,732"
+    L.append(f"Conductividad a temperatura de servicio: κ = {kappa:.2f} m/(Ω·mm²)")
+    k_sist = "2" if sistema == SISTEMA_MONO else "√3 = 1,732"
     S = res["seccion_final"] if res["seccion_final"] else res["s_termica"]
-    L.append(f"Delta U = {k_sist} x L x Ib x (R x cos(phi) + X x sen(phi)),  R = 1/(kappa x S)")
+    L.append(f"ΔU = {k_sist} · L · I<sub>b</sub> · (R · cos φ + X · sen φ),  R = 1/(κ · S)")
     if S:
         r = 1.0 / (kappa * S)
-        L.append(f"R = 1 / ({kappa:.2f} x {S:g}) = {r:.5f} ohm/m")
-        L.append(f"Delta U = {res['e_final']:.2f} V  =  {res['e_final_pct']:.2f} % de {inp['tension']:g} V")
+        L.append(f"R = 1 / ({kappa:.2f} × {S:g}) = {r:.5f} Ω/m")
+        L.append(f"ΔU = {res['e_final']:.2f} V  =  {res['e_final_pct']:.2f} % de {inp['tension']:g} V")
         cumple_du = res["e_final_pct"] <= inp["delta_u_max"]
-        L.append(f"Criterio de caida de tension: {res['e_final_pct']:.2f} % <= {inp['delta_u_max']:g} % "
-                  f"-> {'Cumple' if cumple_du else 'No cumple'}")
+        L.append(f"Criterio de caída de tensión: {res['e_final_pct']:.2f} % ≤ {inp['delta_u_max']:g} % "
+                  f"→ {'Cumple' if cumple_du else 'No cumple'}")
     L.append("")
 
     if res.get("seccion_neutro"):
-        L.append(f"Seccion de neutro: Sf={res['seccion_final']:g} mm2 -> Sn={res['seccion_neutro']:g} mm2 "
+        L.append(f"Sección de neutro: S<sub>f</sub>={res['seccion_final']:g} mm² → S<sub>n</sub>={res['seccion_neutro']:g} mm² "
                   "(regla REBT / IEC 60364-5-52 punto 524)")
     if res.get("seccion_proteccion"):
-        L.append(f"Seccion de proteccion (ITC-BT-18): Sf={res['seccion_final']:g} mm2 -> "
-                  f"Sp={res['seccion_proteccion']:g} mm2")
+        L.append(f"Sección de protección (ITC-BT-18): S<sub>f</sub>={res['seccion_final']:g} mm² → "
+                  f"S<sub>p</sub>={res['seccion_proteccion']:g} mm²")
 
     if res.get("cumple_cc") is not None:
         L.append("")
         k_cc = K_CORTOCIRCUITO[(inp["conductor"], inp["aislamiento"])]
-        L.append(f"Cortocircuito: S_min = (Icc x raiz(t)) / k = ({inp['icc_ka']:g}x1000 x "
-                  f"raiz({inp['tiempo_s']:g})) / {k_cc} = {res['s_min_cc']:g} mm2")
+        L.append(f"Cortocircuito: S<sub>mín</sub> = (I<sub>cc</sub> · √t) / k = ({inp['icc_ka']:g}×1000 × "
+                  f"√{inp['tiempo_s']:g}) / {k_cc} = {res['s_min_cc']:g} mm²")
 
     return L
 
 
 def _lineas_formulas_fv_texto(inp: dict, res: dict) -> list:
-    """Justificación de cálculo del módulo fotovoltaico en texto plano, para
-    el Anexo de cálculos (mismo espíritu que _lineas_formulas_texto)."""
+    """Justificación de cálculo del módulo fotovoltaico con símbolos Unicode
+    y subíndices HTML, para el Anexo de cálculos."""
     L = []
     L.append(f"Potencia pico = {res['p_pico_kwp']:.2f} kWp  ({res['n_paneles']} paneles de "
-              f"{inp['potencia_panel_wp']:g} Wp segun dimensionado; superficie necesaria = "
-              f"{res['superficie_necesaria_m2']:.1f} m2)")
-    L.append(f"Perdidas por orientacion/inclinacion (CTE DB-HE5) = 100 x [1,2e-4 x (beta-phi+10)^2 + "
-              f"3,5e-5 x alfa^2] , con beta={inp['inclinacion']:g}, phi={inp['latitud']:g}, "
-              f"alfa={inp['azimut']:g}  =>  {res['perdidas_orient_pct']:.2f} %")
-    L.append(f"PR efectivo = PR_base x (1-perd.orient) x (1-perd.sombras) x eficiencia_inversor = "
-              f"{inp['pr']:.2f} x (1-{res['perdidas_orient_pct']:.2f}/100) x "
-              f"(1-{inp['perdidas_sombras']:g}/100) x {inp['eficiencia_inversor']/100:.3f} = "
+              f"{inp['potencia_panel_wp']:g} Wp según dimensionado; superficie necesaria = "
+              f"{res['superficie_necesaria_m2']:.1f} m²)")
+    L.append(f"Pérdidas por orientación/inclinación (CTE DB-HE5) = 100 · [1,2·10<super>-4</super> · (β−φ+10)² + "
+              f"3,5·10<super>-5</super> · α²] , con β={inp['inclinacion']:g}°, φ={inp['latitud']:g}°, "
+              f"α={inp['azimut']:g}°  →  {res['perdidas_orient_pct']:.2f} %")
+    L.append(f"PR efectivo = PR<sub>base</sub> · (1−p<sub>orient</sub>) · (1−p<sub>sombras</sub>) · η<sub>inversor</sub> = "
+              f"{inp['pr']:.2f} × (1−{res['perdidas_orient_pct']:.2f}/100) × "
+              f"(1−{inp['perdidas_sombras']:g}/100) × {inp['eficiencia_inversor']/100:.3f} = "
               f"{res['pr_efectivo']:.3f}")
-    L.append(f"Produccion anual = Ppico x HSP x 365 x PR_efectivo = {res['p_pico_kwp']:.2f} x "
-              f"{inp['hsp']:g} x 365 x {res['pr_efectivo']:.3f} = "
-              f"{res['produccion_anual_kwh']:,.0f} kWh/anio".replace(",", "."))
-    L.append(f"Produccion a 10 anios (degradacion {inp['degradacion_anual']:g}%/anio) = "
-              f"{res['produccion_ano10']:,.0f} kWh/anio".replace(",", "."))
-    L.append(f"Produccion a 25 anios = {res['produccion_ano25']:,.0f} kWh/anio".replace(",", "."))
-    L.append(f"CO2 evitado = Produccion x factor_red = {res['produccion_anual_kwh']:.0f} x "
+    L.append(f"E<sub>anual</sub> = P<sub>pico</sub> · HSP · 365 · PR<sub>efectivo</sub> = {res['p_pico_kwp']:.2f} × "
+              f"{inp['hsp']:g} × 365 × {res['pr_efectivo']:.3f} = "
+              f"{res['produccion_anual_kwh']:,.0f} kWh/año".replace(",", "."))
+    L.append(f"Producción a 10 años (degradación {inp['degradacion_anual']:g}%/año) = "
+              f"{res['produccion_ano10']:,.0f} kWh/año".replace(",", "."))
+    L.append(f"Producción a 25 años = {res['produccion_ano25']:,.0f} kWh/año".replace(",", "."))
+    L.append(f"CO₂ evitado = Producción × factor<sub>red</sub> = {res['produccion_anual_kwh']:.0f} × "
               f"{inp.get('factor_co2', FACTOR_CO2_RED_DEFECTO):.2f} = "
-              f"{res['co2_evitado_kg_ano']:.0f} kg CO2/anio ({res['co2_evitado_kg_ano']/1000:.2f} t/anio)")
+              f"{res['co2_evitado_kg_ano']:.0f} kg CO₂/año ({res['co2_evitado_kg_ano']/1000:.2f} t/año)")
     L.append("")
-    L.append(f"Configuracion string: {res['n_serie']} paneles serie x {res['n_paralelo']} strings paralelo "
+    L.append(f"Configuración string: {res['n_serie']} paneles serie × {res['n_paralelo']} strings paralelo "
               f"= {res['n_paneles_configurados']} paneles")
-    L.append(f"V string en frio = Nserie x Voc x (1 + coef x (25 - Tmin)) = {res['n_serie']} x {inp['voc']:g} "
-              f"x (1 + {inp['coef_temp_voc']/100:.4f} x (25-{inp['temp_min']:g})) = {res['v_string_frio']:.1f} V")
-    L.append(f"V string en caliente = Nserie x Vmp x (1 + coef x (Tcel-25)) = {res['v_string_caliente']:.1f} V")
-    L.append(f"Verificacion ventana MPPT: {inp['vmin_mppt']:g} V <= V string <= {inp['vmax_mppt']:g} V -> "
+    L.append(f"V<sub>string,frío</sub> = N<sub>serie</sub> · V<sub>oc</sub> · (1 + coef · (25 − T<sub>mín</sub>)) = {res['n_serie']} × {inp['voc']:g} "
+              f"× (1 + {inp['coef_temp_voc']/100:.4f} × (25−{inp['temp_min']:g})) = {res['v_string_frio']:.1f} V")
+    L.append(f"V<sub>string,caliente</sub> = N<sub>serie</sub> · V<sub>mp</sub> · (1 + coef · (T<sub>cel</sub>−25)) = {res['v_string_caliente']:.1f} V")
+    L.append(f"Verificación ventana MPPT: {inp['vmin_mppt']:g} V ≤ V<sub>string</sub> ≤ {inp['vmax_mppt']:g} V → "
               f"{'Cumple' if (res['cumple_vmpp_min'] and res['cumple_vmpp_max']) else 'No cumple'}")
-    L.append(f"Verificacion tension max. entrada inversor: V string frio ({res['v_string_frio']:.1f} V) <= "
-              f"{inp['vmax_entrada_inversor']:g} V -> {'Cumple' if res['cumple_vmax'] else 'No cumple'}")
+    L.append(f"Verificación tensión máx. entrada inversor: V<sub>string,frío</sub> ({res['v_string_frio']:.1f} V) ≤ "
+              f"{inp['vmax_entrada_inversor']:g} V → {'Cumple' if res['cumple_vmax'] else 'No cumple'}")
     L.append("")
-    L.append(f"Cableado CC (ITC-BT-40): I diseno = 1,25 x Isc = 1,25 x {inp['isc']:g} = {res['i_diseno_cc']:.2f} A")
-    L.append(f"Seccion CC adoptada = {res['s_cc_final']:g} mm2 Cu XLPE  ->  ΔU parcial CC = {res['du_cc_pct']:.2f} %")
-    L.append(f"Cableado CA inversor-cuadro: Ib = {res['ib_ca']:.2f} A ; I diseno (125%) = {res['i_diseno_ca']:.2f} A")
-    L.append(f"Seccion CA adoptada = {res['s_ca_final']:g} mm2 Cu XLPE  ->  ΔU parcial CA = {res['e_ca_pct']:.2f} %")
-    L.append(f"ΔU combinada CC+CA = {res['du_total_pct']:.2f} %  (limite ITC-BT-40: 1,5% entre generador y "
-              "punto de interconexion) -> " + ("Cumple" if res["du_total_pct"] <= 1.5 else "No cumple"))
+    L.append(f"Cableado CC (ITC-BT-40): I<sub>diseño</sub> = 1,25 · I<sub>sc</sub> = 1,25 × {inp['isc']:g} = {res['i_diseno_cc']:.2f} A")
+    L.append(f"Sección CC adoptada = {res['s_cc_final']:g} mm² Cu XLPE  →  ΔU parcial CC = {res['du_cc_pct']:.2f} %")
+    L.append(f"Cableado CA inversor-cuadro: I<sub>b</sub> = {res['ib_ca']:.2f} A ; I<sub>diseño</sub> (125%) = {res['i_diseno_ca']:.2f} A")
+    L.append(f"Sección CA adoptada = {res['s_ca_final']:g} mm² Cu XLPE  →  ΔU parcial CA = {res['e_ca_pct']:.2f} %")
+    L.append(f"ΔU combinada CC+CA = {res['du_total_pct']:.2f} %  (límite ITC-BT-40: 1,5% entre generador y "
+              "punto de interconexión) → " + ("Cumple" if res["du_total_pct"] <= 1.5 else "No cumple"))
     L.append("")
     if res.get("calibre_fusible_string"):
         L.append(f"Fusible de string sugerido: {res['calibre_fusible_string']} A / "
-                  f"{res.get('tension_fusible_string','-')} V (criterio orientativo ~1,8 x Isc, tension >= "
-                  f"V string frio; UNE-EN 62548)")
-    L.append(f"Magnetotermico CA sugerido: {res['calibre_magneto_ca']} A")
+                  f"{res.get('tension_fusible_string','-')} V (criterio orientativo ~1,8 × I<sub>sc</sub>, tensión ≥ "
+                  f"V<sub>string,frío</sub>; UNE-EN 62548)")
+    L.append(f"Magnetotérmico CA sugerido: {res['calibre_magneto_ca']} A")
     if res.get("capacidad_bateria_kwh"):
         L.append("")
-        L.append(f"Bateria: Capacidad = (consumo_diario x dias_autonomia) / prof_descarga = "
-                  f"({inp.get('consumo_diario_bateria_kwh',0):.2f} x {inp.get('autonomia_dias',0):g}) / "
+        L.append(f"Batería: Capacidad = (consumo<sub>diario</sub> × días<sub>autonomía</sub>) / prof<sub>descarga</sub> = "
+                  f"({inp.get('consumo_diario_bateria_kwh',0):.2f} × {inp.get('autonomia_dias',0):g}) / "
                   f"({inp.get('profundidad_descarga',80):g}/100) = {res['capacidad_bateria_kwh']:.1f} kWh")
     if res.get("ahorro_anual"):
         L.append("")
-        L.append(f"Energia autoconsumida = Produccion x %autoconsumo = {res['produccion_anual_kwh']:.0f} x "
-                  f"{inp['pct_autoconsumo']/100:.2f} = {res['energia_autoconsumida']:.0f} kWh/anio")
-        L.append(f"Ahorro por autoconsumo = {res['energia_autoconsumida']:.0f} x {inp['precio_kwh']:.2f} = "
-                  f"{res['ahorro_autoconsumo']:.2f} EUR/anio")
+        L.append(f"Energía autoconsumida = Producción × %autoconsumo = {res['produccion_anual_kwh']:.0f} × "
+                  f"{inp['pct_autoconsumo']/100:.2f} = {res['energia_autoconsumida']:.0f} kWh/año")
+        L.append(f"Ahorro por autoconsumo = {res['energia_autoconsumida']:.0f} × {inp['precio_kwh']:.2f} = "
+                  f"{res['ahorro_autoconsumo']:.2f} €/año")
         if res["ingreso_excedentes"]:
-            L.append(f"Ingreso por excedentes compensados = {res['energia_excedente']:.0f} x "
+            L.append(f"Ingreso por excedentes compensados = {res['energia_excedente']:.0f} × "
                       f"{inp.get('precio_compensacion', PRECIO_COMPENSACION_DEFECTO):.2f} = "
-                      f"{res['ingreso_excedentes']:.2f} EUR/anio")
-        L.append(f"Ahorro anual total = {res['ahorro_anual']:.2f} EUR/anio")
+                      f"{res['ingreso_excedentes']:.2f} €/año")
+        L.append(f"Ahorro anual total = {res['ahorro_anual']:.2f} €/año")
         if res.get("payback_anos"):
-            L.append(f"Retorno simple = Inversion / Ahorro anual = {inp['inversion_total']:.0f} / "
-                      f"{res['ahorro_anual']:.2f} = {res['payback_anos']:.1f} anios")
+            L.append(f"Retorno simple = Inversión / Ahorro anual = {inp['inversion_total']:.0f} / "
+                      f"{res['ahorro_anual']:.2f} = {res['payback_anos']:.1f} años")
     return L
 
 
