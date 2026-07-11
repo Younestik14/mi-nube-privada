@@ -1715,7 +1715,7 @@ def _lineas_formulas_texto(inp: dict, res: dict) -> list:
             L.append("Ascensor/grua: factor adicional x1,3 aplicado sobre la intensidad del motor.")
 
     if inp["alumbrado_descarga"]:
-        L.append("Alumbrado de descarga sin corregir f.d.p.: Ib_calculo se multiplica x1,8 (orientativo).")
+        L.append("Alumbrado de descarga sin corregir factor de potencia (f.d.p.): Ib_calculo se multiplica x1,8 (orientativo).")
 
     L.append(f"Ib de calculo final = {res['ib_calculo']:.2f} A")
     L.append("")
@@ -5214,7 +5214,7 @@ def _render_inputs() -> dict:
                 ascensor_grua = st.checkbox("Ascensor / grúa (factor adicional ITC-BT-47, ×1,3)")
         with cc2:
             alumbrado_descarga = st.checkbox(
-                "Alumbrado de descarga sin corregir f.d.p.",
+                "Alumbrado de descarga sin corregir factor de potencia (f.d.p.)",
                 help="Aplica un factor orientativo ×1,8 a la intensidad de cálculo (ITC-BT-44) para lámparas "
                      "con reactancia sin condensador de compensación.")
             armonicos = st.checkbox(
@@ -5365,7 +5365,7 @@ def _render_resultados(inp: dict, res: dict):
             _registrar_actividad("📄", "Memoria de cálculo descargada")
 
     st.markdown('<p class="section-label">Guardar este cálculo</p>', unsafe_allow_html=True)
-    st.caption("Le pones un nombre y queda disponible para importarlo en cualquier capítulo del Presupuesto "
+    st.caption("Ponle un nombre y queda disponible para importarlo en cualquier capítulo del Presupuesto "
                "— útil cuando el proyecto tiene varios circuitos distintos (alumbrado, tomas, motor...) y "
                "quieres tenerlos todos calculados antes de presupuestar.")
     st.session_state.setdefault("calculos_guardados", [])
@@ -5851,7 +5851,7 @@ def _render_formulas(inp: dict, res: dict):
                 f"`Ib = 1,25 × {ordenados[0]:.2f} + ({resto})`  \n**Ib,motor = {res['ib_motor']:.2f} A**")
     if inp["alumbrado_descarga"]:
         _fila_formula(r"I_{b,\,cálculo} = I_b \times 1{,}8",
-                       f"Alumbrado de descarga sin corregir f.d.p.  \n**Ib,cálculo = {res['ib_calculo']:.2f} A**")
+                       f"Alumbrado de descarga sin corregir factor de potencia (f.d.p.)  \n**Ib,cálculo = {res['ib_calculo']:.2f} A**")
 
     st.markdown("##### 2 · Criterio térmico (ITC-BT-19 art. 19)")
     _fila_formula(
@@ -6104,7 +6104,7 @@ def _render_presupuesto(inputs_cable: dict, resultado_cable: dict, inputs_fv: di
         if en_construccion:
             st.dataframe(pd.DataFrame(en_construccion), hide_index=True, width='stretch')
             precio_total_construccion = sum(c["cantidad"] * c["precio_unitario"] for c in en_construccion)
-            st.markdown(f"Precio unitario resultante: **{_fmt_eur(precio_total_construccion)}**")
+            st.markdown(f"Precio total resultante: **{_fmt_eur(precio_total_construccion)}**")
             fc1, fc2, fc3, fc4 = st.columns([3, 1, 1, 1])
             nombre_pc_final = fc1.text_input("Nombre de la partida", key="pc_nombre_final",
                                               placeholder="Circuito de alumbrado completo, instalado y probado")
@@ -6434,10 +6434,8 @@ def _render_presupuesto(inputs_cable: dict, resultado_cable: dict, inputs_fv: di
 
 def _render_documentacion(inputs_cable: dict, resultado_cable: dict, inputs_fv: dict, resultado_fv: dict):
     st.markdown('<p class="section-label">Documentación</p>', unsafe_allow_html=True)
-    st.caption("Genera la Memoria Técnica de Diseño (MTD, ITC-BT-04), el Anexo de Cálculos y Mediciones, y "
-               "las Condiciones Generales de ejecución, reuniendo lo que ya tengas calculado en las demás "
-               "pestañas. A diferencia de la Calculadora y el módulo Fotovoltaico (independientes entre sí), "
-               "estos tres documentos SÍ están pensados para juntar toda la información del proyecto.")
+    st.caption("Genera la Memoria Técnica de Diseño (MTD), el Anexo de Cálculos y el Pliego de Condiciones, "
+               "reuniendo toda la información del proyecto calculada en las demás pestañas.")
 
     st.session_state.setdefault("datos_proyecto", {
         "titular": "", "nif_titular": "", "emplazamiento": "", "referencia_catastral": "", "uso": "",
@@ -6553,7 +6551,7 @@ def _render_documentacion(inputs_cable: dict, resultado_cable: dict, inputs_fv: 
             _registrar_actividad("📝", "Pliego descargado en Word")
 
     if not hay_cable and not hay_fv:
-        st.info("Todavía no hay ningún cálculo hecho: los documentos se generarán igualmente, pero con las "
+        st.info("Aún no hay cálculos realizados: los documentos se generarán igualmente, pero con las "
                 "secciones de cálculo vacías. Completa la Calculadora y/o la Fotovoltaica para un contenido "
                 "completo.")
 
@@ -6599,7 +6597,7 @@ def _render_documentacion(inputs_cable: dict, resultado_cable: dict, inputs_fv: 
     st.session_state.setdefault("fotos_instalacion", [])
     fotos = st.session_state["fotos_instalacion"]
     with st.expander(f"📷 Registro fotográfico de la instalación ({len(fotos)})", expanded=False):
-        st.caption("Sube fotos del antes/durante/después de la instalación — se incluyen como anexo en la "
+        st.caption("Sube fotos de antes, durante y después de la instalación — se incluyen como anexo en la "
                    "MTD y en el CIE. Máximo recomendado: 12 fotos, para no disparar el tamaño del PDF.")
         fo1, fo2 = st.columns([1, 2])
         with fo1:
@@ -6659,9 +6657,7 @@ def _render_documentacion(inputs_cable: dict, resultado_cable: dict, inputs_fv: 
 
 def _render_calculos_bt():
     st.markdown('<p class="section-label">Cálculos BT</p>', unsafe_allow_html=True)
-    st.caption("Calculadoras sueltas de referencia rápida, independientes entre sí y de las demás pestañas "
-               "— inspiradas en el catálogo de calculadoras de circuitoelectrico.com (cables, cortocircuito, "
-               "tierras, fotovoltaica rápida y eléctricas generales). Para el dimensionado completo de un "
+    st.caption("Calculadoras independientes de referencia rápida — para el dimensionado completo de un "
                "circuito, usa la pestaña Calculadora.")
 
     # ---------------------------------------------------------------- CABLES
@@ -6872,8 +6868,8 @@ def _render_calculos_bt():
         c1, c2, c3, c4 = st.columns(4)
         energia_nec = c1.number_input("Energía necesaria (Wh/día)", min_value=1.0, value=3000.0, key="bt_fv_en")
         pot_panel = c2.number_input("Potencia del panel (Wp)", min_value=10.0, value=450.0, key="bt_fv_pp")
-        hsp_fv = c3.number_input("HSP (h/día)", min_value=1.0, value=4.5, key="bt_fv_hsp")
-        pr_fv = c4.number_input("PR", min_value=0.5, max_value=0.95, value=0.80, key="bt_fv_pr")
+        hsp_fv = c3.number_input("HSP — Horas Solares de Pico (h/día)", min_value=1.0, value=4.5, key="bt_fv_hsp")
+        pr_fv = c4.number_input("PR — Performance Ratio", min_value=0.5, max_value=0.95, value=0.80, key="bt_fv_pr")
         n_paneles_bt = math.ceil(energia_nec / (pot_panel * hsp_fv * pr_fv))
         st.markdown(f"→ Nº de paneles ≈ **{n_paneles_bt}** paneles de {pot_panel:g} Wp")
 
@@ -7302,7 +7298,7 @@ def _render_calculos_bt():
         st.caption("Justificación según la guía de armónicos de tercer orden (triplen) de la norma "
                    "UNE-HD 60364-5-52 / IEC 60364-5-523, para cargas no lineales (electrónica, iluminación "
                    "LED/fluorescente con balasto electrónico, variadores de frecuencia, informática...).")
-        thd3 = st.slider("Contenido de 3er armónico en la corriente de fase, THD₃ (%)", 0, 60, 20,
+        thd3 = st.slider("Contenido de 3er armónico en la corriente de fase, THD₃ — Distorsión Armónica Total (%)", 0, 60, 20,
                           key="bt_arm_thd3")
         if thd3 < 15:
             st.success(f"✅ THD₃ = {thd3}% < 15%: el efecto de los armónicos es despreciable. El neutro se "
@@ -7645,7 +7641,7 @@ def _render_dashboard():
         else:
             st.markdown('''<div style="background:var(--bg-panel); border:1px solid var(--border-subtle);
                 border-radius:var(--radius); padding:1.5rem 1.7rem; margin:0.5rem 0 1.5rem 0;">
-                <div style="font-size:1.1rem; font-weight:700; margin-bottom:0.5rem;">Como funciona en 3 pasos</div>
+                <div style="font-size:1.1rem; font-weight:700; margin-bottom:0.5rem;">Cómo funciona en 3 pasos</div>
                 <div style="color:var(--text-secondary); font-size:0.88rem; line-height:1.6;">
                     <b>1. Calcula</b> — Rellena el formulario de la Calculadora (o usa una plantilla).<br>
                     <b>2. Presupuesta</b> — Importa los cálculos a un presupuesto con precios editables.<br>
@@ -7723,7 +7719,7 @@ def _render_dashboard():
 
 def _render_proyectos():
     st.markdown('<p class="section-label">Mis proyectos</p>', unsafe_allow_html=True)
-    st.caption("Guardar descarga un archivo .json a tu ordenador — eso es lo único que persiste de verdad "
+    st.caption("Descarga un archivo .json a tu ordenador — eso es lo único que persiste de verdad "
                "entre sesiones. El historial de abajo es solo de esta sesión del navegador (se pierde al "
                "cerrar o recargar la pestaña).")
 
