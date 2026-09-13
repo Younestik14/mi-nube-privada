@@ -12,15 +12,18 @@ def init():
 
 def css():
     st.markdown('''<style>
-    .hero{padding:28px 32px;border:1px solid rgba(120,130,150,.18);border-radius:24px;background:linear-gradient(135deg,rgba(40,100,180,.15),rgba(120,90,200,.07));margin:0 0 20px}
-    .eyebrow{font-size:.68rem;letter-spacing:.16em;font-weight:800;opacity:.6}.hero h1{font-size:2.35rem;margin:.25rem 0}.hero p{opacity:.68;margin:0}
-    .section{font-size:.75rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;opacity:.58;margin:20px 0 8px}
-    .status{padding:11px 14px;border-radius:12px;margin:6px 0;border:1px solid rgba(120,130,150,.16)}
-    div[data-testid="stMetric"]{border:1px solid rgba(120,130,150,.16);border-radius:15px;padding:12px}
+    .studio-hero{position:relative;overflow:hidden;padding:30px 34px;border-radius:18px;background:linear-gradient(115deg,#10213f,#174b73);color:#fff;margin:0 0 18px;box-shadow:0 16px 34px rgba(15,23,42,.16)}
+    .studio-hero:after{content:'';position:absolute;right:-80px;bottom:-120px;width:270px;height:270px;border:38px solid rgba(255,255,255,.08);border-radius:50%}
+    .studio-kicker{color:#8be0e9!important;font-size:.68rem;letter-spacing:.15em;font-weight:800}.studio-hero h1{color:#fff!important;font-size:2.2rem;margin:.35rem 0}.studio-hero p{color:#d8e5f3!important;opacity:1;margin:0}
+    .section{font-size:.7rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;opacity:.62;margin:22px 0 9px}
+    .status{padding:12px 14px;border-radius:10px;margin:7px 0;border:1px solid rgba(120,130,150,.16);background:var(--bg-panel)}
+    div[data-testid="stMetric"]{border:1px solid rgba(120,130,150,.16);border-radius:12px;padding:14px;background:var(--bg-panel)}
+    .studio-note{padding:13px 15px;border-left:3px solid #0f766e;border-radius:8px;background:rgba(15,118,110,.07);font-size:.84rem;color:var(--text-secondary);margin:0 0 12px}
+    .studio-note b{color:var(--text-primary)}
     </style>''',unsafe_allow_html=True)
 
 def hero(p):
-    st.markdown(f'<div class="hero"><div class="eyebrow">REBT SUITE · DISEÑADOR PRO v7</div><h1>{html.escape(p["name"])}</h1><p>{html.escape(p.get("type",""))} · {html.escape(p.get("location") or "Ubicación no definida")} · IGA {p.get("iga",40)} A</p></div>',unsafe_allow_html=True)
+    st.markdown(f'<div class="studio-hero"><div class="studio-kicker">REBT SUITE · EXPEDIENTE TÉCNICO</div><h1>{html.escape(p["name"])}</h1><p>{html.escape(p.get("type",""))} · {html.escape(p.get("location") or "Ubicación no definida")} · Protección general {p.get("iga",40)} A</p></div>',unsafe_allow_html=True)
 
 def project_tab():
     p=st.session_state.v7_project
@@ -69,6 +72,7 @@ def circuits_tab():
 
 def overview():
     p=st.session_state.v7_project;cs=st.session_state.v7_circuits;s=summary(cs,p['iga']);a,b,c,d,e=st.columns(5);a.metric('Circuitos',s['circuits']);b.metric('Potencia',f'{s["power_kw"]:.1f} kW');c.metric('🔴 Errores',s['errors']);d.metric('🟠 Avisos',s['warnings']);e.metric('🟢 OK',s['ok'])
+    st.markdown('<div class="studio-note"><b>Estado del expediente.</b> Revisa el inspector antes de exportar documentación. Los indicadores son una prevalidación y no sustituyen la verificación reglamentaria final.</div>',unsafe_allow_html=True)
     st.markdown('<div class="section">Distribución de cargas</div>',unsafe_allow_html=True);ph,imb=phase_balance(cs);currents,three_phase_current=phase_currents_for_board(cs);x,y,z,t=st.columns(4);x.metric('L1',f'{ph[1]:.1f} kW',f'{currents[1]:.1f} A monofásicos');y.metric('L2',f'{ph[2]:.1f} kW',f'{currents[2]:.1f} A monofásicos');z.metric('L3',f'{ph[3]:.1f} kW',f'{currents[3]:.1f} A monofásicos');t.metric('3Φ común',f'{three_phase_current:.1f} A');st.caption(f'Desequilibrio relativo estimado: {imb:.1f}% · Las cargas trifásicas se muestran por separado porque afectan a las tres fases.')
     if cs:
         df=pd.DataFrame([{'Circuito':c['name'],'Uso':c['kind'],'kW':c['power_kw'],'m':c['length_m'],'Sección':c['section'],'PIA':c['breaker'],'ΔV %':round(voltage_drop_pct(c['power_kw'],c['length_m'],c['section'],c['voltage'],c.get('phases',1),c.get('cosphi',1)),2)} for c in cs if c.get('enabled',True)]);st.dataframe(df,use_container_width=True,hide_index=True)

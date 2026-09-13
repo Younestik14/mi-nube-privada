@@ -1342,6 +1342,53 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
     .titleblock {{ flex-direction: column; }}
     .kpi-value {{ font-size: 1.2rem; }}
 }}
+
+/* ============ Professional studio refresh ============ */
+.stApp {{
+    background: radial-gradient(circle at 80% -20%, var(--accent-soft), transparent 30%), var(--bg-primary);
+}}
+.block-container {{ max-width: 1440px; padding-top: 2rem; padding-bottom: 3rem; }}
+section[data-testid="stSidebar"] {{ border-right: 1px solid var(--border-subtle); }}
+.sidebar-brand {{ padding: 1.1rem 0.35rem 1.35rem; }}
+.sidebar-brand .logo {{ border-radius: 12px; box-shadow: 0 8px 20px rgba(37,99,235,.25); }}
+.titleblock {{
+    border: 0; border-radius: 18px; box-shadow: var(--shadow-sm);
+    background: linear-gradient(115deg, var(--bg-panel), var(--bg-panel-alt));
+}}
+.titleblock-main {{ padding: 1.45rem 1.6rem; }}
+.titleblock-main h1 {{ font-size: clamp(1.55rem, 2vw, 2rem); }}
+.kpi-card, .result-card, .progress-section, .glossary-entry {{
+    border-radius: 14px; box-shadow: var(--shadow-sm);
+}}
+.kpi-card {{ padding: 1.15rem 1.2rem; }}
+.kpi-icon {{ border-radius: 11px; }}
+.section-label {{ border: 0; margin-top: 1.5rem; padding-bottom: 0; letter-spacing: .11em; }}
+.stButton button, .stDownloadButton button {{ border-radius: 10px; }}
+.stTabs [data-baseweb="tab-list"] {{ border-radius: 11px; padding: 4px; }}
+.stTabs [data-baseweb="tab"] {{ border-radius: 8px; }}
+
+.workspace-hero {{
+    position: relative; overflow: hidden; padding: 2.35rem; margin-bottom: 1.25rem;
+    border-radius: 20px; color: #f8fafc;
+    background: linear-gradient(125deg, #0b1732 0%, #173d72 58%, #0b6c7f 100%);
+    box-shadow: 0 18px 40px rgba(15, 23, 42, .18);
+}}
+.workspace-hero:after {{
+    content: ''; position: absolute; width: 260px; height: 260px; right: -85px; top: -105px;
+    border: 42px solid rgba(255,255,255,.08); border-radius: 50%;
+}}
+.workspace-kicker {{ color: #7dd3fc !important; font-weight: 700; font-size: .7rem; letter-spacing: .14em; text-transform: uppercase; }}
+.workspace-hero h1 {{ color: #fff !important; max-width: 660px; margin: .45rem 0 .55rem; font-size: clamp(1.8rem, 3.4vw, 2.8rem); }}
+.workspace-hero p {{ color: #cbd5e1 !important; max-width: 610px; margin: 0; font-size: 1rem; line-height: 1.6; }}
+.mode-card {{
+    min-height: 230px; padding: 1.55rem; border: 1px solid var(--border-subtle); border-radius: 16px;
+    background: var(--bg-panel); box-shadow: var(--shadow-sm); transition: transform .18s ease, box-shadow .18s ease;
+}}
+.mode-card:hover {{ transform: translateY(-3px); box-shadow: var(--shadow-md); }}
+.mode-icon {{ width: 46px; height: 46px; display:flex; align-items:center; justify-content:center; border-radius:12px; font-size:1.35rem; background:var(--accent-soft); margin-bottom:1rem; }}
+.mode-card h3 {{ margin: 0 0 .45rem; font-size: 1.12rem; }}
+.mode-card p {{ margin: 0; color: var(--text-secondary); line-height: 1.55; font-size: .87rem; }}
+@media (max-width: 700px) {{ .workspace-hero {{ padding: 1.55rem; }} .block-container {{ padding: 1rem .8rem 2rem; }} }}
 </style>
 """
 
@@ -1369,7 +1416,7 @@ def _inicializar_estado():
     defaults = {
         "pagina_actual": "Inicio",
         "modo_app": None,
-        "tema": "Oscuro",
+        "tema": "Claro",
         "config_profesional": {"nombre": "", "empresa": "", "logo_b64": "", "firma": ""},
         "historial_proyectos": [],
         "actividad": [],
@@ -7901,38 +7948,26 @@ def _render_flujo_recomendado(hay_cable: bool, hay_fv: bool, n_capitulos: int, d
 def _render_landing():
     """Página de bienvenida con dos modos: Proyecto de instalación y Cálculos eléctricos."""
     nombre = st.session_state["config_profesional"].get("nombre") or "técnicos"
-    st.markdown(f"### Hola, {nombre}")
-    st.markdown('<p style="color:var(--text-secondary);font-size:0.95rem;margin-top:-0.3rem;">'
-                '¿Qué quieres hacer hoy?</p>', unsafe_allow_html=True)
+    st.markdown(f'''<section class="workspace-hero">
+        <div class="workspace-kicker">REBT SUITE · ESPACIO DE TRABAJO</div>
+        <h1>Diseña instalaciones con criterio y claridad.</h1>
+        <p>Hola, {nombre}. Elige un entorno para calcular, documentar y presentar tus proyectos eléctricos con una experiencia de trabajo más ordenada.</p>
+    </section>''', unsafe_allow_html=True)
 
     col1, col2 = st.columns(2, gap="large")
 
     with col1:
-        st.markdown('''<div style="background:var(--bg-panel); border:2px solid var(--accent-primary);
-            border-radius:var(--radius); padding:2rem 1.5rem; text-align:center; margin-bottom:0.5rem;">
-            <div style="font-size:2.5rem; margin-bottom:0.6rem;">📋</div>
-            <div style="font-size:1.15rem; font-weight:700; margin-bottom:0.4rem;">Proyecto de instalación</div>
-            <div style="font-size:0.82rem; color:var(--text-secondary); line-height:1.5;">
-                Todo lo necesario para diseñar, documentar y entregar un proyecto eléctrico completo:<br>
-                cálculos, presupuesto, documentación técnica y gestión de proyectos.
-            </div>
-        </div>''', unsafe_allow_html=True)
-        if st.button("Entrar en Proyecto", key="btn_modo_proyecto", type="primary", width='stretch'):
+        st.markdown('''<div class="mode-card"><div class="mode-icon">▦</div><h3>Gestión de proyecto</h3>
+            <p>Centraliza circuitos, presupuesto, documentación y entregables en un mismo expediente técnico.</p></div>''', unsafe_allow_html=True)
+        if st.button("Abrir espacio de proyecto", key="btn_modo_proyecto", type="primary", width='stretch'):
             st.session_state["modo_app"] = "proyecto"
             st.session_state["pagina_actual"] = "Inicio"
             st.rerun()
 
     with col2:
-        st.markdown('''<div style="background:var(--bg-panel); border:2px solid var(--accent-primary);
-            border-radius:var(--radius); padding:2rem 1.5rem; text-align:center; margin-bottom:0.5rem;">
-            <div style="font-size:2.5rem; margin-bottom:0.6rem;">🧮</div>
-            <div style="font-size:1.15rem; font-weight:700; margin-bottom:0.4rem;">Cálculos eléctricos</div>
-            <div style="font-size:0.82rem; color:var(--text-secondary); line-height:1.5;">
-                Calculadoras independientes de electricidad:<br>
-                sección de cables, fotovoltaica, tierras, cortocircuitos, tablas normativas y más.
-            </div>
-        </div>''', unsafe_allow_html=True)
-        if st.button("Entrar en Cálculos", key="btn_modo_calculos", type="primary", width='stretch'):
+        st.markdown('''<div class="mode-card"><div class="mode-icon">⌁</div><h3>Herramientas de cálculo</h3>
+            <p>Resuelve secciones, protecciones, fotovoltaica y verificaciones rápidas con trazabilidad técnica.</p></div>''', unsafe_allow_html=True)
+        if st.button("Abrir herramientas de cálculo", key="btn_modo_calculos", type="primary", width='stretch'):
             st.session_state["modo_app"] = "calculos"
             st.session_state["pagina_actual"] = "Calculadora"
             st.rerun()
