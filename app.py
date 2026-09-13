@@ -1497,8 +1497,12 @@ def calcular(inp: dict) -> dict:
         avisos.append("La temperatura ambiente introducida iguala o supera la temperatura máxima de servicio "
                        "del aislamiento elegido: instalación no viable en estas condiciones.")
 
+    # The conductor must also sustain the selected standard protection, not
+    # only Ib.  Sizing against Ib first and picking the next standard breaker
+    # afterwards can otherwise produce the unsafe condition In > Iz.
+    calibre = calibre_magnetotermico_sugerido(ib_calculo)
     s_termica, iz_termica, necesita_paralelo, n_paralelo = seccion_por_criterio_termico(
-        ib_calculo, inp["metodo"], inp["aislamiento"], inp["conductor"], n_cargados, factor_total)
+        calibre, inp["metodo"], inp["aislamiento"], inp["conductor"], n_cargados, factor_total)
 
     kappa = kappa_servicio(inp["conductor"], inp["aislamiento"], inp["usar_kappa_20c"])
     ib_paralelo = ib_calculo / n_paralelo if necesita_paralelo else ib_calculo
@@ -1543,8 +1547,6 @@ def calcular(inp: dict) -> dict:
         if not cumple_cc:
             avisos.append(f"La sección adoptada no soporta térmicamente el cortocircuito indicado: se "
                            f"necesitarían ≥ {s_min_cc:g} mm² (o una protección más rápida/limitadora).")
-
-    calibre = calibre_magnetotermico_sugerido(ib_calculo)
 
     return dict(
         n_cargados=n_cargados, ib=ib, ib_calculo=ib_calculo, ib_motor=ib_motor,

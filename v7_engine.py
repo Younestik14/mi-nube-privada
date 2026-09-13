@@ -23,10 +23,16 @@ def current_from_power(power_kw,voltage=230,phases=1,cosphi=1):
     return power_kw*1000/(voltage*cosphi*(math.sqrt(3) if phases==3 else 1))
 
 def voltage_drop_pct(power_kw,length_m,section,voltage=230,phases=1,cosphi=1,rho=0.0175):
+    """Voltage drop as a percentage.
+
+    ``rho`` is expressed in ohm·mm²/m, so length must stay in metres.  The
+    previous implementation divided by 1,000 a second time, making every
+    voltage-drop result one thousand times too optimistic.
+    """
     if min(section,voltage)<=0:return 999.0
     ib=current_from_power(power_kw,voltage,phases,cosphi)
     factor=math.sqrt(3) if phases==3 else 2
-    return factor*length_m*ib*rho/(section*1000)/voltage*100
+    return factor*length_m*ib*rho/section/voltage*100
 
 def suggest_section(power_kw,length_m,voltage=230,phases=1,cosphi=1,limit=5,material='Cobre'):
     rho=.0175 if material=='Cobre' else .0282
@@ -36,13 +42,19 @@ def suggest_section(power_kw,length_m,voltage=230,phases=1,cosphi=1,limit=5,mate
         iz=IZ_CU[s]*factor; dv=voltage_drop_pct(power_kw,length_m,s,voltage,phases,cosphi,rho)
         if iz>=ib and dv<=limit:
             possible=[b for b in BREAKERS if b>=math.ceil(ib) and b<=iz]
-            return s,(possible[0] if possible else BREAKERS[-1]),ib,dv
-    return SECTIONS[-1],BREAKERS[-1],ib,voltage_drop_pct(power_kw,length_m,SECTIONS[-1],voltage,phases,cosphi,rho)
+            return s,(possible[0] if possible else None),ib,dv
+    return None,None,ib,voltage_drop_pct(power_kw,length_m,SECTIONS[-1],voltage,phases,cosphi,rho)
 
 def auto_dimension(c):
     lim=3 if c.get('kind')=='Alumbrado' else 5
     s,b,ib,dv=suggest_section(c['power_kw'],c['length_m'],c.get('voltage',230),c.get('phases',1),c.get('cosphi',1),lim,c.get('material','Cobre'))
-    o=dict(c);o.update(section=s,breaker=b,estimated_ib=ib,estimated_dv=dv);return o
+    o=dict(c)
+    # Do not overwrite a valid existing value with None when the fixed, simple
+    # v7 table has no compliant solution. The inspector will explain why.
+    if s is not None:o['section']=s
+    if b is not None:o['breaker']=b
+    o.update(estimated_ib=ib,estimated_dv=dv,auto_dimensioned=s is not None and b is not None)
+    return o
 
 def normalize_circuit(c):
     d=new_circuit()
@@ -59,7 +71,8 @@ def inspect(circuits,main_breaker=40):
         iz=IZ_CU.get(float(c['section']),0)*(0.82 if c.get('material')=='Aluminio' else 1)
         dv=voltage_drop_pct(c['power_kw'],c['length_m'],c['section'],c['voltage'],c.get('phases',1),c.get('cosphi',1),.0175 if c.get('material','Cobre')=='Cobre' else .0282)
         lim=3 if c['kind']=='Alumbrado' else 5
-        if iz and c['breaker']>iz: findings.append(('error',c['name'],f'PIA {c["breaker"]} A supera Iz≈{iz:g} A.'))
+        if c['breaker'] < ib: findings.append(('error',c['name'],f'PIA {c["breaker"]} A es inferior a Ib {ib:.1f} A.'))
+        elif iz and c['breaker']>iz: findings.append(('error',c['name'],f'PIA {c["breaker"]} A supera Iz≈{iz:g} A.'))
         elif iz and ib>iz: findings.append(('error',c['name'],f'Ib {ib:.1f} A supera Iz≈{iz:g} A.'))
         else: findings.append(('ok',c['name'],f'Ib {ib:.1f} A · PIA {c["breaker"]} A · Iz≈{iz:g} A.'))
         if dv>lim: findings.append(('error',c['name'],f'Caída {dv:.2f}% > {lim:.1f}%.'))
@@ -67,8 +80,12 @@ def inspect(circuits,main_breaker=40):
         else: findings.append(('ok',c['name'],f'Caída {dv:.2f}% ≤ {lim:.1f}%.'))
         if c.get('differential')=='Sin diferencial':findings.append(('warning',c['name'],'Revisar protección diferencial aplicable.'))
         if not c.get('box'):findings.append(('warning',c['name'],'No se ha definido caja de derivación.'))
-    total=sum(max(0,c['power_kw']) for c in circuits if c.get('enabled',True))
-    if total>main_breaker*230/1000:findings.append(('warning','Cuadro',f'{total:.1f} kW instalados frente a {main_breaker} A de IGA teórico.'))
+    phase_currents, three_phase_current = phase_currents_for_board(circuits)
+    overloaded=[f'L{phase}' for phase,current in phase_currents.items() if current>main_breaker]
+    if three_phase_current>main_breaker:
+        overloaded.append('carga trifásica')
+    if overloaded:
+        findings.append(('warning','Cuadro',f'IGA {main_breaker} A superado en {", ".join(overloaded)} (sin simultaneidad).'))
     return findings
 
 def summary(circuits,main_breaker):
@@ -82,6 +99,23 @@ def phase_balance(circuits):
     vals=list(p.values()); avg=sum(vals)/3 if vals else 0
     imbalance=(max(vals)-min(vals))/avg*100 if avg else 0
     return p,imbalance
+
+def phase_currents_for_board(circuits):
+    """Return single-phase current by phase and the total three-phase current.
+
+    A three-phase load draws the same current through all three phases and
+    therefore must not be assigned to just L1/L2/L3 for balancing.
+    """
+    currents={1:0.,2:0.,3:0.}; three_phase_current=0.
+    for i,c in enumerate(circuits):
+        if not c.get('enabled',True):continue
+        ib=current_from_power(c['power_kw'],c['voltage'],c.get('phases',1),c.get('cosphi',1))
+        if c.get('phases',1)==3:
+            three_phase_current+=ib
+        else:
+            phase=int(c.get('phase',(i%3)+1))
+            currents[phase]=currents.get(phase,0)+ib
+    return currents,three_phase_current
 
 def budget_items(circuits):
     rows=[]
