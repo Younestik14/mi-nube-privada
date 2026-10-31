@@ -312,6 +312,250 @@ def ui_fv():
     st.metric("Ratio performance", f"{res['ratio_performance']}")
 
 
+def ui_vfd():
+    st.subheader("Variador de frecuencia (VFD)")
+    motor_kw = _num("Potencia motor (kW)", 7.5, min_value=0.1, step=0.5, key="vfd_motor")
+    voltage = st.selectbox("Tensión (V)", [230, 400], key="vfd_volt")
+    phases = st.selectbox("Fases", [1, 3], key="vfd_phases")
+    freq_in = st.selectbox("Frecuencia entrada (Hz)", [50, 60], key="vfd_fin")
+    freq_out = _num("Frecuencia salida (Hz)", 50.0, min_value=1.0, step=1.0, key="vfd_fout")
+    eff = _num("Rendimiento", 0.97, min_value=0.1, max_value=1.0, step=0.01, key="vfd_eff")
+    pf = _num("cos φ", 0.95, min_value=0.1, max_value=1.0, step=0.01, key="vfd_pf")
+    res = vfd_calc(motor_kw, voltage, phases, freq_in, freq_out, eff, pf)
+    c1, c2, c3 = st.columns(3)
+    c1.metric("I motor (A)", f"{res['i_motor_a']}")
+    c2.metric("I entrada (A)", f"{res['i_input_a']}")
+    c3.metric("THD-i (%)", f"{res['thd_i_pct']}")
+    st.metric("Armónicos (A)", f"{res['i_harmonic_a']}")
+
+
+def ui_motor_3phase():
+    st.subheader("Motor trifásico — par y arranque")
+    power = _num("Potencia (kW)", 15.0, min_value=0.1, step=0.5, key="m3_power")
+    voltage = st.selectbox("Tensión (V)", [230, 400], key="m3_volt")
+    phases = st.selectbox("Fases", [3], key="m3_phases")
+    cosphi = _num("cos φ", 0.85, min_value=0.1, max_value=1.0, step=0.01, key="m3_cosphi")
+    eff = _num("Rendimiento", 0.9, min_value=0.1, max_value=1.0, step=0.01, key="m3_eff")
+    slip = _num("Deslizamiento", 0.03, min_value=0.01, max_value=0.1, step=0.01, key="m3_slip")
+    poles = st.selectbox("Polos", [2, 4, 6, 8], key="m3_poles")
+    res = motor_3phase(power, voltage, phases, cosphi, eff, slip, poles)
+    c1, c2, c3 = st.columns(3)
+    c1.metric("n sincrónica (rpm)", f"{res['omega_sync_rpm']}")
+    c2.metric("n rotor (rpm)", f"{res['omega_rotor_rpm']}")
+    c3.metric("Par nominal (Nm)", f"{res['torque_nom_nm']}")
+    c1.metric("Par arranque (Nm)", f"{res['torque_start_nm']}")
+    c2.metric("I nominal (A)", f"{res['i_nom_a']}")
+    c3.metric("I arranque directo (A)", f"{res['i_start_direct_a']}")
+    st.metric("I arranque Y-Δ (A)", f"{res['i_start_yd_a']}")
+
+
+def ui_sensor():
+    st.subheader("Sensor 4-20mA")
+    value = _num("Valor físico", 50.0, step=1.0, key="sen_value")
+    rmin = _num("Rango mínimo", 0.0, step=1.0, key="sen_rmin")
+    rmax = _num("Rango máximo", 100.0, step=1.0, key="sen_rmax")
+    rload = _num("Resistencia carga (Ω)", 250.0, step=10.0, key="sen_rload")
+    res = sensor_4_20ma(value, rmin, rmax, rload)
+    if "error" in res:
+        st.error(res["error"])
+        return
+    c1, c2 = st.columns(2)
+    c1.metric("Corriente (mA)", f"{res['i_ma']}")
+    c2.metric("Tensión salida (V)", f"{res['v_out']}")
+
+
+def ui_pt100():
+    st.subheader("Pt100 — temperatura")
+    r = _num("Resistencia (Ω)", 100.0, min_value=0.0, step=0.1, key="pt_r")
+    res = pt100_temp(r)
+    if "error" in res:
+        st.error(res["error"])
+        return
+    st.metric("Temperatura (°C)", f"{res['temperature_c']}")
+
+
+def ui_modbus():
+    st.subheader("Modbus RTU — cable")
+    dist = _num("Distancia (m)", 200.0, min_value=1.0, step=10.0, key="mb_dist")
+    baud = st.selectbox("Baudrate", [9600, 19200, 38400, 57600, 115200], key="mb_baud")
+    slaves = st.number_input("Nº esclavos", min_value=1, value=5, step=1, key="mb_slaves")
+    res = modbus_cable(dist, baud, slaves)
+    c1, c2 = st.columns(2)
+    c1.metric("Longitud máx (m)", f"{res['max_length_m']}")
+    c2.metric("Cumple longitud", "✅" if res["cumple_longitud"] else "❌")
+    c1.metric("Cumple esclavos", "✅" if res["cumple_slaves"] else "❌")
+    c2.metric("Terminación 120Ω", "Sí" if res["terminacion_120ohm"] else "No")
+
+
+def ui_panel_thermal():
+    st.subheader("Cuadro de control — disipación térmica")
+    power = _num("Potencia disipada (W)", 50.0, min_value=0.1, step=1.0, key="pt_power")
+    area = _num("Área disponible (m²)", 1.0, min_value=0.1, step=0.1, key="pt_area")
+    tamb = _num("Temp. ambiente (°C)", 40.0, step=1.0, key="pt_tamb")
+    tmax = _num("Temp. máxima (°C)", 55.0, step=1.0, key="pt_tmax")
+    res = panel_thermal(power, area, tamb, tmax)
+    if "error" in res:
+        st.error(res["error"])
+        return
+    c1, c2 = st.columns(2)
+    c1.metric("Área necesaria (m²)", f"{res['area_needed_m2']}")
+    c2.metric("Cumple", "✅" if res["cumple"] else "❌")
+    st.metric("Ventilación necesaria", "Sí" if res["ventilacion_necesaria"] else "No")
+
+
+def ui_protection_coord():
+    st.subheader("Coordinación de protecciones")
+    i_fault = _num("Corriente de defecto (A)", 500.0, min_value=1.0, step=10.0, key="pc_ifault")
+    b1 = _num("PIA aguas arriba (A)", 63.0, min_value=1.0, step=1.0, key="pc_b1")
+    b2 = _num("PIA aguas abajo (A)", 16.0, min_value=1.0, step=1.0, key="pc_b2")
+    curve1 = st.selectbox("Curva aguas arriba", ["B", "C", "D"], key="pc_curve1")
+    curve2 = st.selectbox("Curva aguas abajo", ["B", "C", "D"], key="pc_curve2")
+    res = protection_coordination(i_fault, b1, b2, curve1, curve2)
+    c1, c2 = st.columns(2)
+    c1.metric("Mag. mín. aguas arriba (A)", f"{res['mag1_min']}")
+    c2.metric("Mag. mín. aguas abajo (A)", f"{res['mag2_min']}")
+    if res["selective"]:
+        st.success(f"✅ {res['msg']}")
+    else:
+        st.error(f"❌ {res['msg']}")
+
+
+def ui_thermal_relay():
+    st.subheader("Relé térmico — motor")
+    i_nom = _num("I nominal (A)", 20.0, min_value=0.1, step=1.0, key="tr_i_nom")
+    i_start = _num("I arranque (A)", 120.0, min_value=0.1, step=1.0, key="tr_i_start")
+    sf = _num("Factor de servicio", 1.15, min_value=1.0, step=0.05, key="tr_sf")
+    res = thermal_relay(i_nom, i_start, sf)
+    c1, c2 = st.columns(2)
+    c1.metric("I ajuste (A)", f"{res['i_set_a']}")
+    c2.metric("Rango (A)", f"{res['range'][0]} — {res['range'][1]}")
+    st.metric("Clase de disparo", res["trip_class"])
+
+
+# ── CALCS dict ──────────────────────────────────────────────
+
+
+def ui_vfd():
+    st.subheader("Variador de frecuencia (VFD)")
+    motor_kw = _num("Potencia motor (kW)", 7.5, min_value=0.1, step=0.5, key="vfd_motor")
+    voltage = st.selectbox("Tensión (V)", [230, 400], key="vfd_volt")
+    phases = st.selectbox("Fases", [1, 3], key="vfd_phases")
+    freq_in = st.selectbox("Frecuencia entrada (Hz)", [50, 60], key="vfd_fin")
+    freq_out = _num("Frecuencia salida (Hz)", 50.0, min_value=1.0, step=1.0, key="vfd_fout")
+    eff = _num("Rendimiento", 0.97, min_value=0.1, max_value=1.0, step=0.01, key="vfd_eff")
+    pf = _num("cos φ", 0.95, min_value=0.1, max_value=1.0, step=0.01, key="vfd_pf")
+    res = vfd_calc(motor_kw, voltage, phases, freq_in, freq_out, eff, pf)
+    c1, c2, c3 = st.columns(3)
+    c1.metric("I motor (A)", f"{res['i_motor_a']}")
+    c2.metric("I entrada (A)", f"{res['i_input_a']}")
+    c3.metric("THD-i (%)", f"{res['thd_i_pct']}")
+    st.metric("Armónicos (A)", f"{res['i_harmonic_a']}")
+
+
+def ui_motor_3phase():
+    st.subheader("Motor trifásico — par y arranque")
+    power = _num("Potencia (kW)", 15.0, min_value=0.1, step=0.5, key="m3_power")
+    voltage = st.selectbox("Tensión (V)", [230, 400], key="m3_volt")
+    phases = st.selectbox("Fases", [3], key="m3_phases")
+    cosphi = _num("cos φ", 0.85, min_value=0.1, max_value=1.0, step=0.01, key="m3_cosphi")
+    eff = _num("Rendimiento", 0.9, min_value=0.1, max_value=1.0, step=0.01, key="m3_eff")
+    slip = _num("Deslizamiento", 0.03, min_value=0.01, max_value=0.1, step=0.01, key="m3_slip")
+    poles = st.selectbox("Polos", [2, 4, 6, 8], key="m3_poles")
+    res = motor_3phase(power, voltage, phases, cosphi, eff, slip, poles)
+    c1, c2, c3 = st.columns(3)
+    c1.metric("n sincrónica (rpm)", f"{res['omega_sync_rpm']}")
+    c2.metric("n rotor (rpm)", f"{res['omega_rotor_rpm']}")
+    c3.metric("Par nominal (Nm)", f"{res['torque_nom_nm']}")
+    c1.metric("Par arranque (Nm)", f"{res['torque_start_nm']}")
+    c2.metric("I nominal (A)", f"{res['i_nom_a']}")
+    c3.metric("I arranque directo (A)", f"{res['i_start_direct_a']}")
+    st.metric("I arranque Y-Δ (A)", f"{res['i_start_yd_a']}")
+
+
+def ui_sensor():
+    st.subheader("Sensor 4-20mA")
+    value = _num("Valor físico", 50.0, step=1.0, key="sen_value")
+    rmin = _num("Rango mínimo", 0.0, step=1.0, key="sen_rmin")
+    rmax = _num("Rango máximo", 100.0, step=1.0, key="sen_rmax")
+    rload = _num("Resistencia carga (Ω)", 250.0, step=10.0, key="sen_rload")
+    res = sensor_4_20ma(value, rmin, rmax, rload)
+    if "error" in res:
+        st.error(res["error"])
+        return
+    c1, c2 = st.columns(2)
+    c1.metric("Corriente (mA)", f"{res['i_ma']}")
+    c2.metric("Tensión salida (V)", f"{res['v_out']}")
+
+
+def ui_pt100():
+    st.subheader("Pt100 — temperatura")
+    r = _num("Resistencia (Ω)", 100.0, min_value=0.0, step=0.1, key="pt_r")
+    res = pt100_temp(r)
+    if "error" in res:
+        st.error(res["error"])
+        return
+    st.metric("Temperatura (°C)", f"{res['temperature_c']}")
+
+
+def ui_modbus():
+    st.subheader("Modbus RTU — cable")
+    dist = _num("Distancia (m)", 200.0, min_value=1.0, step=10.0, key="mb_dist")
+    baud = st.selectbox("Baudrate", [9600, 19200, 38400, 57600, 115200], key="mb_baud")
+    slaves = st.number_input("Nº esclavos", min_value=1, value=5, step=1, key="mb_slaves")
+    res = modbus_cable(dist, baud, slaves)
+    c1, c2 = st.columns(2)
+    c1.metric("Longitud máx (m)", f"{res['max_length_m']}")
+    c2.metric("Cumple longitud", "✅" if res["cumple_longitud"] else "❌")
+    c1.metric("Cumple esclavos", "✅" if res["cumple_slaves"] else "❌")
+    c2.metric("Terminación 120Ω", "Sí" if res["terminacion_120ohm"] else "No")
+
+
+def ui_panel_thermal():
+    st.subheader("Cuadro de control — disipación térmica")
+    power = _num("Potencia disipada (W)", 50.0, min_value=0.1, step=1.0, key="pt_power")
+    area = _num("Área disponible (m²)", 1.0, min_value=0.1, step=0.1, key="pt_area")
+    tamb = _num("Temp. ambiente (°C)", 40.0, step=1.0, key="pt_tamb")
+    tmax = _num("Temp. máxima (°C)", 55.0, step=1.0, key="pt_tmax")
+    res = panel_thermal(power, area, tamb, tmax)
+    if "error" in res:
+        st.error(res["error"])
+        return
+    c1, c2 = st.columns(2)
+    c1.metric("Área necesaria (m²)", f"{res['area_needed_m2']}")
+    c2.metric("Cumple", "✅" if res["cumple"] else "❌")
+    st.metric("Ventilación necesaria", "Sí" if res["ventilacion_necesaria"] else "No")
+
+
+def ui_protection_coord():
+    st.subheader("Coordinación de protecciones")
+    i_fault = _num("Corriente de defecto (A)", 500.0, min_value=1.0, step=10.0, key="pc_ifault")
+    b1 = _num("PIA aguas arriba (A)", 63.0, min_value=1.0, step=1.0, key="pc_b1")
+    b2 = _num("PIA aguas abajo (A)", 16.0, min_value=1.0, step=1.0, key="pc_b2")
+    curve1 = st.selectbox("Curva aguas arriba", ["B", "C", "D"], key="pc_curve1")
+    curve2 = st.selectbox("Curva aguas abajo", ["B", "C", "D"], key="pc_curve2")
+    res = protection_coordination(i_fault, b1, b2, curve1, curve2)
+    c1, c2 = st.columns(2)
+    c1.metric("Mag. mín. aguas arriba (A)", f"{res['mag1_min']}")
+    c2.metric("Mag. mín. aguas abajo (A)", f"{res['mag2_min']}")
+    if res["selective"]:
+        st.success(f"✅ {res['msg']}")
+    else:
+        st.error(f"❌ {res['msg']}")
+
+
+def ui_thermal_relay():
+    st.subheader("Relé térmico — motor")
+    i_nom = _num("I nominal (A)", 20.0, min_value=0.1, step=1.0, key="tr_i_nom")
+    i_start = _num("I arranque (A)", 120.0, min_value=0.1, step=1.0, key="tr_i_start")
+    sf = _num("Factor de servicio", 1.15, min_value=1.0, step=0.05, key="tr_sf")
+    res = thermal_relay(i_nom, i_start, sf)
+    c1, c2 = st.columns(2)
+    c1.metric("I ajuste (A)", f"{res['i_set_a']}")
+    c2.metric("Rango (A)", f"{res['range'][0]} — {res['range'][1]}")
+    st.metric("Clase de disparo", res["trip_class"])
+
+
+# ── CALCS dict ──────────────────────────────────────────────
 CALCS = {
     "Sección de cable": ui_section,
     "Caída de tensión": ui_voltage_drop,
@@ -332,4 +576,12 @@ CALCS = {
     "Flicker": ui_flicker,
     "Aislamiento": ui_insulation,
     "Fotovoltaica": ui_fv,
+    "Variador de frecuencia (VFD)": ui_vfd,
+    "Motor trifásico": ui_motor_3phase,
+    "Sensor 4-20mA": ui_sensor,
+    "Pt100": ui_pt100,
+    "Modbus RTU": ui_modbus,
+    "Cuadro de control (térmico)": ui_panel_thermal,
+    "Coordinación de protecciones": ui_protection_coord,
+    "Relé térmico": ui_thermal_relay,
 }

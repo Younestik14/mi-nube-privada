@@ -323,3 +323,147 @@ def insulation_check(voltage, r_iso_mohm, min_mohm=1.0):
         "voltage": voltage, "r_iso_mohm": r_iso_mohm, "min_mohm": min_mohm,
         "cumple": r_iso_mohm >= min_mohm,
     }
+
+
+# ── 21. Variador de frecuencia (VFD) ────────────────────────
+def vfd_calc(motor_kw, voltage=400, phases=3, freq_in=50, freq_out=50,
+             efficiency=0.97, power_factor=0.95):
+    """Corriente de entrada al variador y armónicos."""
+    p_in = motor_kw / efficiency if efficiency > 0 else motor_kw
+    i_motor = p_in * 1000 / (voltage * power_factor * (math.sqrt(3) if phases == 3 else 1))
+    # corriente de entrada (lado red) considerando eficiencia
+    i_input = i_motor / efficiency if efficiency > 0 else i_motor
+    # armónicos típicos de un VFD de 6 pulsos: THD-i ~30%
+    thd_i = 30.0
+    i_harmonic = i_input * thd_i / 100
+    return {
+        "motor_kw": motor_kw, "p_in_kw": round(p_in, 2),
+        "i_motor_a": round(i_motor, 2), "i_input_a": round(i_input, 2),
+        "thd_i_pct": thd_i, "i_harmonic_a": round(i_harmonic, 2),
+        "freq_out_hz": freq_out,
+    }
+
+
+# ── 22. Motor trifásico — par y arranque ─────────────────────
+def motor_3phase(power_kw, voltage=400, phases=3, cosphi=0.85, efficiency=0.9,
+                 slip=0.03, poles=4):
+    """Par nominal, par de arranque, velocidad sincrónica."""
+    p_mech = power_kw * 1000
+    omega_sync = 2 * math.pi * 50 / (poles / 2) if poles > 0 else 0
+    omega_rotor = omega_sync * (1 - slip)
+    torque_nom = p_mech / omega_rotor if omega_rotor > 0 else 0
+    torque_start = torque_nom * 1.5  # arranque directo ~1.5x
+    i_nom = p_mech / (efficiency * voltage * cosphi * math.sqrt(3)) if voltage > 0 else 0
+    i_start = i_nom * 6  # arranque directo ~6x
+    # arranque estrella-triángulo
+    i_start_yd = i_start / 3
+    return {
+        "power_kw": power_kw, "voltage": voltage, "poles": poles,
+        "omega_sync_rpm": round(omega_sync * 60 / (2 * math.pi), 0),
+        "omega_rotor_rpm": round(omega_rotor * 60 / (2 * math.pi), 0),
+        "torque_nom_nm": round(torque_nom, 1),
+        "torque_start_nm": round(torque_start, 1),
+        "i_nom_a": round(i_nom, 2), "i_start_direct_a": round(i_start, 1),
+        "i_start_yd_a": round(i_start_yd, 1),
+    }
+
+
+# ── 23. Sensor 4-20mA ───────────────────────────────────────
+def sensor_4_20ma(value, range_min, range_max, r_load=250):
+    """Convierte señal 4-20mA a valor físico."""
+    if range_max <= range_min:
+        return {"error": "Rango inválido"}
+    span = range_max - range_min
+    # corriente proporcional
+    i_ma = 4 + (value - range_min) / span * 16
+    v_out = i_ma / 1000 * r_load
+    return {
+        "value": value, "range": (range_min, range_max),
+        "i_ma": round(i_ma, 3), "v_out": round(v_out, 3),
+        "r_load_ohm": r_load,
+    }
+
+
+# ── 24. Pt100 — temperatura ─────────────────────────────────
+def pt100_temp(resistance_ohm):
+    """Temperatura a partir de resistencia Pt100 (IEC 60751)."""
+    # R = R0 * (1 + A*t + B*t²) para t >= 0
+    R0 = 100.0
+    A = 3.9083e-3
+    B = -5.775e-7
+    # resolver cuadrática: B*t² + A*t + (1 - R/R0) = 0
+    c = 1 - resistance_ohm / R0
+    disc = A * A - 4 * B * c
+    if disc < 0:
+        return {"error": "Resistencia fuera de rango"}
+    t = (-A + math.sqrt(disc)) / (2 * B) if B != 0 else -c / A
+    return {"resistance_ohm": resistance_ohm, "temperature_c": round(t, 2)}
+
+
+# ── 25. Red industrial — Modbus RTU ─────────────────────────
+def modbus_cable(distance_m, baudrate=9600, num_slaves=10):
+    """Verificación de cable Modbus RTU (RS-485)."""
+    # longitud máxima según baudrate
+    max_lengths = {300: 1200, 600: 1200, 1200: 1000, 2400: 1000, 4800: 1000,
+                   9600: 1000, 19200: 500, 38400: 250, 57600: 100, 115200: 100}
+    max_len = max_lengths.get(baudrate, 1000)
+    # terminación: 120Ω en ambos extremos si > 100m o > 19200 baud
+    need_termination = distance_m > 100 or baudrate > 19200
+    return {
+        "distance_m": distance_m, "baudrate": baudrate,
+        "max_length_m": max_len, "cumple_longitud": distance_m <= max_len,
+        "num_slaves": num_slaves, "max_slaves": 32,
+        "cumple_slaves": num_slaves <= 32,
+        "terminacion_120ohm": need_termination,
+    }
+
+
+# ── 26. Cuadro de control — disipación térmica ──────────────
+def panel_thermal(power_dissipated_w, area_m2, temp_ambient=40, temp_max=55):
+    """Verifica si el cuadro necesita ventilación."""
+    delta_t = temp_max - temp_ambient
+    if delta_t <= 0:
+        return {"error": "Temperatura máxima debe ser > ambiente"}
+    # coeficiente de transmisión típico: 5.5 W/m²K
+    k = 5.5
+    area_needed = power_dissipated_w / (k * delta_t) if k * delta_t > 0 else 0
+    return {
+        "power_dissipated_w": power_dissipated_w,
+        "area_needed_m2": round(area_needed, 3),
+        "area_available_m2": area_m2,
+        "cumple": area_m2 >= area_needed,
+        "ventilacion_necesaria": area_m2 < area_needed,
+    }
+
+
+# ── 27. Protección selectiva — coordinación ─────────────────
+def protection_coordination(i_fault, breaker1, breaker2, curve1="C", curve2="C"):
+    """Verifica selectividad entre dos magnetotérmicos."""
+    ratios = {"B": (3, 5), "C": (5, 10), "D": (10, 20)}
+    lo1, hi1 = ratios.get(curve1, (5, 10))
+    lo2, hi2 = ratios.get(curve2, (5, 10))
+    # disparo magnético mínimo
+    mag1_min = breaker1 * lo1
+    mag2_min = breaker2 * lo2
+    # selectividad: Icc < mag_min del protector aguas arriba
+    selective = i_fault < mag1_min if mag1_min > 0 else False
+    return {
+        "breaker1": breaker1, "breaker2": breaker2,
+        "mag1_min": mag1_min, "mag2_min": mag2_min,
+        "i_fault": i_fault, "selective": selective,
+        "msg": "Selectivo" if selective else "No selectivo — revisar coordinación",
+    }
+
+
+# ── 28. Relé térmico — motor ────────────────────────────────
+def thermal_relay(i_nom, i_start, service_factor=1.15):
+    """Ajuste de relé térmico para motor."""
+    i_set = i_nom * service_factor
+    # rango típico del relé: ±20% de i_set
+    i_min = i_set * 0.8
+    i_max = i_set * 1.2
+    return {
+        "i_nom_a": i_nom, "i_start_a": i_start,
+        "i_set_a": round(i_set, 2), "range": (round(i_min, 2), round(i_max, 2)),
+        "trip_class": "10" if i_start / i_nom < 7 else "20",
+    }
