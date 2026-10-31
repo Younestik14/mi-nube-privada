@@ -42,7 +42,7 @@ body {
   overflow: hidden;
 }
 
-.sidebar {
+.project-tree {
   width: 260px;
   background: #0f172a;
   border-right: 1px solid #334155;
@@ -50,68 +50,88 @@ body {
   overflow-y: auto;
 }
 
+.tree-item {
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 13px;
+  border-radius: 4px;
+}
+
+.tree-item:hover { background: #334155; }
+.tree-item.selected { background: #3b82f6; }
+
 .canvas-area {
   flex: 1;
   background: #0f172a;
   position: relative;
   overflow: auto;
+  padding: 16px;
 }
 
 .hmi-panel {
-  width: 280px;
+  width: 300px;
   background: #0f172a;
   border-left: 1px solid #334155;
   padding: 12px;
   overflow-y: auto;
 }
 
-.block {
+.block-palette {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.block-item {
   background: #334155;
   border: 1px solid #475569;
   border-radius: 4px;
-  padding: 8px 12px;
-  margin: 4px;
-  cursor: pointer;
-  display: inline-block;
-  font-size: 12px;
+  padding: 6px 8px;
+  font-size: 11px;
+  cursor: grab;
+  text-align: center;
 }
 
-.block:hover { border-color: #3b82f6; }
+.block-item:hover { border-color: #3b82f6; background: #3b82f622; }
 
 .ladder-rung {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   padding: 8px;
   border-bottom: 1px solid #334155;
-  min-height: 40px;
+  min-height: 44px;
+  background: #1e293b;
 }
 
-.contact-no {
-  width: 40px;
-  height: 30px;
+.rail {
+  width: 4px;
+  height: 36px;
+  background: #475569;
+  border-radius: 2px;
+}
+
+.contact {
+  width: 44px;
+  height: 32px;
   border: 2px solid #22c55e;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 10px;
   color: #22c55e;
+  background: #22c55e11;
+  cursor: pointer;
 }
 
-.contact-nc {
-  width: 40px;
-  height: 30px;
-  border: 2px solid #ef4444;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  color: #ef4444;
-}
+.contact.nc { border-color: #ef4444; color: #ef4444; background: #ef444411; }
+.contact.p { border-color: #f59e0b; color: #f59e0b; background: #f59e0b11; }
+.contact.n { border-color: #a78bfa; color: #a78bfa; background: #a78bfa11; }
 
 .coil {
-  width: 40px;
-  height: 30px;
+  width: 44px;
+  height: 32px;
   border: 2px solid #3b82f6;
   border-radius: 50%;
   display: flex;
@@ -119,22 +139,112 @@ body {
   justify-content: center;
   font-size: 10px;
   color: #3b82f6;
+  background: #3b82f611;
+  cursor: pointer;
 }
 
-.timer-block {
+.coil.set { border-color: #22c55e; color: #22c55e; }
+.coil.reset { border-color: #ef4444; color: #ef4444; }
+.coil.neg { border-color: #f97316; color: #f97316; }
+
+.timer {
   background: #f59e0b22;
   border: 2px solid #f59e0b;
   border-radius: 4px;
   padding: 4px 8px;
   font-size: 10px;
   color: #f59e0b;
+  min-width: 60px;
+  text-align: center;
 }
 
-.counter-block {
+.counter {
   background: #a78bfa22;
   border: 2px solid #a78bfa;
   border-radius: 4px;
   padding: 4px 8px;
   font-size: 10px;
   color: #a78bfa;
+  min-width: 60px;
+  text-align: center;
 }
+
+.cmp-block {
+  background: #06b6d422;
+  border: 2px solid #06b6d4;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 10px;
+  color: #06b6d4;
+  min-width: 60px;
+  text-align: center;
+}
+
+.math-block {
+  background: #ec489922;
+  border: 2px solid #ec4899;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 10px;
+  color: #ec4899;
+  min-width: 60px;
+  text-align: center;
+}
+
+.move-block {
+  background: #14b8a622;
+  border: 2px solid #14b8a6;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 10px;
+  color: #14b8a6;
+  min-width: 50px;
+  text-align: center;
+}
+
+.wire {
+  height: 2px;
+  background: #475569;
+  flex: 1;
+  min-width: 20px;
+}
+
+.wire.active { background: #22c55e; }
+
+.hmi-button {
+  background: #334155;
+  border: 2px solid #475569;
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+.hmi-button:active { background: #3b82f6; }
+
+.hmi-lamp {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #334155;
+  border: 2px solid #475569;
+  display: inline-block;
+  margin: 4px;
+}
+
+.hmi-lamp.on { background: #22c55e; border-color: #22c55e; box-shadow: 0 0 12px #22c55e; }
+
+.memory-table {
+  width: 100%;
+  font-size: 12px;
+  border-collapse: collapse;
+}
+
+.memory-table th, .memory-table td {
+  border: 1px solid #334155;
+  padding: 4px 8px;
+  text-align: left;
+}
+
+.memory-table th { background: #0f172a; }

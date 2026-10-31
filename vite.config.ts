@@ -9,7 +9,5 @@ export default defineConfig({
     outDir: "../../dist/renderer",
     emptyOutDir: true,
   },
-  server: {
-    port: 5173,
-  },
+  server: { port: 5173 },
 });

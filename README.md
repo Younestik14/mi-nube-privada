@@ -1,19 +1,19 @@
-# TIA Portal Simulator — KOP (Ladder)
+# TIA Portal Simulator — Clon educativo
 
-Simulador de TIA Portal para PLCs Siemens S7-1200/S7-1500 con lenguaje KOP (Kontaktplan / Ladder).
+Simulador de TIA Portal para PLCs Siemens S7-1200/S7-1500 con lenguaje KOP (Ladder).
 
 ## Características
-- Editor visual de ladder (contactos, bobinas, temporizadores, contadores, comparadores, matemáticas, MOVE)
-- Simulación en tiempo real con HMI (entradas/salidas)
-- Modos STOP / RUN / DEBUG (paso a ciclo)
-- Memoria de proceso (I, Q, M, T, C, DB)
+- Editor visual de ladder (contactos, bobinas, temporizadores, contadores, comparadores, matemáticas, MOVE, NOT, AND, OR, XOR)
+- Árbol de proyecto (OB, FB, FC, DB)
+- HMI (entradas checkbox, salidas con lámparas)
+- Modos STOP / RUN / DEBUG
+- Memoria de proceso (I, Q, M, T, C)
 - Guardar/cargar proyectos JSON
 - CPU S7-1200 y S7-1500
 
 ## Stack
 - Electron + React + TypeScript + Vite
-- React Flow (editor de nodos)
-- Zustand (estado)
+- Tailwind CSS
 
 ## Desarrollo
 ```bash

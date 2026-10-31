@@ -5,9 +5,9 @@ let mainWindow: BrowserWindow | null = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1400,
+    width: 1600,
     height: 900,
-    minWidth: 1000,
+    minWidth: 1200,
     minHeight: 700,
     title: "TIA Portal Simulator",
     webPreferences: {
@@ -24,21 +24,9 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
   }
 
-  mainWindow.on("closed", () => {
-    mainWindow = null;
-  });
+  mainWindow.on("closed", () => { mainWindow = null; });
 }
 
 app.whenReady().then(createWindow);
-
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
-});
-
-app.on("activate", () => {
-  if (mainWindow === null) {
-    createWindow();
-  }
-});
+app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });
+app.on("activate", () => { if (mainWindow === null) createWindow(); });
